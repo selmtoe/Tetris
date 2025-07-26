@@ -3,12 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>JS Canvas Tetris (w/ Image Scanner) - v10</title>
+<title>JS Canvas Tetris (w/ Image Scanner) - v10.1</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
 <style>
 body {
     background-color: #1a1a2e;
     color: #e0e0e0;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    /* ▼▼▼ 変更点: body全体の基本フォントも設定 ▼▼▼ */
+    font-family: 'Orbitron', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -36,6 +41,8 @@ canvas {
     border-radius: 5px;
     cursor: pointer;
     font-size: 16px;
+    /* ▼▼▼ 変更点: ボタンのフォントも設定 ▼▼▼ */
+    font-family: 'Orbitron', sans-serif;
     transition: background-color 0.2s;
 }
 .controls button:hover, .controls label:hover {
@@ -83,10 +90,8 @@ const HOLD_AREA_WIDTH = 5 * BLOCK_SIZE;
 const PLAYFIELD_WIDTH = BOARD_WIDTH * BLOCK_SIZE;
 const NEXT_AREA_WIDTH = 5 * BLOCK_SIZE;
 const PADDING = 20;
-// ▼▼▼ 変更点: キャンバスの高さをブロック半個分高くする ▼▼▼
 const CANVAS_HEIGHT = (BOARD_VISIBLE_HEIGHT + 0.5) * BLOCK_SIZE;
 const CANVAS_WIDTH = HOLD_AREA_WIDTH + PLAYFIELD_WIDTH + NEXT_AREA_WIDTH + PADDING * 2;
-// ▲▲▲ 変更ここまで ▲▲▲
 const PLAYFIELD_X_OFFSET = HOLD_AREA_WIDTH + PADDING;
 const DAS_MS = 160; const ARR_MS = 30; const SDF_MS = 20;
 const COLORS = { 'I': '#00f0f0', 'O': '#f0f000', 'T': '#a000f0', 'L': '#f0a000', 'J': '#0000f0', 'S': '#00f000', 'Z': '#f00000', 'G': '#808080' };
@@ -101,7 +106,6 @@ const TETROMINOS = {
 };
 const SRS_OFFSETS = { "JLSTZ": { "0_1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], "1_0": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], "1_2": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], "2_1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], "2_3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], "3_2": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], "3_0": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], "0_3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], }, "I": { "0_1": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], "1_0": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], "1_2": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], "2_1": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], "2_3": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], "3_2": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], "3_0": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], "0_3": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], } };
 
-// **MODIFIED**: Simplified states
 const GAME_STATE = {
     PLAYING: 'playing',
     SELECT_BOTTOM_LEFT: 'select_bl',
@@ -138,9 +142,7 @@ class Player {
         this.player.pieceType = this.nextQueue.shift();
         this.player.rotation = 0;
         this.player.x = Math.floor(BOARD_WIDTH / 2) - Math.floor(TETROMINOS[this.player.pieceType].center[0]) - 1;
-        // ▼▼▼ 変更点: 出現位置を1マス下げる ▼▼▼
         this.player.y = 19;
-        // ▲▲▲ 変更ここまで ▲▲▲
         this.nextQueue.push(this.getNextPieceFromBag());
         this.canHold = true;
         this.lastMoveWasRotation = false;
@@ -158,20 +160,14 @@ class Player {
     getGhostY() { const shape = this.getShape(this.player.pieceType, this.player.rotation); let y = this.player.y; while (!this.checkCollision(this.player.x, y + 1, shape)) y++; return y; }
     lockPiece() {
         const shape = this.getShape(this.player.pieceType, this.player.rotation);
-
-        // ▼▼▼ 変更点: 設置ミノが盤面外ならゲームオーバー ▼▼▼
         const isEntirelyAboveVisibleArea = shape.every(block => {
             const boardY = Math.round(this.player.y + block[1]);
-            // y座標が20より小さい（＝見えない領域にある）かチェック
             return boardY < (BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT);
         });
-
         if (isEntirelyAboveVisibleArea) {
             this.gameOver = true;
-            return; // Game Overなら、この後の処理は行わない
+            return;
         }
-        // ▲▲▲ 変更ここまで ▲▲▲
-
         const tspinResult = this.checkForTSpin();
         this.specialMoveText = [];
         for (const block of shape) {
@@ -267,9 +263,7 @@ class Player {
         }
         this.drawUI();
         this.ctx.save();
-        // ▼▼▼ 変更点: 描画全体をブロック半個分下にずらす ▼▼▼
         this.ctx.translate(PLAYFIELD_X_OFFSET, 0.5 * BLOCK_SIZE);
-        // ▲▲▲ 変更ここまで ▲▲▲
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
         this.ctx.fillRect(0, 0, PLAYFIELD_WIDTH, CANVAS_HEIGHT);
         this.ctx.strokeStyle = '#4b4b7c';
@@ -305,10 +299,82 @@ class Player {
         this.ctx.globalAlpha = 1.0;
     }
     drawPiece(shape, x, y, pieceType, isGhost) { shape.forEach(block => { const px = Math.round(x + block[0]) * BLOCK_SIZE; const py = (Math.round(y + block[1]) - BOARD_HEIGHT + BOARD_VISIBLE_HEIGHT) * BLOCK_SIZE; this.drawBlock(pieceType, px, py, isGhost); }); }
-    drawUI() { this.ctx.textAlign = 'center'; this.ctx.fillStyle = '#FFFFFF'; this.ctx.font = 'bold 20px Segoe UI'; this.ctx.fillText('HOLD', HOLD_AREA_WIDTH / 2, 40); if (this.holdPiece) { const shape = this.getShape(this.holdPiece, 0); shape.forEach(block => { const px = (HOLD_AREA_WIDTH / 2) - (TETROMINOS[this.holdPiece].center[0] * BLOCK_SIZE) + (block[0] * BLOCK_SIZE); const py = 70 - (TETROMINOS[this.holdPiece].center[1] * BLOCK_SIZE) + (block[1] * BLOCK_SIZE); this.drawBlock(this.holdPiece, px, py); }); } const meterX = PLAYFIELD_X_OFFSET - 12; const meterWidth = 8; const pendingHeight = Math.min(this.pendingGarbage, BOARD_VISIBLE_HEIGHT) * BLOCK_SIZE; if (pendingHeight > 0) { this.ctx.fillStyle = 'red'; this.ctx.fillRect(meterX, CANVAS_HEIGHT - pendingHeight, meterWidth, pendingHeight); } const queuedLines = this.garbageQueue.reduce((sum, g) => sum + g.lines, 0); const queuedHeight = Math.min(queuedLines, BOARD_VISIBLE_HEIGHT - this.pendingGarbage) * BLOCK_SIZE; if (queuedHeight > 0) { this.ctx.fillStyle = '#f0f000'; this.ctx.fillRect(meterX, CANVAS_HEIGHT - pendingHeight - queuedHeight, meterWidth, queuedHeight); } this.ctx.fillStyle = '#FFFFFF'; const rightX = PLAYFIELD_X_OFFSET + PLAYFIELD_WIDTH + PADDING + NEXT_AREA_WIDTH / 2; this.ctx.font = 'bold 20px Segoe UI'; this.ctx.fillText('NEXT', rightX, 200); for (let i = 0; i < 5; i++) { const pieceType = this.nextQueue[i]; if (!pieceType) continue; const shape = this.getShape(pieceType, 0); shape.forEach(block => { const px = rightX - (TETROMINOS[pieceType].center[0] * BLOCK_SIZE) + (block[0] * BLOCK_SIZE); const py = 230 + (i * BLOCK_SIZE * 2.5) - (TETROMINOS[pieceType].center[1] * BLOCK_SIZE) + (block[1] * BLOCK_SIZE); this.drawBlock(pieceType, px, py); }); } }
-    drawSpecialMoveText() { const centerX = PLAYFIELD_WIDTH / 2; const startY = CANVAS_HEIGHT / 2 - (this.specialMoveText.length * 20); this.ctx.textAlign = 'center'; this.ctx.font = 'bold 28px Segoe UI'; this.ctx.fillStyle = '#FFFFFF'; for (let i = 0; i < this.specialMoveText.length; i++) { const text = this.specialMoveText[i]; const y = startY + (i * 35); this.ctx.fillText(text, centerX, y); } }
-    drawMessage(title, subtitle) { const centerX = PLAYFIELD_WIDTH / 2; const centerY = CANVAS_HEIGHT / 2; this.ctx.fillStyle = 'rgba(0, 0, 0, 0.75)'; this.ctx.fillRect(0, 0, PLAYFIELD_WIDTH, CANVAS_HEIGHT); this.ctx.fillStyle = '#FFFFFF'; this.ctx.textAlign = 'center'; this.ctx.font = '48px Segoe UI'; this.ctx.fillText(title, centerX, centerY); this.ctx.font = '24px Segoe UI'; this.ctx.fillText(subtitle, centerX, centerY + 40); }
-    drawConfigScreen() { const centerX = this.canvas.width / 2; const startY = 80; this.ctx.fillStyle = 'rgba(0, 0, 0, 0.85)'; this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height); this.ctx.fillStyle = '#FFFFFF'; this.ctx.textAlign = 'center'; this.ctx.font = 'bold 36px Segoe UI'; this.ctx.fillText("Controller Settings", centerX, startY); this.ctx.font = '18px Segoe UI'; this.ctx.fillText("Use D-Pad Up/Down to select. Press 'A' button to change.", centerX, startY + 40); this.ctx.fillText("Press 'Select' or 'P'/'O' key to exit and save.", centerX, startY + 70); const actions = Object.keys(this.gamepadMap); this.ctx.textAlign = 'left'; actions.forEach((actionKey, index) => { const y = startY + 140 + (index * 45); const mapping = this.gamepadMap[actionKey]; this.ctx.fillStyle = (index === this.selectedConfigActionIndex) ? '#f0f000' : '#FFFFFF'; this.ctx.font = 'bold 24px Segoe UI'; this.ctx.fillText(mapping.label, centerX - 250, y); this.ctx.font = '24px Segoe UI'; let buttonText = `Button ${mapping.index}`; if (this.configActionToRebind === actionKey) { buttonText = "Press any button..."; this.ctx.fillStyle = '#00f0f0'; } this.ctx.fillText(buttonText, centerX + 50, y); }); }
+    drawUI() {
+        this.ctx.textAlign = 'center';
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.font = 'bold 24px "Orbitron", sans-serif';
+        this.ctx.fillText('HOLD', HOLD_AREA_WIDTH / 2, 40);
+        if (this.holdPiece) {
+            const shape = this.getShape(this.holdPiece, 0);
+            shape.forEach(block => {
+                const px = (HOLD_AREA_WIDTH / 2) - (TETROMINOS[this.holdPiece].center[0] * BLOCK_SIZE) + (block[0] * BLOCK_SIZE);
+                const py = 70 - (TETROMINOS[this.holdPiece].center[1] * BLOCK_SIZE) + (block[1] * BLOCK_SIZE);
+                this.drawBlock(this.holdPiece, px, py);
+            });
+        }
+        const meterX = PLAYFIELD_X_OFFSET - 12;
+        const meterWidth = 8;
+        const pendingHeight = Math.min(this.pendingGarbage, BOARD_VISIBLE_HEIGHT) * BLOCK_SIZE;
+        if (pendingHeight > 0) {
+            this.ctx.fillStyle = 'red';
+            this.ctx.fillRect(meterX, CANVAS_HEIGHT - pendingHeight, meterWidth, pendingHeight);
+        }
+        const queuedLines = this.garbageQueue.reduce((sum, g) => sum + g.lines, 0);
+        const queuedHeight = Math.min(queuedLines, BOARD_VISIBLE_HEIGHT - this.pendingGarbage) * BLOCK_SIZE;
+        if (queuedHeight > 0) {
+            this.ctx.fillStyle = '#f0f000';
+            this.ctx.fillRect(meterX, CANVAS_HEIGHT - pendingHeight - queuedHeight, meterWidth, queuedHeight);
+        }
+        this.ctx.fillStyle = '#FFFFFF';
+        const rightX = PLAYFIELD_X_OFFSET + PLAYFIELD_WIDTH + PADDING + NEXT_AREA_WIDTH / 2;
+        this.ctx.font = 'bold 24px "Orbitron", sans-serif';
+        this.ctx.fillText('NEXT', rightX, 200);
+        for (let i = 0; i < 5; i++) {
+            const pieceType = this.nextQueue[i];
+            if (!pieceType) continue;
+            const shape = this.getShape(pieceType, 0);
+            shape.forEach(block => {
+                const px = rightX - (TETROMINOS[pieceType].center[0] * BLOCK_SIZE) + (block[0] * BLOCK_SIZE);
+                const py = 230 + (i * BLOCK_SIZE * 2.5) - (TETROMINOS[pieceType].center[1] * BLOCK_SIZE) + (block[1] * BLOCK_SIZE);
+                this.drawBlock(pieceType, px, py);
+            });
+        }
+    }
+    // ▼▼▼ 変更点: フォントを Orbitron に変更 ▼▼▼
+    drawSpecialMoveText() { const centerX = PLAYFIELD_WIDTH / 2; const startY = CANVAS_HEIGHT / 2 - (this.specialMoveText.length * 20); this.ctx.textAlign = 'center'; this.ctx.font = 'bold 28px "Orbitron", sans-serif'; this.ctx.fillStyle = '#FFFFFF'; for (let i = 0; i < this.specialMoveText.length; i++) { const text = this.specialMoveText[i]; const y = startY + (i * 35); this.ctx.fillText(text, centerX, y); } }
+    // ▼▼▼ 変更点: フォントを Orbitron に変更 ▼▼▼
+    drawMessage(title, subtitle) { const centerX = PLAYFIELD_WIDTH / 2; const centerY = CANVAS_HEIGHT / 2; this.ctx.fillStyle = 'rgba(0, 0, 0, 0.75)'; this.ctx.fillRect(0, 0, PLAYFIELD_WIDTH, CANVAS_HEIGHT); this.ctx.fillStyle = '#FFFFFF'; this.ctx.textAlign = 'center'; this.ctx.font = 'bold 48px "Orbitron", sans-serif'; this.ctx.fillText(title, centerX, centerY); this.ctx.font = '24px "Orbitron", sans-serif'; this.ctx.fillText(subtitle, centerX, centerY + 40); }
+    // ▼▼▼ 変更点: フォントを Orbitron に統一し、説明文を修正 ▼▼▼
+    drawConfigScreen() {
+        const centerX = this.canvas.width / 2;
+        const startY = 80;
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.textAlign = 'center';
+        this.ctx.font = 'bold 36px "Orbitron", sans-serif';
+        this.ctx.fillText("Controller Settings", centerX, startY);
+        this.ctx.font = '18px "Orbitron", sans-serif';
+        this.ctx.fillText("Use D-Pad Up/Down to select. Press 'A' button to change.", centerX, startY + 40);
+        // 説明文から '/O' を削除
+        this.ctx.fillText("Press 'Select' or 'P' key to exit and save.", centerX, startY + 70);
+        const actions = Object.keys(this.gamepadMap);
+        this.ctx.textAlign = 'left';
+        actions.forEach((actionKey, index) => {
+            const y = startY + 140 + (index * 45);
+            const mapping = this.gamepadMap[actionKey];
+            this.ctx.fillStyle = (index === this.selectedConfigActionIndex) ? '#f0f000' : '#FFFFFF';
+            this.ctx.font = 'bold 24px "Orbitron", sans-serif';
+            this.ctx.fillText(mapping.label, centerX - 250, y);
+            this.ctx.font = '24px "Orbitron", sans-serif';
+            let buttonText = `Button ${mapping.index}`;
+            if (this.configActionToRebind === actionKey) {
+                buttonText = "Press any button...";
+                this.ctx.fillStyle = '#00f0f0';
+            }
+            this.ctx.fillText(buttonText, centerX + 50, y);
+        });
+    }
     loadScannedBoard(scannedData) { this.reset(); this.board = Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill(null)); for (let y = 0; y < BOARD_VISIBLE_HEIGHT; y++) { for (let x = 0; x < BOARD_WIDTH; x++) { this.board[BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT + y][x] = scannedData[y][x]; } } this.gameOver = false; this.isClearingLine = false; this.spawnNewPiece(); }
 }
 
@@ -377,7 +443,7 @@ function updateUIForState() {
         case GAME_STATE.SELECT_TOP_RIGHT:
             cancelBtn.style.display = 'block';
             instructions.style.display = 'block';
-            instructions.textContent = '右上をクリック (再選択可) →「読込開始」で確定'; // **MODIFIED**
+            instructions.textContent = '右上をクリック (再選択可) →「読込開始」で確定';
             canvas.style.cursor = 'crosshair';
             if (scanTopRight) {
                 confirmBtn.style.display = 'block';
@@ -397,7 +463,8 @@ function drawScannerUI() {
     if (scanImage) ctx.drawImage(scanImage, 0, 0, canvas.width, canvas.height);
 
     ctx.lineWidth = 2;
-    ctx.font = '14px Segoe UI';
+    // ▼▼▼ 変更点: フォントを Orbitron に変更 ▼▼▼
+    ctx.font = '14px "Orbitron", sans-serif';
     
     if (scanBottomLeft) {
         ctx.fillStyle = 'lime';
@@ -408,7 +475,6 @@ function drawScannerUI() {
         ctx.stroke();
     }
     
-    // Draw the fixed rectangle if top-right has been clicked
     if (scanTopRight) {
         const width = scanTopRight.x - scanBottomLeft.x;
         const height = scanBottomLeft.y - scanTopRight.y;
@@ -420,18 +486,17 @@ function drawScannerUI() {
         ctx.fill();
     }
     
-    // Always draw the dynamic preview rectangle in the top-right selection phase
     if (currentGameState === GAME_STATE.SELECT_TOP_RIGHT && scanBottomLeft) {
         const width = currentMousePos.x - scanBottomLeft.x;
         if (width > 0) {
             const height = width * 2;
             const tempTopRightY = scanBottomLeft.y - height;
             ctx.strokeStyle = 'rgba(0, 255, 255, 0.7)';
-            ctx.setLineDash([5, 5]); // Dashed line for preview
+            ctx.setLineDash([5, 5]);
             ctx.beginPath();
             ctx.rect(scanBottomLeft.x, tempTopRightY, width, height);
             ctx.stroke();
-            ctx.setLineDash([]); // Reset line dash
+            ctx.setLineDash([]);
         }
     }
 }
@@ -447,7 +512,6 @@ function handleCanvasClick(event) {
         scanBottomLeft = { x, y };
         updateUIForState();
     } else if (currentGameState === GAME_STATE.SELECT_TOP_RIGHT) {
-        // **MODIFIED**: Just update the point, don't change state
         const width = x - scanBottomLeft.x;
         if (width > 10) {
             const height = width * 2;
@@ -562,7 +626,6 @@ document.getElementById('imageLoader').addEventListener('change', (e) => {
 });
 
 document.getElementById('confirmBtn').addEventListener('click', () => {
-    // **MODIFIED**: New button logic
     if (currentGameState === GAME_STATE.SELECT_BOTTOM_LEFT && scanBottomLeft) {
         currentGameState = GAME_STATE.SELECT_TOP_RIGHT;
         updateUIForState();
