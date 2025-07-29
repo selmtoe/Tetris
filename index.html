@@ -968,10 +968,10 @@ document.addEventListener('DOMContentLoaded', () => {
         "name": "Tetris Simulator 2P & Editor", "short_name": "TetrisSim", "start_url": ".",
         "display": "standalone", "background_color": "#1a1a2e", "theme_color": "#1a1a2e",
         "description": "A Tetris simulator with a 2-player mode and a powerful board editor.",
-        "icons": [
-            { "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxOTIgMTkyIiB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiI+PHJlY3Qgd2lkdGg9IjE5MiIgaGVpZ2h0PSIxOTIiIGZpbGw9IiMxYTJhMmUiLz48ZyBmaWxsPSIjZmZmIj48cmVjdCB4PSI1NiIgeT0iNzYiIHdpZHRoPSI4MCIgaGVpZ2h0PSI0MCIgcng9IjUiLz48cmVjdCB4PSI3NiIgeT0iMzYiIHdpZHRoPSI0MCIgaGVpZ2h0PSIxMjAiIHJ4PSI1Ii8+PC9nPjwvc3ZnPg==", "type": "image/svg+xml", "sizes": "192x192" },
-            { "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiI+PHJlY3Qgd2lkdGg9IjUxMiIgaGVpZ2h0PSI1MTIiIGZpbGw9IiMxYTJhMmUiLz48ZyBmaWxsPSIjZmZmIj48cmVjdCB4PSIxNDkiIHk9IjIwMiIgd2lkdGg9IjIxMyIgaGVpZ2h0PSIxMDciIHJ4PSIxMyIvPjxyZWN0IHg9IjIwMiIgeT0iOTUiIHdpZHRoPSIxMDciIGhlaWdodD0iMzIyIiByeD0iMTMiLz48L2c+PC9zdmc+", "type": "image/svg+xml", "sizes": "512x512" }
-        ]
+    "icons": [
+        { "src": "Icons/icon-192x192.png", "type": "image/png", "sizes": "192x192" },
+        { "src": "Icons/icon-512x512.png", "type": "image/png", "sizes": "512x512" }
+    ]
     };
     const manifestURL = 'data:application/json;base64,' + btoa(unescape(encodeURIComponent(JSON.stringify(manifest))));
     document.getElementById('manifest-link').setAttribute('href', manifestURL);
