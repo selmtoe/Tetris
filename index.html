@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tetris Simulator 2P & Editor - v11.9 (Final Fix)</title>
+<title>Tetris Simulator 2P & Editor</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4b4b7c">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
@@ -48,7 +50,8 @@
     .mode-selection .button.active { background-color: var(--primary-hover-color); box-shadow: 0 0 10px var(--primary-hover-color); }
 
     .player-editors { display: flex; justify-content: space-around; gap: 20px; flex-wrap: wrap; margin-top: 15px; }
-    .editor-column { flex: 1; min-width: 320px; display: flex; flex-direction: column; gap: 15px; }
+    /* ▼▼▼【修正】エディタ拡大に伴い最小幅を調整 ▼▼▼ */
+    .editor-column { flex: 1; min-width: 350px; display: flex; flex-direction: column; gap: 15px; }
 
     .mino-icons, .color-palette { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
     .mino-icon, .color-swatch {
@@ -152,7 +155,7 @@
                         <label for="imageLoader-p2" class="button">Load Img</label>
                         <input type="file" id="imageLoader-p2" data-player="p2" accept="image/*">
                     </div>
-                    <div class="key-config-controls" style="margin-top: 15px; text-align: center;">
+                     <div class="key-config-controls" style="margin-top: 15px; text-align: center;">
                         <button class="button" id="p2-key-config-btn">キー/パッド設定</button>
                     </div>
                 </div>
@@ -161,8 +164,11 @@
     </div>
     <div id="game-container">
         <canvas id="mainCanvas"></canvas>
+        <div id="game-controls" style="display: none; margin-top: 15px; text-align: center;">
+             <button id="backToEditorBtn" class="button">エディタに戻る</button>
+        </div>
         <div id="scan-instructions" style="display: none;"></div>
-        <div id="scan-controls" style="display: none; margin-top: 15px; display:flex; gap: 10px; justify-content:center;">
+        <div id="scan-controls" style="display: none; margin-top: 15px; gap: 10px; justify-content:center;">
              <button id="scanConfirmBtn" class="button">次へ</button>
              <button id="scanCancelBtn" class="button">キャンセル</button>
         </div>
@@ -185,7 +191,8 @@
 //  Constants & Global State
 // =================================================================
 const BLOCK_SIZE = 28;
-const EDITOR_BLOCK_SIZE = 16;
+// ▼▼▼【修正】エディタの盤面サイズを大きくする ▼▼▼
+const EDITOR_BLOCK_SIZE = 20;
 const BOARD_WIDTH = 10;
 const BOARD_VISIBLE_HEIGHT = 20;
 const BOARD_HEIGHT = 40; 
@@ -265,9 +272,8 @@ function* createMinoGenerator(customQueue) {
     }
 }
 
-// =================================================================
-//  Player Class
-// =================================================================
+// (Playerクラスは変更がないため省略)
+// Player Class (No Changes)
 class Player {
     constructor(id, offsetX, keyBindings, padIndex) {
         this.id = id; this.offsetX = offsetX; this.keyBindings = keyBindings; this.padIndex = padIndex;
@@ -381,7 +387,6 @@ class Player {
     move(dx,dy,isPlayer=true) { if(this.gameOver||!this.player.pieceType)return; const s=this.getShape(this.player.pieceType,this.player.rotation); if(!this.checkCollision(this.player.x+dx,this.player.y+dy,s)){this.player.x+=dx;this.player.y+=dy;if(isPlayer){this.lockTimer=0;this.lastMoveWasRotation=false;}}}
     getGhostY() {if(!this.player.pieceType) return this.player.y; const s=this.getShape(this.player.pieceType,this.player.rotation); let y=this.player.y; while(!this.checkCollision(this.player.x,y+1,s))y++; return y;}
     
-    // ▼▼▼【修正点】ハードドロップのロジックを修正▼▼▼
     hardDrop() {
         if (this.gameOver) return;
         const originalY = this.player.y;
@@ -487,7 +492,6 @@ class Player {
         else { this.riseGarbage(); this.spawnNewPiece(); }
     }
     
-    // ▼▼▼【修正点】T-Spinの判定ロジックを旧バージョンと同一のものに置き換え▼▼▼
     checkForTSpin() {
         if (this.player.pieceType !== 'T' || !this.lastMoveWasRotation) return null;
         const centerX = this.player.x + TETROMINOS['T'].center[0];
@@ -570,7 +574,6 @@ class Player {
         }
     }
     
-    // ▼▼▼【修正点】演出テキストの色を白に変更▼▼▼
     drawSpecialMoveText() {
         if (this.specialMoveTextTimer <= 0 || this.specialMoveText.length === 0) return;
         
@@ -596,7 +599,6 @@ class Player {
 
     drawMessage(t) { const cX = PLAYFIELD_WIDTH / 2; const cY = CANVAS_HEIGHT / 2; ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(0, -0.5*BLOCK_SIZE, PLAYFIELD_WIDTH, CANVAS_HEIGHT); ctx.fillStyle = '#FFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `bold ${BLOCK_SIZE * 1.5}px "Orbitron"`; ctx.fillText(t, cX, cY); ctx.textBaseline = 'alphabetic'; }
 }
-
 // =================================================================
 //  Editor, UI & Key-Config Functions
 // =================================================================
@@ -638,7 +640,42 @@ function setupPlayerEditor(playerId) {
     drawEditorField(playerId);
 }
 function updateNextQueueDisplay(playerId) { const qd = document.getElementById(`${playerId}-next-queue`); qd.innerHTML = ''; editorData[playerId].nextQueue.forEach(key => { const icon = document.createElement('div'); icon.className = 'mino-icon'; icon.style.backgroundColor = COLORS[key]; qd.appendChild(icon); }); }
-function drawEditorField(playerId) { const canvas = document.getElementById(`field-editor-canvas-${playerId}`), ctx = canvas.getContext('2d'), data = editorData[playerId]; ctx.fillStyle = '#0f0f18'; ctx.fillRect(0, 0, canvas.width, canvas.height); for (let y = 0; y < BOARD_VISIBLE_HEIGHT; y++) { for (let x = 0; x < BOARD_WIDTH; x++) { const pieceType = data.board[y + data.viewY]?.[x]; if (pieceType) { ctx.fillStyle = COLORS[pieceType]; ctx.fillRect(x * EDITOR_BLOCK_SIZE, y * EDITOR_BLOCK_SIZE, EDITOR_BLOCK_SIZE, EDITOR_BLOCK_SIZE); } } } }
+
+// ▼▼▼【修正】エディタのグリッド描画処理を修正 ▼▼▼
+function drawEditorField(playerId) {
+    const canvas = document.getElementById(`field-editor-canvas-${playerId}`),
+          ctx = canvas.getContext('2d'),
+          data = editorData[playerId];
+    ctx.fillStyle = '#0f0f18';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // ミノを描画
+    for (let y = 0; y < BOARD_VISIBLE_HEIGHT; y++) {
+        for (let x = 0; x < BOARD_WIDTH; x++) {
+            const pieceType = data.board[y + data.viewY]?.[x];
+            if (pieceType) {
+                ctx.fillStyle = COLORS[pieceType];
+                ctx.fillRect(x * EDITOR_BLOCK_SIZE, y * EDITOR_BLOCK_SIZE, EDITOR_BLOCK_SIZE, EDITOR_BLOCK_SIZE);
+            }
+        }
+    }
+
+    // グリッドを描画
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= BOARD_WIDTH; x++) {
+        ctx.beginPath();
+        ctx.moveTo(x * EDITOR_BLOCK_SIZE, 0);
+        ctx.lineTo(x * EDITOR_BLOCK_SIZE, canvas.height);
+        ctx.stroke();
+    }
+    for (let y = 0; y <= BOARD_VISIBLE_HEIGHT; y++) {
+        ctx.beginPath();
+        ctx.moveTo(0, y * EDITOR_BLOCK_SIZE);
+        ctx.lineTo(canvas.width, y * EDITOR_BLOCK_SIZE);
+        ctx.stroke();
+    }
+}
 function scrollEditorData(playerId, dy) { const data = editorData[playerId]; data.viewY -= dy; data.viewY = Math.max(0, Math.min(BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT, data.viewY)); drawEditorField(playerId); }
 
 function openKeyConfigModal(playerId) {
@@ -682,7 +719,6 @@ function bindKey(binding) {
     openKeyConfigModal(bindingPlayer);
 }
 
-// ▼▼▼【修正点】キー設定を読み込む関数を追加▼▼▼
 function loadKeyBindings() {
     try {
         const savedBindings = JSON.parse(localStorage.getItem('tetrisKeyBindings'));
@@ -698,8 +734,8 @@ function loadKeyBindings() {
 // =================================================================
 //  Image Scanner Functions
 // =================================================================
-function startScanProcess(file, playerId) { const reader = new FileReader(); reader.onload = e => { scanState.image = new Image(); scanState.image.onload = () => { scanState.targetPlayerId = playerId; scanState.bottomLeft = null; scanState.topRight = null; gameState = 'SCAN_BL'; document.getElementById('editor-container').style.display = 'none'; document.getElementById('game-container').style.display = 'block'; document.getElementById('scan-controls').style.display = 'flex'; const ar = scanState.image.width / scanState.image.height; const maxW = window.innerWidth * 0.9, maxH = window.innerHeight * 0.8; let nW = maxW, nH = nW / ar; if (nH > maxH) { nH = maxH; nW = nH * ar; } mainCanvas.width = nW; mainCanvas.height = nH; updateScanUI(); }; scanState.image.src = e.target.result; }; reader.readAsDataURL(file); }
-function endScanProcess() { gameState = 'EDITING'; scanState.image = null; document.getElementById('editor-container').style.display = 'flex'; document.getElementById('game-container').style.display = 'none'; document.getElementById('scan-controls').style.display = 'none'; ['p1', 'p2'].forEach(drawEditorField); }
+function startScanProcess(file, playerId) { const reader = new FileReader(); reader.onload = e => { scanState.image = new Image(); scanState.image.onload = () => { scanState.targetPlayerId = playerId; scanState.bottomLeft = null; scanState.topRight = null; gameState = 'SCAN_BL'; document.getElementById('editor-container').style.display = 'none'; document.getElementById('game-container').style.display = 'block'; document.getElementById('scan-controls').style.display = 'flex'; document.getElementById('game-controls').style.display = 'none'; const ar = scanState.image.width / scanState.image.height; const maxW = window.innerWidth * 0.9, maxH = window.innerHeight * 0.8; let nW = maxW, nH = nW / ar; if (nH > maxH) { nH = maxH; nW = nH * ar; } mainCanvas.width = nW; mainCanvas.height = nH; updateScanUI(); }; scanState.image.src = e.target.result; }; reader.readAsDataURL(file); }
+function endScanProcess() { gameState = 'EDITING'; scanState.image = null; document.getElementById('editor-container').style.display = 'flex'; document.getElementById('game-container').style.display = 'none'; document.getElementById('scan-controls').style.display = 'none'; document.getElementById('game-controls').style.display = 'none'; ['p1', 'p2'].forEach(drawEditorField); }
 function updateScanUI() { const instructions = document.getElementById('scan-instructions'), confirmBtn = document.getElementById('scanConfirmBtn'); instructions.style.display = 'block'; mainCanvas.style.cursor = 'crosshair'; if (gameState === 'SCAN_BL') { instructions.textContent = '画像の盤面の「左下」をクリック'; confirmBtn.style.visibility = scanState.bottomLeft ? 'visible' : 'hidden'; } else if (gameState === 'SCAN_TR') { instructions.textContent = '「右上」をクリック →「読込開始」'; confirmBtn.style.visibility = scanState.topRight ? 'visible' : 'hidden'; if (scanState.topRight) confirmBtn.textContent = '読込開始'; else confirmBtn.textContent = '次へ'; } }
 function drawScanner() { if (!scanState.image) return; ctx.clearRect(0, 0, mainCanvas.width, mainCanvas.height); ctx.drawImage(scanState.image, 0, 0, mainCanvas.width, mainCanvas.height); if (scanState.bottomLeft) { ctx.fillStyle = 'lime'; ctx.beginPath(); ctx.arc(scanState.bottomLeft.x, scanState.bottomLeft.y, 5, 0, Math.PI * 2); ctx.fill(); } if (scanState.topRight) { const {x: blx, y: bly} = scanState.bottomLeft, {x: trx, y: try_} = scanState.topRight; ctx.strokeStyle = 'fuchsia'; ctx.lineWidth = 2; ctx.strokeRect(blx, try_, trx - blx, bly - try_); } }
 function processAndLoadBoard() { if (!scanState.parsedColors) { scanState.parsedColors = {}; for (const key in COLORS) { const hex = COLORS[key].substring(1); scanState.parsedColors[key] = { r: parseInt(hex.substring(0,2),16), g: parseInt(hex.substring(2,4),16), b: parseInt(hex.substring(4,6),16) }; } } const tempC = document.createElement('canvas'); tempC.width = scanState.image.naturalWidth; tempC.height = scanState.image.naturalHeight; const tempCtx = tempC.getContext('2d', { willReadFrequently: true }); tempCtx.drawImage(scanState.image, 0, 0); const sX = scanState.image.naturalWidth / mainCanvas.width, sY = scanState.image.naturalHeight / mainCanvas.height; const iBL = { x: scanState.bottomLeft.x*sX, y: scanState.bottomLeft.y*sY }, iTR = { x: scanState.topRight.x*sX, y: scanState.topRight.y*sY }; const bW_px = iTR.x - iBL.x, bH_px = iBL.y - iTR.y, blW_px = bW_px/BOARD_WIDTH, blH_px = bH_px/BOARD_VISIBLE_HEIGHT; const targetBoard = editorData[scanState.targetPlayerId].board; targetBoard.forEach(row => row.fill(null)); for (let r = 0; r < BOARD_VISIBLE_HEIGHT; r++) { for (let c = 0; c < BOARD_WIDTH; c++) { const cX = iBL.x + (c+0.5)*blW_px, cY = iTR.y + (r+0.5)*blH_px; const sampleSize = Math.max(1, Math.floor(blW_px * 0.25)); const iD = tempCtx.getImageData(cX-sampleSize/2, cY-sampleSize/2, sampleSize, sampleSize).data; let avgR=0, avgG=0, avgB=0; for(let i=0; i<iD.length; i+=4){ avgR+=iD[i]; avgG+=iD[i+1]; avgB+=iD[i+2]; } const pCount = iD.length/4; avgR/=pCount; avgG/=pCount; avgB/=pCount; targetBoard[BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT + r][c] = findClosestColor(avgR, avgG, avgB); } } endScanProcess(); }
@@ -776,7 +812,6 @@ function gameLoop(currentTime) {
 document.addEventListener('DOMContentLoaded', () => {
     mainCanvas = document.getElementById('mainCanvas'); ctx = mainCanvas.getContext('2d');
     
-    // ▼▼▼【修正点】キー設定を読み込む▼▼▼
     loadKeyBindings();
 
     document.getElementById('mode-1p').addEventListener('click', () => { gameMode = '1P'; document.getElementById('mode-1p').classList.add('active'); document.getElementById('mode-2p').classList.remove('active'); document.getElementById('p2-editor-col').style.display = 'none'; });
@@ -784,6 +819,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     document.getElementById('startGameBtn').addEventListener('click', () => {
         gameState = 'PLAYING'; document.getElementById('editor-container').style.display = 'none'; document.getElementById('game-container').style.display = 'block';
+        // ▼▼▼【追加】ゲームコントロールを表示 ▼▼▼
+        document.getElementById('game-controls').style.display = 'block';
+
         players = [];
         if (gameMode === '1P') {
             mainCanvas.width = PLAYER_CANVAS_WIDTH; mainCanvas.height = CANVAS_HEIGHT;
@@ -805,7 +843,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('p1-key-config-btn').addEventListener('click', () => openKeyConfigModal('p1'));
     document.getElementById('p2-key-config-btn').addEventListener('click', () => openKeyConfigModal('p2'));
     
-    // ▼▼▼【修正点】キー設定の保存機能を追加▼▼▼
     document.getElementById('key-config-close').addEventListener('click', () => {
         try {
             localStorage.setItem('tetrisKeyBindings', JSON.stringify(keyBindings));
@@ -814,6 +851,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         document.getElementById('key-config-modal').style.display = 'none';
         isBindingKey = false; bindingPlayer = null; bindingAction = null;
+    });
+
+    // ▼▼▼【追加】エディタに戻るボタンのイベントリスナー ▼▼▼
+    document.getElementById('backToEditorBtn').addEventListener('click', () => {
+        gameState = 'EDITING';
+        document.getElementById('game-container').style.display = 'none';
+        document.getElementById('editor-container').style.display = 'flex';
+        players = [];
     });
 
     document.addEventListener('keydown', e => {
@@ -841,6 +886,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
+    // ▼▼▼【追加】PWAのService Workerを登録 ▼▼▼
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js').then(registration => {
+                console.log('ServiceWorker registration successful');
+            }).catch(err => {
+                console.log('ServiceWorker registration failed: ', err);
+            });
+        });
+    }
+
     setupEditors(); lastTime = performance.now(); requestAnimationFrame(gameLoop);
 });
 </script>
