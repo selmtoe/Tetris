@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#1a1a2e">
 <link rel="manifest" id="manifest-link">
@@ -16,11 +16,25 @@
         --font-color: #e0e0e0; --border-color: #4b4b7c; --canvas-bg-color: #0f0f18;
         --font-display: 'Orbitron', sans-serif; --font-ui: 'Noto Sans JP', sans-serif;
     }
-    body {
-        background-color: var(--bg-color); color: var(--font-color); font-family: var(--font-ui);
-        display: flex; flex-direction: column; justify-content: center; align-items: center;
-        padding: 1rem; box-sizing: border-box;
-    }
+
+html, body {
+    height: 100%;     /* HTMLとBodyの高さをビューポートの100%にする */
+    margin: 0;        /* デフォルトのマージンを削除 */
+    padding: 0;       /* デフォルトのパディングを削除 */
+    overflow: hidden; /* コンテンツがはみ出してもスクロールさせない */
+}
+body {
+    background-color: var(--bg-color);
+    color: var(--font-color);
+    font-family: var(--font-ui);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    /* padding: 1rem; */ /* <-- 全画面表示を目指すなら削除を推奨 */
+    box-sizing: border-box;
+}
+
     .main-container { text-align: center; }
     #editor-container {
         display: flex; flex-direction: column; gap: 15px; background-color: rgba(15, 15, 24, 0.8);
