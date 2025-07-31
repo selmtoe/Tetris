@@ -244,6 +244,36 @@ let gameSettings = {
 };
 
 const COLORS = { 'I': '#00f0f0', 'O': '#f0f000', 'T': '#a000f0', 'L': '#f0a000', 'J': '#0000f0', 'S': '#00f000', 'Z': '#f00000', 'G': '#999999' };
+
+// スキャン用の新しいカラーパレット定義
+const SCAN_COLOR_PALETTE = {
+    'NULL': ['#000000', '#302838'], // NULLとして判定する色
+    'G':    ['#999999', '#D8D8D8'], // Gとして判定する色
+    'I':    ['#019899', '#0199D5'],
+    'O':    ['#999A02', '#F9B900'],
+    'T':    ['#980099', '#871E88'],
+    'L':    ['#996700', '#F56100'],
+    'J':    ['#0000BB', '#004BA5'],
+    'S':    ['#10971F', '#5CB523'],
+    'Z':    ['#990000', '#DA1822']
+};
+
+// 16進数カラーコードをRGBオブジェクトに変換するヘルパー関数
+const hexToRgb = (hex) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return { r, g, b };
+};
+
+// SCAN_COLOR_PALETTEをあらかじめ解析し、扱いやすい形式に変換しておく
+// これにより、findClosestColorが呼ばれるたびに変換する無駄が省けます
+const PARSED_SCAN_COLORS = {};
+for (const key in SCAN_COLOR_PALETTE) {
+    PARSED_SCAN_COLORS[key] = SCAN_COLOR_PALETTE[key].map(hexToRgb);
+}
+
+
 const SCAN_COLORS = { ...COLORS, 'O': '#999A02', 'L': '#f0a000' };
 const MINO_SKINS = { default: COLORS };
 let activeSkin = MINO_SKINS.default;
@@ -852,8 +882,54 @@ const ar = scanState.image.naturalWidth / scanState.image.naturalHeight; const d
 function endScanProcess() { gameState = 'EDITING'; scanState.image = null; mainCanvas.style.width = ''; mainCanvas.style.height = ''; document.getElementById('editor-container').style.display = 'flex'; document.getElementById('game-container').style.display = 'none'; document.getElementById('scan-controls').style.display = 'none'; ['p1', 'p2'].forEach(drawEditorField); setTimeout(updateScale, 0); }
 function updateScanUI() { const instructions = document.getElementById('scan-instructions'), confirmBtn = document.getElementById('scanConfirmBtn'); instructions.style.display = 'block'; mainCanvas.style.cursor = 'crosshair'; if (gameState === 'SCAN_BL') { instructions.textContent = '画像の盤面の「左下」をクリック'; confirmBtn.style.visibility = scanState.bottomLeft ? 'visible' : 'hidden'; } else if (gameState === 'SCAN_TR') { instructions.textContent = '「右上」をクリック →「読込開始」'; confirmBtn.style.visibility = scanState.topRight ? 'visible' : 'hidden'; if (scanState.topRight) confirmBtn.textContent = '読込開始'; else confirmBtn.textContent = '次へ'; } }
 function drawScanner() { if (!scanState.image) return; ctx.clearRect(0, 0, mainCanvas.width, mainCanvas.height); ctx.drawImage(scanState.image, 0, 0, mainCanvas.width, mainCanvas.height); if (scanState.bottomLeft) { ctx.fillStyle = 'lime'; ctx.beginPath(); ctx.arc(scanState.bottomLeft.x, scanState.bottomLeft.y, 10, 0, Math.PI * 2); ctx.fill(); } if (scanState.topRight) { const {x: blx, y: bly} = scanState.bottomLeft, {x: trx, y: try_} = scanState.topRight; ctx.strokeStyle = 'fuchsia'; ctx.lineWidth = 4; ctx.strokeRect(blx, try_, trx - blx, bly - try_); } }
-function processAndLoadBoard() { if (!scanState.parsedColors) { scanState.parsedColors = {}; for (const key in SCAN_COLORS) { const hex = SCAN_COLORS[key].substring(1); scanState.parsedColors[key] = { r: parseInt(hex.substring(0,2),16), g: parseInt(hex.substring(2,4),16), b: parseInt(hex.substring(4,6),16) }; } } const tempC = document.createElement('canvas'); tempC.width = scanState.image.naturalWidth; tempC.height = scanState.image.naturalHeight; const tempCtx = tempC.getContext('2d', { willReadFrequently: true }); tempCtx.drawImage(scanState.image, 0, 0); const sX = scanState.image.naturalWidth / mainCanvas.width, sY = scanState.image.naturalHeight / mainCanvas.height; const iBL = { x: scanState.bottomLeft.x*sX, y: scanState.bottomLeft.y*sY }, iTR = { x: scanState.topRight.x*sX, y: scanState.topRight.y*sY }; const bW_px = iTR.x - iBL.x, bH_px = iBL.y - iTR.y, blW_px = bW_px/BOARD_WIDTH, blH_px = bH_px/BOARD_VISIBLE_HEIGHT; const targetBoard = editorData[scanState.targetPlayerId].board; targetBoard.forEach(row => row.fill(null)); for (let r = 0; r < BOARD_VISIBLE_HEIGHT; r++) { for (let c = 0; c < BOARD_WIDTH; c++) { const cX = iBL.x + (c+0.5)*blW_px, cY = iTR.y + (r+0.5)*blH_px; const sampleSize = Math.max(1, Math.floor(blW_px * 0.25)); const iD = tempCtx.getImageData(cX-sampleSize/2, cY-sampleSize/2, sampleSize, sampleSize).data; let avgR=0, avgG=0, avgB=0; for(let i=0; i<iD.length; i+=4){ avgR+=iD[i]; avgG+=iD[i+1]; avgB+=iD[i+2]; } const pCount = iD.length/4; avgR/=pCount; avgG/=pCount; avgB/=pCount; targetBoard[BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT + r][c] = findClosestColor(avgR, avgG, avgB); } } endScanProcess(); }
-function findClosestColor(r,g,b) { if(Math.pow(r-255,2)+Math.pow(g-255,2)+Math.pow(b-255,2)<35000) return 'G'; if(Math.pow(r-0,2)+Math.pow(g-0,2)+Math.pow(b-0,2)<6000) return null; let minD=Infinity, closestKey=null; for(const key in scanState.parsedColors){ if(key==='G')continue; const c2=scanState.parsedColors[key]; const d=Math.pow(r-c2.r,2)+Math.pow(g-c2.g,2)+Math.pow(b-c2.b,2); if(d<minD){minD=d;closestKey=key;}} return (minD > 25000) ? null : closestKey; }
+function processAndLoadBoard() { const tempC = document.createElement('canvas'); tempC.width = scanState.image.naturalWidth; tempC.height = scanState.image.naturalHeight; const tempCtx = tempC.getContext('2d', { willReadFrequently: true }); tempCtx.drawImage(scanState.image, 0, 0); const sX = scanState.image.naturalWidth / mainCanvas.width, sY = scanState.image.naturalHeight / mainCanvas.height; const iBL = { x: scanState.bottomLeft.x*sX, y: scanState.bottomLeft.y*sY }, iTR = { x: scanState.topRight.x*sX, y: scanState.topRight.y*sY }; const bW_px = iTR.x - iBL.x, bH_px = iBL.y - iTR.y, blW_px = bW_px/BOARD_WIDTH, blH_px = bH_px/BOARD_VISIBLE_HEIGHT; const targetBoard = editorData[scanState.targetPlayerId].board; targetBoard.forEach(row => row.fill(null)); for (let r = 0; r < BOARD_VISIBLE_HEIGHT; r++) { for (let c = 0; c < BOARD_WIDTH; c++) { const cX = iBL.x + (c+0.5)*blW_px, cY = iTR.y + (r+0.5)*blH_px; const sampleSize = Math.max(1, Math.floor(blW_px * 0.25)); const iD = tempCtx.getImageData(cX-sampleSize/2, cY-sampleSize/2, sampleSize, sampleSize).data; let avgR=0, avgG=0, avgB=0; for(let i=0; i<iD.length; i+=4){ avgR+=iD[i]; avgG+=iD[i+1]; avgB+=iD[i+2]; } const pCount = iD.length/4; avgR/=pCount; avgG/=pCount; avgB/=pCount; targetBoard[BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT + r][c] = findClosestColor(avgR, avgG, avgB); } } endScanProcess(); }
+
+function findClosestColor(r, g, b) {
+    const inputColor = { r, g, b };
+
+    // 色の距離を計算する関数 (ユークリッド距離の2乗)
+    const colorDistanceSq = (c1, c2) => {
+        return Math.pow(c1.r - c2.r, 2) + Math.pow(c1.g - c2.g, 2) + Math.pow(c1.b - c2.b, 2);
+    };
+
+    // 1. NULL色の判定 (閾値: 6000)
+    // PARSED_SCAN_COLORS.NULL のいずれかの色に近ければ null を返す
+    for (const nullColor of PARSED_SCAN_COLORS.NULL) {
+        if (colorDistanceSq(inputColor, nullColor) < 6000) {
+            return null;
+        }
+    }
+
+    // 2. G色の判定 (閾値: 35000)
+    // PARSED_SCAN_COLORS.G のいずれかの色に近ければ 'G' を返す
+    for (const gColor of PARSED_SCAN_COLORS.G) {
+        if (colorDistanceSq(inputColor, gColor) < 10000) {
+            return 'G';
+        }
+    }
+    
+    // 3. 最も近いテトリミノ色を探す
+    let minDistance = Infinity;
+    let closestKey = null;
+
+    // 'NULL' と 'G' を除いたキーのリスト ['I', 'O', 'T', ...]
+    const minoKeys = Object.keys(PARSED_SCAN_COLORS).filter(k => k !== 'NULL' && k !== 'G');
+
+    for (const key of minoKeys) {
+        // 各テトリミノの色の候補 (例: 'I' なら PPT色と fumen色) をループ
+        for (const targetColor of PARSED_SCAN_COLORS[key]) {
+            const distance = colorDistanceSq(inputColor, targetColor);
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestKey = key;
+            }
+        }
+    }
+
+    // 4. 最終判定: 最も近い色でも一定以上離れていたらNULLとみなす (閾値: 25000)
+    return (minDistance > 25000) ? null : closestKey;
+}
+
 
 // =================================================================
 //  Main Game Loop & Initialization
