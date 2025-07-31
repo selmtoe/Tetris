@@ -1001,7 +1001,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('scanCancelBtn').addEventListener('click', endScanProcess);
     document.getElementById('scanConfirmBtn').addEventListener('click', () => { if (gameState === 'SCAN_BL' && scanState.bottomLeft) gameState = 'SCAN_TR'; else if (gameState === 'SCAN_TR' && scanState.topRight) processAndLoadBoard(); updateScanUI(); });
-    mainCanvas.addEventListener('click', e => { if (!gameState.startsWith('SCAN')) return; const rect = mainCanvas.getBoundingClientRect(); const pos = { x: e.clientX-rect.left, y: e.clientY-rect.top }; if (gameState==='SCAN_BL') scanState.bottomLeft=pos; else if (gameState==='SCAN_TR') scanState.topRight=pos; updateScanUI(); });
+    mainCanvas.addEventListener('click', e => { if (!gameState.startsWith('SCAN')) return; const rect = mainCanvas.getBoundingClientRect();
+// 修正箇所：スケールを考慮して、キャンバス内の座標を計算
+const scaleX = mainCanvas.width / rect.width;
+const scaleY = mainCanvas.height / rect.height;
+const pos = { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+if (gameState==='SCAN_BL') scanState.bottomLeft=pos; else if (gameState==='SCAN_TR') scanState.topRight=pos; updateScanUI(); });
     
     document.getElementById('p1-key-config-btn').addEventListener('click', () => openKeyConfigModal('p1'));
     document.getElementById('p2-key-config-btn').addEventListener('click', () => openKeyConfigModal('p2'));
