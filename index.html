@@ -238,10 +238,16 @@ let gameSettings = {
     gravity: 1000,
     lockDelay: 500,
     garbageGrace: 1000,
-    garbageRandomness: 0.3
+    garbageRandomness: 0.3,
+    maxNext: 5,
+    showEffects: true
 };
 
 const COLORS = { 'I': '#00f0f0', 'O': '#f0f000', 'T': '#a000f0', 'L': '#f0a000', 'J': '#0000f0', 'S': '#00f000', 'Z': '#f00000', 'G': '#999999' };
+const SCAN_COLORS = { ...COLORS, 'O': '#999A02', 'L': '#996700' };
+const MINO_SKINS = { default: COLORS };
+let activeSkin = MINO_SKINS.default;
+
 const EDITOR_COLORS = {...COLORS, 'EMPTY': '#000000'};
 const TETROMINOS = {
     'I': { shape: [[0, 0], [1, 0], [2, 0], [3, 0]], center: [1.5, 0.5] }, 'O': { shape: [[0, 0], [1, 0], [0, -1], [1, -1]], center: [0.5, -0.5] },
@@ -322,7 +328,7 @@ class Player {
     reset() {
         this.player = { x: 0, y: 0, pieceType: null, rotation: 0 };
         this.nextQueue = [];
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < gameSettings.maxNext; i++) {
             this.nextQueue.push(this.minoGenerator.next().value);
         }
         this.holdPiece = null; this.canHold = true; this.gravityTimer = gameSettings.gravity; this.lockTimer = 0;
@@ -586,7 +592,7 @@ class Player {
         this.pendingGarbage = 0;
     }
 
-    drawBlock(p,x,y,isGhost=false) {if(y<-BLOCK_SIZE)return; ctx.fillStyle=COLORS[p]||'#FFF'; ctx.globalAlpha=isGhost?0.3:1.0; ctx.fillRect(x,y,BLOCK_SIZE,BLOCK_SIZE); if(!isGhost){ctx.strokeStyle= (p==='G'?'#444':'rgba(255,255,255,0.4)');ctx.lineWidth= (p==='G'?2:1);ctx.strokeRect(x+1,y+1,BLOCK_SIZE-2,BLOCK_SIZE-2);}ctx.globalAlpha=1.0;}
+    drawBlock(p,x,y,isGhost=false) {if(y<-BLOCK_SIZE)return; ctx.fillStyle=activeSkin[p]||'#FFF'; ctx.globalAlpha=isGhost?0.3:1.0; ctx.fillRect(x,y,BLOCK_SIZE,BLOCK_SIZE); if(!isGhost){ctx.strokeStyle= (p==='G'?'#444':'rgba(255,255,255,0.4)');ctx.lineWidth= (p==='G'?2:1);ctx.strokeRect(x+1,y+1,BLOCK_SIZE-2,BLOCK_SIZE-2);}ctx.globalAlpha=1.0;}
     drawPiece(s,x,y,p,g) {s.forEach(b=>{const px=Math.floor(x+b[0])*BLOCK_SIZE, py=(Math.floor(y+b[1])-this.viewY)*BLOCK_SIZE; this.drawBlock(p,px,py,g);});}
     
     drawUI() {
@@ -604,20 +610,20 @@ class Player {
         }
 
         ctx.fillStyle = '#FFF'; const rX = PLAYFIELD_X_OFFSET + PLAYFIELD_WIDTH + PADDING + NEXT_AREA_WIDTH / 2;
-        ctx.fillText('NEXT', rX, 150);
-        for (let i = 0; i < 5; i++) {
+        ctx.fillText('NEXT', rX, 40);
+        for (let i = 0; i < gameSettings.maxNext; i++) {
             const pT = this.nextQueue[i]; if (!pT) continue;
             const s = this.getShape(pT, 0);
             s.forEach(b => {
                 const px = rX - (TETROMINOS[pT].center[0] * BLOCK_SIZE) + (b[0] * BLOCK_SIZE);
-                const py = 180 + (i * BLOCK_SIZE * 2.5) - (TETROMINOS[pT].center[1] * BLOCK_SIZE) + (b[1] * BLOCK_SIZE);
+                const py = 70 + (i * BLOCK_SIZE * 2.5) - (TETROMINOS[pT].center[1] * BLOCK_SIZE) + (b[1] * BLOCK_SIZE);
                 this.drawBlock(pT, px, py);
             });
         }
     }
     
     drawSpecialMoveText() {
-        if (this.specialMoveTextTimer <= 0 || this.specialMoveText.length === 0) return;
+        if (this.specialMoveTextTimer <= 0 || this.specialMoveText.length === 0 || !gameSettings.showEffects) return;
         
         const centerX = PLAYFIELD_WIDTH / 2;
         const startY = CANVAS_HEIGHT / 2 - (this.specialMoveText.length * 18);
@@ -649,7 +655,7 @@ function setupEditors() { ['p1', 'p2'].forEach(setupPlayerEditor); }
 function setupPlayerEditor(playerId) {
     editorData[playerId].board = Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill(null));
     const nextIcons = document.getElementById(`${playerId}-next-icons`);
-    Object.keys(TETROMINOS).forEach(key => { const icon = document.createElement('div'); icon.className = 'mino-icon'; icon.style.backgroundColor = COLORS[key]; icon.addEventListener('click', () => { if (editorData[playerId].nextQueue.length < 20) { editorData[playerId].nextQueue.push(key); updateNextQueueDisplay(playerId); }}); nextIcons.appendChild(icon); });
+    Object.keys(TETROMINOS).forEach(key => { const icon = document.createElement('div'); icon.className = 'mino-icon'; icon.style.backgroundColor = activeSkin[key]; icon.addEventListener('click', () => { editorData[playerId].nextQueue.push(key); updateNextQueueDisplay(playerId); }); nextIcons.appendChild(icon); });
     document.getElementById(`${playerId}-next-clear`).addEventListener('click', () => { editorData[playerId].nextQueue = []; updateNextQueueDisplay(playerId); });
     const palette = document.getElementById(`${playerId}-palette`);
     Object.keys(EDITOR_COLORS).forEach(key => { const swatch = document.createElement('div'); swatch.className = 'color-swatch'; swatch.style.backgroundColor = key === 'EMPTY' ? '#333' : EDITOR_COLORS[key]; if (key === 'EMPTY') { swatch.style.border = '1px dashed #fff'; swatch.title = 'Eraser'; } if (key === editorData[playerId].activeColor) swatch.classList.add('active'); swatch.addEventListener('click', () => { editorData[playerId].activeColor = key; palette.querySelector('.active')?.classList.remove('active'); swatch.classList.add('active'); }); palette.appendChild(swatch); });
@@ -701,7 +707,7 @@ function shiftField(playerId, direction) {
     drawEditorField(playerId);
 }
 
-function updateNextQueueDisplay(playerId) { const qd = document.getElementById(`${playerId}-next-queue`); qd.innerHTML = ''; editorData[playerId].nextQueue.forEach(key => { const icon = document.createElement('div'); icon.className = 'mino-icon'; icon.style.backgroundColor = COLORS[key]; qd.appendChild(icon); }); }
+function updateNextQueueDisplay(playerId) { const qd = document.getElementById(`${playerId}-next-queue`); qd.innerHTML = ''; editorData[playerId].nextQueue.forEach(key => { const icon = document.createElement('div'); icon.className = 'mino-icon'; icon.style.backgroundColor = activeSkin[key]; qd.appendChild(icon); }); }
 function drawEditorField(playerId) {
     const canvas = document.getElementById(`field-editor-canvas-${playerId}`),
         ctx = canvas.getContext('2d'),
@@ -714,7 +720,7 @@ function drawEditorField(playerId) {
         for (let x = 0; x < BOARD_WIDTH; x++) {
             const pieceType = data.board[y + data.viewY]?.[x];
             if (pieceType) {
-                ctx.fillStyle = COLORS[pieceType];
+                ctx.fillStyle = activeSkin[pieceType];
                 ctx.fillRect(x * EDITOR_BLOCK_SIZE, y * EDITOR_BLOCK_SIZE, EDITOR_BLOCK_SIZE, EDITOR_BLOCK_SIZE);
             }
             ctx.strokeRect(x * EDITOR_BLOCK_SIZE, y * EDITOR_BLOCK_SIZE, EDITOR_BLOCK_SIZE, EDITOR_BLOCK_SIZE);
@@ -797,12 +803,14 @@ function openSettingsModal() {
         arr: { label: 'ARR (ms)', min: 0, max: 100, step: 1 },
         sdf: { label: 'SDF (ms)', min: 0, max: 100, step: 1 },
         lineClearDelay: { label: 'Line Clear Delay (ms)', min: 0, max: 2000, step: 50 },
-        gravity: { label: 'Gravity Interval (ms)', min: 50, max: 5000, step: 50 },
-        lockDelay: { label: 'Lock Delay (ms)', min: 100, max: 3000, step: 50 },
+        gravity: { label: 'Gravity Interval (ms)', min: 0, max: 5000, step: 50 },
+        lockDelay: { label: 'Lock Delay (ms)', min: 0, max: 3000, step: 50 },
+        maxNext: { label: 'Max NEXT Display', min: 1, max: 10, step: 1 },
+        showEffects: { label: 'Show Effects (1=ON, 0=OFF)', min: 0, max: 1, step: 1 },
         garbageGrace: { label: 'Garbage Grace (ms)', min: 0, max: 5000, step: 100 },
         garbageRandomness: { label: 'Garbage Hole Randomness (%)', min: 0, max: 100, step: 1 }
     };
-    Object.keys(gameSettings).forEach(key => {
+    Object.keys(settingDetails).forEach(key => {
         const item = document.createElement('div');
         item.className = 'setting-item';
         const label = document.createElement('span');
@@ -810,11 +818,20 @@ function openSettingsModal() {
         const input = document.createElement('input');
         input.type = 'number';
         Object.assign(input, settingDetails[key]);
-        input.value = (key === 'garbageRandomness') ? gameSettings[key] * 100 : gameSettings[key];
+        let currentValue = gameSettings[key];
+        if (key === 'garbageRandomness') {
+            currentValue *= 100;
+        } else if (key === 'showEffects') {
+            currentValue = gameSettings[key] ? 1 : 0;
+        }
+        input.value = currentValue;
+
         input.onchange = e => {
             let val = parseFloat(e.target.value);
             if (key === 'garbageRandomness') {
                 gameSettings[key] = Math.max(0, Math.min(100, val)) / 100;
+            } else if (key === 'showEffects') {
+                gameSettings[key] = (val === 1);
             } else {
                 gameSettings[key] = Math.max(settingDetails[key].min, Math.min(settingDetails[key].max, val));
             }
@@ -826,14 +843,16 @@ function openSettingsModal() {
     document.getElementById('settings-modal').style.display = 'flex';
 }
 
+
 // =================================================================
 //  Image Scanner Functions
 // =================================================================
-function startScanProcess(file, playerId) { const reader = new FileReader(); reader.onload = e => { scanState.image = new Image(); scanState.image.onload = () => { scanState.targetPlayerId = playerId; scanState.bottomLeft = null; scanState.topRight = null; gameState = 'SCAN_BL'; document.getElementById('editor-container').style.display = 'none'; document.getElementById('game-container').style.display = 'block'; document.getElementById('scan-controls').style.display = 'flex'; const ar = scanState.image.width / scanState.image.height; const maxW = window.innerWidth * 0.9, maxH = window.innerHeight * 0.8; let nW = maxW, nH = nW / ar; if (nH > maxH) { nH = maxH; nW = nH * ar; } mainCanvas.width = nW; mainCanvas.height = nH; updateScanUI(); }; scanState.image.src = e.target.result; }; reader.readAsDataURL(file); }
-function endScanProcess() { gameState = 'EDITING'; scanState.image = null; document.getElementById('editor-container').style.display = 'flex'; document.getElementById('game-container').style.display = 'none'; document.getElementById('scan-controls').style.display = 'none'; ['p1', 'p2'].forEach(drawEditorField); setTimeout(updateScale, 0); }
+function startScanProcess(file, playerId) { const reader = new FileReader(); reader.onload = e => { scanState.image = new Image(); scanState.image.onload = () => { scanState.targetPlayerId = playerId; scanState.bottomLeft = null; scanState.topRight = null; gameState = 'SCAN_BL'; document.getElementById('editor-container').style.display = 'none'; document.getElementById('game-container').style.display = 'block'; document.getElementById('scan-controls').style.display = 'flex'; 
+const ar = scanState.image.naturalWidth / scanState.image.naturalHeight; const displayMaxWidth = window.innerWidth * 0.9; const displayMaxHeight = window.innerHeight * 0.8; let displayWidth = displayMaxWidth; let displayHeight = displayWidth / ar; if (displayHeight > displayMaxHeight) { displayHeight = displayMaxHeight; displayWidth = displayHeight * ar; } const canvasWidth = Math.min(2048, scanState.image.naturalWidth); mainCanvas.width = canvasWidth; mainCanvas.height = canvasWidth / ar; mainCanvas.style.width = `${displayWidth}px`; mainCanvas.style.height = `${displayHeight}px`; updateScanUI(); }; scanState.image.src = e.target.result; }; reader.readAsDataURL(file); }
+function endScanProcess() { gameState = 'EDITING'; scanState.image = null; mainCanvas.style.width = ''; mainCanvas.style.height = ''; document.getElementById('editor-container').style.display = 'flex'; document.getElementById('game-container').style.display = 'none'; document.getElementById('scan-controls').style.display = 'none'; ['p1', 'p2'].forEach(drawEditorField); setTimeout(updateScale, 0); }
 function updateScanUI() { const instructions = document.getElementById('scan-instructions'), confirmBtn = document.getElementById('scanConfirmBtn'); instructions.style.display = 'block'; mainCanvas.style.cursor = 'crosshair'; if (gameState === 'SCAN_BL') { instructions.textContent = '画像の盤面の「左下」をクリック'; confirmBtn.style.visibility = scanState.bottomLeft ? 'visible' : 'hidden'; } else if (gameState === 'SCAN_TR') { instructions.textContent = '「右上」をクリック →「読込開始」'; confirmBtn.style.visibility = scanState.topRight ? 'visible' : 'hidden'; if (scanState.topRight) confirmBtn.textContent = '読込開始'; else confirmBtn.textContent = '次へ'; } }
 function drawScanner() { if (!scanState.image) return; ctx.clearRect(0, 0, mainCanvas.width, mainCanvas.height); ctx.drawImage(scanState.image, 0, 0, mainCanvas.width, mainCanvas.height); if (scanState.bottomLeft) { ctx.fillStyle = 'lime'; ctx.beginPath(); ctx.arc(scanState.bottomLeft.x, scanState.bottomLeft.y, 5, 0, Math.PI * 2); ctx.fill(); } if (scanState.topRight) { const {x: blx, y: bly} = scanState.bottomLeft, {x: trx, y: try_} = scanState.topRight; ctx.strokeStyle = 'fuchsia'; ctx.lineWidth = 2; ctx.strokeRect(blx, try_, trx - blx, bly - try_); } }
-function processAndLoadBoard() { if (!scanState.parsedColors) { scanState.parsedColors = {}; for (const key in COLORS) { const hex = COLORS[key].substring(1); scanState.parsedColors[key] = { r: parseInt(hex.substring(0,2),16), g: parseInt(hex.substring(2,4),16), b: parseInt(hex.substring(4,6),16) }; } } const tempC = document.createElement('canvas'); tempC.width = scanState.image.naturalWidth; tempC.height = scanState.image.naturalHeight; const tempCtx = tempC.getContext('2d', { willReadFrequently: true }); tempCtx.drawImage(scanState.image, 0, 0); const sX = scanState.image.naturalWidth / mainCanvas.width, sY = scanState.image.naturalHeight / mainCanvas.height; const iBL = { x: scanState.bottomLeft.x*sX, y: scanState.bottomLeft.y*sY }, iTR = { x: scanState.topRight.x*sX, y: scanState.topRight.y*sY }; const bW_px = iTR.x - iBL.x, bH_px = iBL.y - iTR.y, blW_px = bW_px/BOARD_WIDTH, blH_px = bH_px/BOARD_VISIBLE_HEIGHT; const targetBoard = editorData[scanState.targetPlayerId].board; targetBoard.forEach(row => row.fill(null)); for (let r = 0; r < BOARD_VISIBLE_HEIGHT; r++) { for (let c = 0; c < BOARD_WIDTH; c++) { const cX = iBL.x + (c+0.5)*blW_px, cY = iTR.y + (r+0.5)*blH_px; const sampleSize = Math.max(1, Math.floor(blW_px * 0.25)); const iD = tempCtx.getImageData(cX-sampleSize/2, cY-sampleSize/2, sampleSize, sampleSize).data; let avgR=0, avgG=0, avgB=0; for(let i=0; i<iD.length; i+=4){ avgR+=iD[i]; avgG+=iD[i+1]; avgB+=iD[i+2]; } const pCount = iD.length/4; avgR/=pCount; avgG/=pCount; avgB/=pCount; targetBoard[BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT + r][c] = findClosestColor(avgR, avgG, avgB); } } endScanProcess(); }
+function processAndLoadBoard() { if (!scanState.parsedColors) { scanState.parsedColors = {}; for (const key in SCAN_COLORS) { const hex = SCAN_COLORS[key].substring(1); scanState.parsedColors[key] = { r: parseInt(hex.substring(0,2),16), g: parseInt(hex.substring(2,4),16), b: parseInt(hex.substring(4,6),16) }; } } const tempC = document.createElement('canvas'); tempC.width = scanState.image.naturalWidth; tempC.height = scanState.image.naturalHeight; const tempCtx = tempC.getContext('2d', { willReadFrequently: true }); tempCtx.drawImage(scanState.image, 0, 0); const sX = scanState.image.naturalWidth / mainCanvas.width, sY = scanState.image.naturalHeight / mainCanvas.height; const iBL = { x: scanState.bottomLeft.x*sX, y: scanState.bottomLeft.y*sY }, iTR = { x: scanState.topRight.x*sX, y: scanState.topRight.y*sY }; const bW_px = iTR.x - iBL.x, bH_px = iBL.y - iTR.y, blW_px = bW_px/BOARD_WIDTH, blH_px = bH_px/BOARD_VISIBLE_HEIGHT; const targetBoard = editorData[scanState.targetPlayerId].board; targetBoard.forEach(row => row.fill(null)); for (let r = 0; r < BOARD_VISIBLE_HEIGHT; r++) { for (let c = 0; c < BOARD_WIDTH; c++) { const cX = iBL.x + (c+0.5)*blW_px, cY = iTR.y + (r+0.5)*blH_px; const sampleSize = Math.max(1, Math.floor(blW_px * 0.25)); const iD = tempCtx.getImageData(cX-sampleSize/2, cY-sampleSize/2, sampleSize, sampleSize).data; let avgR=0, avgG=0, avgB=0; for(let i=0; i<iD.length; i+=4){ avgR+=iD[i]; avgG+=iD[i+1]; avgB+=iD[i+2]; } const pCount = iD.length/4; avgR/=pCount; avgG/=pCount; avgB/=pCount; targetBoard[BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT + r][c] = findClosestColor(avgR, avgG, avgB); } } endScanProcess(); }
 function findClosestColor(r,g,b) { if(Math.pow(r-255,2)+Math.pow(g-255,2)+Math.pow(b-255,2)<35000) return 'G'; if(Math.pow(r-0,2)+Math.pow(g-0,2)+Math.pow(b-0,2)<6000) return null; let minD=Infinity, closestKey=null; for(const key in scanState.parsedColors){ if(key==='G')continue; const c2=scanState.parsedColors[key]; const d=Math.pow(r-c2.r,2)+Math.pow(g-c2.g,2)+Math.pow(b-c2.b,2); if(d<minD){minD=d;closestKey=key;}} return (minD > 25000) ? null : closestKey; }
 
 // =================================================================
