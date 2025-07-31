@@ -660,8 +660,14 @@ function setupPlayerEditor(playerId) {
     const drawOnCanvas = e => {
         const rect = canvas.getBoundingClientRect();
         const clientX = e.clientX || e.touches[0].clientX; const clientY = e.clientY || e.touches[0].clientY;
-        const x = Math.floor((clientX - rect.left) / EDITOR_BLOCK_SIZE);
-        const y = Math.floor((clientY - rect.top) / EDITOR_BLOCK_SIZE);
+        
+        // **修正箇所**：スケールを考慮して、キャンバス内の相対座標 (0.0 ~ 1.0) を計算
+        const relativeX = (clientX - rect.left) / rect.width;
+        const relativeY = (clientY - rect.top) / rect.height;
+        // 相対座標からマス目のインデックスを計算
+        const x = Math.floor(relativeX * BOARD_WIDTH);
+        const y = Math.floor(relativeY * BOARD_VISIBLE_HEIGHT);
+
         if (x >= 0 && x < BOARD_WIDTH && y >= 0 && y < BOARD_VISIBLE_HEIGHT) {
             const boardY = y + editorData[playerId].viewY;
             const color = editorData[playerId].activeColor;
