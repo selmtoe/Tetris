@@ -1275,13 +1275,12 @@ if (gameState==='SCAN_BL') scanState.bottomLeft=pos; else if (gameState==='SCAN_
         "display": "standalone", "background_color": "#1a1a2e", "theme_color": "#1a1a2e",
         "description": "A Tetris simulator with a 2-player mode and a powerful board editor.",
     "icons": [
-        { "src": "icons/icon-192x192.png", "type": "image/png", "sizes": "192x192" },
-        { "src": "icons/icon-512x512.png", "type": "image/png", "sizes": "512x512" }
+        { "src": "https://raw.githubusercontent.com/selmtoe/Tetris/main/icons/icon-192x192.png", "type": "image/png", "sizes": "192x192" },
+        { "src": "https://raw.githubusercontent.com/selmtoe/Tetris/main/icons/icon-512x512.png", "type": "image/png", "sizes": "512x512" }
     ]
     };
     const manifestURL = 'data:application/json;base64,' + btoa(unescape(encodeURIComponent(JSON.stringify(manifest))));
     document.getElementById('manifest-link').setAttribute('href', manifestURL);
-
     if ('serviceWorker' in navigator) {
         const swCode = `
             const CACHE_NAME = 'tetris-sim-cache-v1';
