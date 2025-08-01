@@ -373,14 +373,27 @@ class Player {
         this.spawnNewPiece();
     }
     
-    spawnNewPiece() {
+
+spawnNewPiece() {
         this.player.pieceType = this.nextQueue.shift();
         this.nextQueue.push(this.minoGenerator.next().value);
         
-        this.player.rotation = 0; this.player.y = 18; this.canHold = true; this.lastMoveWasRotation = false;
+        this.player.rotation = 0;
+        this.canHold = true;
+        this.lastMoveWasRotation = false;
         this.player.x = Math.floor(BOARD_WIDTH / 2) - Math.floor(TETROMINOS[this.player.pieceType].center[0]) -1;
 
-        if (this.checkCollision(this.player.x, this.player.y, this.getShape(this.player.pieceType, this.player.rotation))) { this.gameOver = true; }
+        const shape = this.getShape(this.player.pieceType, this.player.rotation);
+        // 20段目 (y=19) で出現を試みる
+        this.player.y = 19;
+        if (this.checkCollision(this.player.x, this.player.y, shape)) {
+            // 失敗したら19段目 (y=18) で試みる
+            this.player.y = 18;
+            if (this.checkCollision(this.player.x, this.player.y, shape)) {
+                // 両方失敗したらゲームオーバー
+                 this.gameOver = true;
+            }
+        }
     }
 
     isActionPressed(action) {
@@ -415,7 +428,8 @@ class Player {
         }
     }
     
-    update(dt) {
+
+update(dt) {
         if (this.gameOver) return;
         if (this.specialMoveTextTimer > 0) {
             this.specialMoveTextTimer -= dt;
@@ -432,11 +446,78 @@ class Player {
         const right = this.isActionPressed('right');
         const horizDir = left ? -1 : (right ? 1 : 0);
 
-        if (horizDir !== 0) { if (this.dasDirection !== horizDir) { this.move(horizDir, 0); this.dasTimer = 0; this.arrTimer = 0; } else { this.dasTimer += dt; if (this.dasTimer >= gameSettings.das) { this.arrTimer += dt; if (this.arrTimer >= gameSettings.arr) { this.move(horizDir, 0); this.arrTimer %= gameSettings.arr; } } } }
+        // 横移動 (DAS/ARR)
+        if (horizDir !== 0) {
+            if (this.dasDirection !== horizDir) { // 初回入力
+                this.move(horizDir, 0);
+                this.dasTimer = 0;
+                this.arrTimer = 0;
+            } else { // 押しっぱなし
+                this.dasTimer += dt;
+                if (this.dasTimer >= gameSettings.das) {
+                    if (gameSettings.arr === 0) {
+                        // ARR=0なら一気に移動
+                        let successfulMoves = 0;
+                        while (!this.checkCollision(this.player.x + horizDir, this.player.y, this.getShape(this.player.pieceType, this.player.rotation))) {
+                            this.player.x += horizDir;
+                            successfulMoves++;
+                        }
+                        if (successfulMoves > 0) {
+                           this.lockTimer = 0;
+                           this.lastMoveWasRotation = false;
+                        }
+                    } else {
+                        this.arrTimer += dt;
+                        if (this.arrTimer >= gameSettings.arr) {
+                            this.move(horizDir, 0);
+                            this.arrTimer -= gameSettings.arr;
+                        }
+                    }
+                }
+            }
+        }
         this.dasDirection = horizDir;
-        if (this.isActionPressed('softDrop')) { this.sdfTimer += dt; if (this.sdfTimer >= gameSettings.sdf) { this.move(0, 1); this.sdfTimer %= gameSettings.sdf; } } else { this.sdfTimer = 0; }
+
+        // ソフトドロップ (SDF)
+        if (this.isActionPressed('softDrop')) {
+             if (gameSettings.sdf > 0) {
+                this.sdfTimer += dt;
+                if (this.sdfTimer >= gameSettings.sdf) {
+                    this.move(0, 1);
+                    this.sdfTimer -= gameSettings.sdf;
+                }
+             } else { // sdf === 0
+                const ghostY = this.getGhostY();
+                if (this.player.y < ghostY) {
+                    this.player.y = ghostY;
+                    this.lockTimer = 0;
+                }
+             }
+        } else {
+            this.sdfTimer = 0;
+        }
+        
+        // 重力とロック
         this.isGrounded = this.checkCollision(this.player.x, this.player.y + 1, this.getShape(this.player.pieceType, this.player.rotation));
-        if (this.isGrounded) { this.lockTimer += dt; if (this.lockTimer >= gameSettings.lockDelay) this.lockPiece(); } else { this.lockTimer = 0; if (!this.isActionPressed('softDrop')) { this.gravityTimer -= dt; if (this.gravityTimer <= 0) { this.move(0, 1, false); this.gravityTimer = gameSettings.gravity; } } }
+        if (this.isGrounded) {
+            this.lockTimer += dt;
+            if (this.lockTimer >= gameSettings.lockDelay) {
+                this.lockPiece();
+            }
+        } else {
+            this.lockTimer = 0;
+            if (!this.isActionPressed('softDrop')) {
+                 if (gameSettings.gravity > 0) {
+                    this.gravityTimer -= dt;
+                    if (this.gravityTimer <= 0) {
+                        this.move(0, 1, false);
+                        this.gravityTimer += gameSettings.gravity;
+                    }
+                 } else { // gravity === 0
+                    this.player.y = this.getGhostY();
+                 }
+            }
+        }
     }
 
     draw() {
@@ -475,11 +556,19 @@ class Player {
         if (this.holdPiece) {
             [this.player.pieceType, this.holdPiece] = [this.holdPiece, this.player.pieceType];
             this.player.rotation = 0;
-            this.player.y = 18;
-            this.player.x = Math.floor(BOARD_WIDTH / 2) - Math.floor(TETROMINOS[this.player.pieceType].center[0]) -1;
             this.lockTimer = 0;
-            if (this.checkCollision(this.player.x, this.player.y, this.getShape(this.player.pieceType, this.player.rotation))) {
-                this.gameOver = true;
+            
+            this.player.x = Math.floor(BOARD_WIDTH / 2) - Math.floor(TETROMINOS[this.player.pieceType].center[0]) -1;
+            const shape = this.getShape(this.player.pieceType, this.player.rotation);
+            // 20段目 (y=19) で出現を試みる
+            this.player.y = 19;
+            if (this.checkCollision(this.player.x, this.player.y, shape)) {
+                // 失敗したら19段目 (y=18) で試みる
+                this.player.y = 18;
+                if (this.checkCollision(this.player.x, this.player.y, shape)) {
+                    // 両方失敗したらゲームオーバー
+                     this.gameOver = true;
+                }
             }
         } else {
             this.holdPiece = this.player.pieceType;
@@ -690,34 +779,73 @@ function setupPlayerEditor(playerId) {
     const palette = document.getElementById(`${playerId}-palette`);
     Object.keys(EDITOR_COLORS).forEach(key => { const swatch = document.createElement('div'); swatch.className = 'color-swatch'; swatch.style.backgroundColor = key === 'EMPTY' ? '#333' : EDITOR_COLORS[key]; if (key === 'EMPTY') { swatch.style.border = '1px dashed #fff'; swatch.title = 'Eraser'; } if (key === editorData[playerId].activeColor) swatch.classList.add('active'); swatch.addEventListener('click', () => { editorData[playerId].activeColor = key; palette.querySelector('.active')?.classList.remove('active'); swatch.classList.add('active'); }); palette.appendChild(swatch); });
 
-    const canvas = document.getElementById(`field-editor-canvas-${playerId}`);
+   const canvas = document.getElementById(`field-editor-canvas-${playerId}`);
     canvas.width = BOARD_WIDTH * EDITOR_BLOCK_SIZE; canvas.height = BOARD_VISIBLE_HEIGHT * EDITOR_BLOCK_SIZE;
     let isDrawing = false;
-    const drawOnCanvas = e => {
+    let isEraserMode = false; // 消しゴムモードのフラグ
+
+    const getCoordsFromEvent = e => {
         const rect = canvas.getBoundingClientRect();
-        const clientX = e.clientX || e.touches[0].clientX; const clientY = e.clientY || e.touches[0].clientY;
-        
-        // **修正箇所**：スケールを考慮して、キャンバス内の相対座標 (0.0 ~ 1.0) を計算
+        // e.touches が存在すればタッチイベント、なければマウスイベントとして扱う
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
         const relativeX = (clientX - rect.left) / rect.width;
         const relativeY = (clientY - rect.top) / rect.height;
-        // 相対座標からマス目のインデックスを計算
         const x = Math.floor(relativeX * BOARD_WIDTH);
         const y = Math.floor(relativeY * BOARD_VISIBLE_HEIGHT);
-
+        return { x, y };
+    };
+    
+    const applyDraw = (x, y) => {
         if (x >= 0 && x < BOARD_WIDTH && y >= 0 && y < BOARD_VISIBLE_HEIGHT) {
             const boardY = y + editorData[playerId].viewY;
-            const color = editorData[playerId].activeColor;
-            editorData[playerId].board[boardY][x] = (color === 'EMPTY') ? null : color;
+            if (isEraserMode) {
+                editorData[playerId].board[boardY][x] = null;
+            } else {
+                const color = editorData[playerId].activeColor;
+                editorData[playerId].board[boardY][x] = (color === 'EMPTY') ? null : color;
+            }
             drawEditorField(playerId);
         }
     };
-    canvas.addEventListener('mousedown', e => { isDrawing = true; drawOnCanvas(e); });
-    canvas.addEventListener('mouseup', () => { isDrawing = false; });
-    canvas.addEventListener('mouseleave', () => { isDrawing = false; });
-    canvas.addEventListener('mousemove', e => { if (isDrawing) drawOnCanvas(e); });
-    canvas.addEventListener('touchstart', e => { e.preventDefault(); isDrawing = true; drawOnCanvas(e); }, { passive: false });
-    canvas.addEventListener('touchend', e => { e.preventDefault(); isDrawing = false; });
-    canvas.addEventListener('touchmove', e => { e.preventDefault(); if (isDrawing) drawOnCanvas(e); }, { passive: false });
+
+    const handleDrawStart = e => {
+        e.preventDefault();
+        isDrawing = true;
+        const { x, y } = getCoordsFromEvent(e);
+        if (x >= 0 && x < BOARD_WIDTH && y >= 0 && y < BOARD_VISIBLE_HEIGHT) {
+            const boardY = y + editorData[playerId].viewY;
+            const currentCellColor = editorData[playerId].board[boardY][x];
+            const selectedColor = editorData[playerId].activeColor;
+            // 選択色が「消しゴム」の場合、またはタッチしたマスの色が選択色と同じ場合は消しゴムモード
+            isEraserMode = (selectedColor === 'EMPTY' || currentCellColor === selectedColor);
+        }
+        applyDraw(x, y);
+    };
+
+    const handleDrawMove = e => {
+        if (!isDrawing) return;
+        e.preventDefault();
+        const { x, y } = getCoordsFromEvent(e);
+        applyDraw(x, y);
+    };
+
+    const handleDrawEnd = () => {
+        if (!isDrawing) return;
+        isDrawing = false;
+        isEraserMode = false; // モードをリセット
+    };
+
+    // マウスイベント
+    canvas.addEventListener('mousedown', handleDrawStart);
+    canvas.addEventListener('mouseup', handleDrawEnd);
+    canvas.addEventListener('mouseleave', handleDrawEnd);
+    canvas.addEventListener('mousemove', handleDrawMove);
+    // タッチイベント
+    canvas.addEventListener('touchstart', handleDrawStart, { passive: false });
+    canvas.addEventListener('touchend', handleDrawEnd, { passive: false });
+    canvas.addEventListener('touchcancel', handleDrawEnd, { passive: false });
+    canvas.addEventListener('touchmove', handleDrawMove, { passive: false });
     
     document.getElementById(`${playerId}-field-shift-up`).addEventListener('click', () => shiftField(playerId, 'up'));
     document.getElementById(`${playerId}-field-shift-down`).addEventListener('click', () => shiftField(playerId, 'down'));
