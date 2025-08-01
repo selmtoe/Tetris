@@ -111,6 +111,33 @@
     .key-config-item button, .setting-item input { min-width: 150px; text-align: center; }
     .setting-item input { background-color: var(--primary-color); color: var(--font-color); border: 1px solid var(--border-color); padding: 5px; border-radius: 4px; font-family: var(--font-display); }
     .modal-controls { text-align: center; margin-top: 15px; }
+
+    #share-modal {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background-color: rgba(0, 0, 0, 0.75);
+        display: none; justify-content: center; align-items: center; z-index: 200;
+    }
+    .share-section h3 {
+        font-family: var(--font-display);
+        color: var(--primary-hover-color);
+        margin-top: 0;
+        margin-bottom: 10px;
+        border-bottom: 1px solid var(--primary-color);
+        padding-bottom: 5px;
+    }
+    .share-item {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    #share-modal .modal-content input, #share-modal .modal-content textarea {
+        background-color: var(--primary-color);
+        color: var(--font-color);
+        border: 1px solid var(--border-color);
+        padding: 8px;
+        border-radius: 4px;
+        font-family: var(--font-ui);
+    }
 </style>
 </head>
 <body>
@@ -124,6 +151,7 @@
                 <div class="button" id="mode-2p">2P</div>
                 <div class="button" id="mode-ai" style="opacity: 0.5; cursor: not-allowed;" title="実装予定">AI</div>
                  <button id="settingsBtn" class="button" style="margin-left: 15px;">設定</button>
+                 <button id="shareBtn" class="button" style="margin-left: 5px;">共有</button>
             </div>
             <button id="startGameBtn" class="button">START GAME</button>
         </div>
@@ -208,6 +236,40 @@
         <div id="settings-list"></div>
         <div class="modal-controls">
             <button id="settings-close" class="button">閉じる</button>
+        </div>
+    </div>
+</div>
+
+<div id="share-modal">
+    <div class="modal-content">
+        <h2>共有 / インポート</h2>
+        
+        <div class="share-section">
+            <h3>エクスポート</h3>
+            <p>現在の盤面とNEXTを共有します。</p>
+            <div class="share-item">
+                <span>共有リンク (このリンクを開くと盤面が復元されます)</span>
+                <input type="text" id="share-link-input" readonly style="width: 100%; margin-top: 5px; margin-bottom: 5px; box-sizing: border-box;">
+                <button id="copy-link-btn" class="button">リンクをコピー</button>
+            </div>
+             <div class="share-item" style="margin-top: 15px;">
+                <span>生データ (JSON)</span>
+                <textarea id="share-raw-data-textarea" readonly style="width: 100%; height: 80px; margin-top: 5px; margin-bottom: 5px; background-color: var(--canvas-bg-color); color: var(--font-color); border: 1px solid var(--border-color); resize: vertical; box-sizing: border-box;"></textarea>
+                <button id="copy-raw-data-btn" class="button">生データをコピー</button>
+            </div>
+        </div>
+        
+        <hr style="border-color: var(--primary-color); margin: 20px 0;">
+        
+        <div class="share-section">
+            <h3>インポート</h3>
+            <p>生データ(JSON)を貼り付けて盤面を読み込みます。</p>
+            <textarea id="import-raw-data-textarea" style="width: 100%; height: 80px; margin-top: 5px; margin-bottom: 5px; background-color: var(--canvas-bg-color); color: var(--font-color); border: 1px solid var(--border-color); resize: vertical; box-sizing: border-box;"></textarea>
+            <button id="import-from-data-btn" class="button">このデータで読み込む</button>
+        </div>
+
+        <div class="modal-controls">
+            <button id="share-close" class="button">閉じる</button>
         </div>
     </div>
 </div>
@@ -1058,6 +1120,147 @@ function findClosestColor(r, g, b) {
     return (minDistance > 25000) ? null : closestKey;
 }
 
+// =================================================================
+//  Share & Import Functions
+// =================================================================
+
+/**
+ * 盤面データを圧縮された文字列に変換します。
+ * @param {Array<Array<string|null>>} board - 盤面データ配列
+ * @returns {string} 圧縮された文字列
+ */
+function boardToString(board) {
+    // 'I'->'I', 'O'->'O', ..., null->'_' に変換して結合
+    return board.map(row => 
+        row.map(cell => cell === null ? '_' : cell).join('')
+    ).join('');
+}
+
+/**
+ * 圧縮された文字列から盤面データを復元します。
+ * @param {string} str - 圧縮された文字列
+ * @returns {Array<Array<string|null>>} 復元された盤面データ配列
+ */
+function stringToBoard(str) {
+    const board = [];
+    // データ長が不正な場合は空の盤面を返す
+    if (!str || str.length !== BOARD_WIDTH * BOARD_HEIGHT) {
+        console.error('Invalid board string length. Returning empty board.');
+        return Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill(null));
+    }
+    for (let i = 0; i < BOARD_HEIGHT; i++) {
+        const rowStr = str.substring(i * BOARD_WIDTH, (i + 1) * BOARD_WIDTH);
+        const row = rowStr.split('').map(char => (char === '_') ? null : char);
+        board.push(row);
+    }
+    return board;
+}
+
+/**
+ * 現在のゲーム状態をエクスポート用のオブジェクトに変換します。
+ * @returns {object} ゲーム状態オブジェクト
+ */
+function getGameStateForExport() {
+    const data = {
+        v: 1, // データ構造のバージョン
+        m: gameMode,
+        p1: {
+            b: boardToString(editorData.p1.board),
+            n: editorData.p1.nextQueue.join('')
+        }
+    };
+    if (gameMode === '2P') {
+        data.p2 = {
+            b: boardToString(editorData.p2.board),
+            n: editorData.p2.nextQueue.join('')
+        };
+    }
+    return data;
+}
+
+/**
+ * 指定されたデータオブジェクトからゲーム状態を復元します。
+ * @param {object} data - ゲーム状態オブジェクト
+ */
+function applyGameState(data) {
+    try {
+        if (!data || data.v !== 1) {
+            alert('無効または非対応のデータです。');
+            return false;
+        }
+
+        // モードを適用
+        gameMode = data.m || '1P';
+        document.getElementById('mode-1p').classList.toggle('active', gameMode === '1P');
+        document.getElementById('mode-2p').classList.toggle('active', gameMode === '2P');
+        document.getElementById('p2-editor-col').style.display = (gameMode === '2P') ? 'flex' : 'none';
+
+        // P1データを適用
+        if (data.p1) {
+            editorData.p1.board = stringToBoard(data.p1.b);
+            editorData.p1.nextQueue = data.p1.n ? data.p1.n.split('') : [];
+            drawEditorField('p1');
+            updateNextQueueDisplay('p1');
+        }
+
+        // P2データを適用 (2Pモードの場合)
+        if (gameMode === '2P' && data.p2) {
+            editorData.p2.board = stringToBoard(data.p2.b);
+            editorData.p2.nextQueue = data.p2.n ? data.p2.n.split('') : [];
+            drawEditorField('p2');
+            updateNextQueueDisplay('p2');
+        }
+
+        updateScale(); // UIのスケールを更新
+        return true;
+
+    } catch (e) {
+        console.error('Failed to apply game state:', e);
+        alert('データの読み込みに失敗しました。');
+        return false;
+    }
+}
+
+/**
+ * URLのハッシュから状態を読み込みます。
+ */
+function loadStateFromURL() {
+    if (window.location.hash) {
+        try {
+            const base64Data = window.location.hash.substring(1);
+            const jsonString = decodeURIComponent(escape(atob(base64Data)));
+            const data = JSON.parse(jsonString);
+            if(applyGameState(data)) {
+                alert('URLから盤面を読み込みました。');
+            }
+            // 読み込み後はハッシュをクリアしてURLをクリーンにする
+            history.pushState("", document.title, window.location.pathname + window.location.search);
+        } catch (e) {
+            console.error('Failed to load state from URL hash:', e);
+            alert('URLからのデータ読み込みに失敗しました。');
+             history.pushState("", document.title, window.location.pathname + window.location.search);
+        }
+    }
+}
+
+/**
+ * 共有モーダルを開き、現在の状態からエクスポートデータを生成します。
+ */
+function openShareModal() {
+    const stateData = getGameStateForExport();
+    const jsonString = JSON.stringify(stateData);
+    // URLセーフなBase64文字列を生成
+    const base64Data = btoa(unescape(encodeURIComponent(jsonString)));
+
+    const url = new URL(window.location);
+    url.hash = base64Data;
+    
+    document.getElementById('share-link-input').value = url.href;
+    document.getElementById('share-raw-data-textarea').value = jsonString;
+    document.getElementById('import-raw-data-textarea').value = ''; // インポート欄はクリア
+
+    document.getElementById('share-modal').style.display = 'flex';
+}
 
 // =================================================================
 //  Main Game Loop & Initialization
@@ -1165,6 +1368,47 @@ document.addEventListener('DOMContentLoaded', () => {
     
     loadKeyBindings();
     loadGameSettings();
+
+    // 共有モーダルのイベントリスナー
+    document.getElementById('shareBtn').addEventListener('click', openShareModal);
+    document.getElementById('share-close').addEventListener('click', () => {
+        document.getElementById('share-modal').style.display = 'none';
+    });
+    
+    document.getElementById('copy-link-btn').addEventListener('click', () => {
+        const input = document.getElementById('share-link-input');
+        input.select();
+        navigator.clipboard.writeText(input.value)
+            .then(() => alert('共有リンクをクリップボードにコピーしました！'))
+            .catch(err => alert('コピーに失敗しました: ' + err));
+    });
+    
+    document.getElementById('copy-raw-data-btn').addEventListener('click', () => {
+        const textarea = document.getElementById('share-raw-data-textarea');
+        textarea.select();
+        navigator.clipboard.writeText(textarea.value)
+            .then(() => alert('生データをクリップボードにコピーしました！'))
+            .catch(err => alert('コピーに失敗しました: ' + err));
+    });
+
+    document.getElementById('import-from-data-btn').addEventListener('click', () => {
+        const textarea = document.getElementById('import-raw-data-textarea');
+        const jsonString = textarea.value;
+        if (!jsonString) {
+            alert('テキストエリアにデータを入力してください。');
+            return;
+        }
+        try {
+            const data = JSON.parse(jsonString);
+            if(applyGameState(data)) {
+                 alert('盤面を読み込みました。');
+                 document.getElementById('share-modal').style.display = 'none';
+            }
+        } catch (e) {
+            alert('無効なJSONデータです。');
+            console.error('Invalid JSON on import:', e);
+        }
+    });
 
     document.getElementById('mode-1p').addEventListener('click', () => { 
         gameMode = '1P'; 
@@ -1306,6 +1550,10 @@ if (gameState==='SCAN_BL') scanState.bottomLeft=pos; else if (gameState==='SCAN_
     }
     
     setupEditors(); 
+
+    // URLハッシュからのデータ読み込みを試行
+    loadStateFromURL();
+
     lastTime = performance.now(); 
     requestAnimationFrame(gameLoop);
     
