@@ -287,13 +287,7 @@
         <h2>ゲーム設定</h2>
         <p>これらの設定はゲーム開始時に適用されます。設定は自動で保存されます。</p>
         <div id="settings-list">
-        </div>
-        
-        <div class="setting-item" style="margin-top: 20px; border-top: 1px solid var(--primary-color); padding-top: 15px;">
-            <label for="touch-controls-enabled">
-                <input type="checkbox" id="touch-controls-enabled">
-                <span>タッチ操作を有効にする (P1)</span>
-            </label>
+       
         </div>
         
         <div class="modal-controls">
@@ -1465,7 +1459,7 @@ function openSettingsModal() {
         gravity: { label: 'Gravity Interval (ms)', min: 0, max: 5000, step: 50 },
         lockDelay: { label: 'Lock Delay (ms)', min: 0, max: 3000, step: 50 },
         maxNext: { label: 'Max NEXT Display', min: 1, max: 10, step: 1 },
-        showEffects: { label: 'Show Effects (1=ON, 0=OFF)', min: 0, max: 1, step: 1 },
+        // ★ showEffects は数値入力から削除
         garbageGrace: { label: 'Garbage Grace (ms)', min: 0, max: 5000, step: 100 },
         garbageRandomness: { label: 'Garbage Hole Randomness (%)', min: 0, max: 100, step: 1 }
     };
@@ -1480,8 +1474,6 @@ function openSettingsModal() {
         let currentValue = gameSettings[key];
         if (key === 'garbageRandomness') {
             currentValue *= 100;
-        } else if (key === 'showEffects') {
-            currentValue = gameSettings[key] ? 1 : 0;
         }
         input.value = currentValue;
 
@@ -1489,8 +1481,6 @@ function openSettingsModal() {
             let val = parseFloat(e.target.value);
             if (key === 'garbageRandomness') {
                 gameSettings[key] = Math.max(0, Math.min(100, val)) / 100;
-            } else if (key === 'showEffects') {
-                gameSettings[key] = (val === 1);
             } else {
                 gameSettings[key] = Math.max(settingDetails[key].min, Math.min(settingDetails[key].max, val));
             }
@@ -1499,13 +1489,40 @@ function openSettingsModal() {
         item.append(label, input);
         list.appendChild(item);
     });
-
-    const touchCheckbox = document.getElementById('touch-controls-enabled');
-    touchCheckbox.checked = !!gameSettings.touchControlsEnabled;
-    touchCheckbox.onchange = e => {
-        gameSettings.touchControlsEnabled = e.target.checked;
-        saveGameSettings();
+    
+    // ★ チェックボックス設定を動的に生成するロジックを追加
+    const checkboxSettings = {
+        showEffects: 'エフェクトを表示する',
+        touchControlsEnabled: 'タッチ操作を有効にする (P1)'
     };
+
+    Object.entries(checkboxSettings).forEach(([key, text], index) => {
+        const item = document.createElement('div');
+        item.className = 'setting-item';
+        if (index === 0) { // 最初のチェックボックスの上に区切り線を追加
+            item.style.marginTop = '20px';
+            item.style.borderTop = '1px solid var(--primary-color)';
+            item.style.paddingTop = '15px';
+        }
+
+        const label = document.createElement('label');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `setting-${key}`;
+        checkbox.checked = !!gameSettings[key];
+
+        checkbox.onchange = e => {
+            gameSettings[key] = e.target.checked;
+            saveGameSettings();
+        };
+        
+        const span = document.createElement('span');
+        span.textContent = text;
+        
+        label.append(checkbox, span);
+        item.appendChild(label);
+        list.appendChild(item);
+    });
 
     document.getElementById('settings-modal').style.display = 'flex';
 }
