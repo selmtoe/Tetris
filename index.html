@@ -323,12 +323,13 @@
         
         <hr style="border-color: var(--primary-color); margin: 20px 0;">
         
+
         <div class="share-section">
             <h3>インポート</h3>
-            <p>生データ(JSON)を貼り付けて盤面を読み込みます。</p>
-            <textarea id="import-raw-data-textarea" style="width: 100%; height: 80px; margin-top: 5px; margin-bottom: 5px; background-color: var(--canvas-bg-color); color: var(--font-color); border: 1px solid var(--border-color); resize: vertical; box-sizing: border-box;"></textarea>
-            <button id="import-from-data-btn" class="button">このデータで読み込む</button>
+            <p>共有リンクまたは生データ(JSON)をクリップボードにコピーした状態で、下のボタンを押してください。</p>
+            <button id="import-from-data-btn" class="button">クリップボードからインポート</button>
         </div>
+
 
         <div class="modal-controls">
             <button id="share-close" class="button">閉じる</button>
@@ -920,38 +921,37 @@ class Player {
         }
 
         this.processGarbageQueue();
-        if (this.isClearingLine) {
-            this.lineClearDelayTimer -= dt;
-            if (this.lineClearDelayTimer <= 0) { this.isClearingLine = false; this.riseGarbage(); this.spawnNewPiece(); }
-            return;
-        }
 
         const left = this.isActionPressed('left');
         const right = this.isActionPressed('right');
         const horizDir = left ? -1 : (right ? 1 : 0);
 
+        // ライン消去中でもDASタイマーは更新する
         if (horizDir !== 0) {
             if (this.dasDirection !== horizDir) { 
-                this.move(horizDir, 0);
                 this.dasTimer = 0;
                 this.arrTimer = 0;
+                // ただし実際の移動はライン消去中でない場合のみ
+                if (!this.isClearingLine) this.move(horizDir, 0);
             } else { 
                 this.dasTimer += dt;
                 if (this.dasTimer >= gameSettings.das) {
                     if (gameSettings.arr === 0) {
-                        let successfulMoves = 0;
-                        while (!this.checkCollision(this.player.x + horizDir, this.player.y, this.getShape(this.player.pieceType, this.player.rotation))) {
-                            this.player.x += horizDir;
-                            successfulMoves++;
-                        }
-                        if (successfulMoves > 0) {
-                           this.lockTimer = 0;
-                           this.lastMoveWasRotation = false;
+                        if (!this.isClearingLine) {
+                            let successfulMoves = 0;
+                            while (!this.checkCollision(this.player.x + horizDir, this.player.y, this.getShape(this.player.pieceType, this.player.rotation))) {
+                                this.player.x += horizDir;
+                                successfulMoves++;
+                            }
+                            if (successfulMoves > 0) {
+                               this.lockTimer = 0;
+                               this.lastMoveWasRotation = false;
+                            }
                         }
                     } else {
                         this.arrTimer += dt;
                         if (this.arrTimer >= gameSettings.arr) {
-                            this.move(horizDir, 0);
+                            if (!this.isClearingLine) this.move(horizDir, 0);
                             this.arrTimer -= gameSettings.arr;
                         }
                     }
@@ -959,6 +959,14 @@ class Player {
             }
         }
         this.dasDirection = horizDir;
+
+        if (this.isClearingLine) {
+            this.lineClearDelayTimer -= dt;
+            if (this.lineClearDelayTimer <= 0) { this.isClearingLine = false; this.riseGarbage(); this.spawnNewPiece(); }
+            return; // 接地や重力処理は行わない
+        }
+        
+        // ... (以降のソフトドロップ、接地、重力処理は変更なし)
 
         if (this.isActionPressed('softDrop')) {
              if (gameSettings.sdf > 0) {
@@ -1775,24 +1783,36 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(err => alert('コピーに失敗しました: ' + err));
     });
 
-    document.getElementById('import-from-data-btn').addEventListener('click', () => {
-        const textarea = document.getElementById('import-raw-data-textarea');
-        const jsonString = textarea.value;
-        if (!jsonString) {
-            alert('テキストエリアにデータを入力してください。');
-            return;
-        }
+        document.getElementById('import-from-data-btn').addEventListener('click', async () => {
         try {
-            const data = JSON.parse(jsonString);
+            const text = await navigator.clipboard.readText();
+            if (!text) {
+                alert('クリップボードが空です。');
+                return;
+            }
+
+            let data;
+            // URL形式かどうかを判定
+            if (text.startsWith('http') && text.includes('#')) {
+                const base64Data = text.substring(text.indexOf('#') + 1);
+                const jsonString = decodeURIComponent(escape(atob(base64Data)));
+                data = JSON.parse(jsonString);
+            } else {
+                // JSON形式として解釈を試みる
+                data = JSON.parse(text);
+            }
+            
             if(applyGameState(data)) {
-                 alert('盤面を読み込みました。');
+                 alert('クリップボードから盤面を読み込みました。');
                  document.getElementById('share-modal').style.display = 'none';
             }
+
         } catch (e) {
-            alert('無効なJSONデータです。');
-            console.error('Invalid JSON on import:', e);
+            alert('クリップボードのデータが無効か、読み込みに失敗しました。');
+            console.error('Failed to import from clipboard:', e);
         }
     });
+
 
     document.getElementById('mode-1p').addEventListener('click', () => { 
         gameMode = '1P'; 
