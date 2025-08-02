@@ -1627,7 +1627,10 @@ function loadStateFromURL() {
     if (window.location.hash) {
         try {
             const base64Data = window.location.hash.substring(1);
-            const jsonString = decodeURIComponent(escape(atob(base64Data)));
+            // ★ 新しいエンコード方式に対応したデコード方式に変更
+            const binaryString = atob(base64Data);
+            const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
+            const jsonString = new TextDecoder().decode(bytes);
             const data = JSON.parse(jsonString);
             if(applyGameState(data)) {
                 alert('URLから盤面を読み込みました。');
@@ -1641,17 +1644,22 @@ function loadStateFromURL() {
     }
 }
 
+
 function openShareModal() {
     const stateData = getGameStateForExport();
     const jsonString = JSON.stringify(stateData);
-    const base64Data = btoa(unescape(encodeURIComponent(jsonString)));
+    // ★ エラーの起きにくい、より現代的なエンコード方式に変更
+    const uint8Array = new TextEncoder().encode(jsonString);
+    const base64Data = btoa(String.fromCharCode.apply(null, uint8Array));
     const url = new URL(window.location);
     url.hash = base64Data;
     document.getElementById('share-link-input').value = url.href;
     document.getElementById('share-raw-data-textarea').value = jsonString;
-    document.getElementById('import-raw-data-textarea').value = '';
+    // ★ 修正前のコードにあった 'import-raw-data-textarea' は削除されているため、この行も不要
+    // document.getElementById('import-raw-data-textarea').value = '';
     document.getElementById('share-modal').style.display = 'flex';
 }
+
 
 // =================================================================
 //  Main Game Loop & Initialization
@@ -1793,9 +1801,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let data;
             // URL形式かどうかを判定
-            if (text.startsWith('http') && text.includes('#')) {
+                if (text.startsWith('http') && text.includes('#')) {
                 const base64Data = text.substring(text.indexOf('#') + 1);
-                const jsonString = decodeURIComponent(escape(atob(base64Data)));
+                // ★ 新しいエンコード方式に対応したデコード方式に変更
+                const binaryString = atob(base64Data);
+                const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
+                const jsonString = new TextDecoder().decode(bytes);
                 data = JSON.parse(jsonString);
             } else {
                 // JSON形式として解釈を試みる
