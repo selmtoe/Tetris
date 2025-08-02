@@ -68,7 +68,7 @@
 
     .mino-icons, .color-palette { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
     .mino-icon, .color-swatch {
-        width: 28px; height: 28px; border-radius: 4px; cursor: pointer;
+        width: 40px; height: 40px; border-radius: 4px; cursor: pointer;
         border: 2px solid transparent; transition: all 0.2s; box-sizing: border-box;
     }
     .mino-icon:hover, .color-swatch:hover { transform: scale(1.1); }
@@ -176,7 +176,7 @@
                         <input type="file" id="imageLoader-p1" data-player="p1" accept="image/*">
                     </div>
                     <div class="key-config-controls" style="margin-top: 15px; text-align: center;">
-                        <button class="button" id="p1-key-config-btn">キー/パッド設定</button>
+                        <button class="button" id="p1-key-config-btn">操作設定</button>
                     </div>
                 </div>
             </div>
@@ -199,7 +199,7 @@
                         <input type="file" id="imageLoader-p2" data-player="p2" accept="image/*">
                     </div>
                     <div class="key-config-controls" style="margin-top: 15px; text-align: center;">
-                        <button class="button" id="p2-key-config-btn">キー/パッド設定</button>
+                        <button class="button" id="p2-key-config-btn">操作設定</button>
                     </div>
                 </div>
             </div>
@@ -220,7 +220,7 @@
 
 <div id="key-config-modal">
     <div class="modal-content">
-        <h2 id="key-config-title">キー設定</h2>
+        <h2 id="key-config-title">操作設定</h2>
         <p>変更したい操作のボタンを押し、キーボードのキーまたはゲームパッドのボタンを押してください。</p>
         <div id="key-config-list"></div>
         <div class="modal-controls">
@@ -242,13 +242,17 @@
 
 <div id="share-modal">
     <div class="modal-content">
-        <h2>共有 / インポート</h2>
+        <h2>共有</h2>
         
         <div class="share-section">
             <h3>エクスポート</h3>
-            <p>現在の盤面とNEXTを共有します。</p>
+            <p>
+
+
+
+</p>
             <div class="share-item">
-                <span>共有リンク (このリンクを開くと盤面が復元されます)</span>
+                <span>共有リンク</span>
                 <input type="text" id="share-link-input" readonly style="width: 100%; margin-top: 5px; margin-bottom: 5px; box-sizing: border-box;">
                 <button id="copy-link-btn" class="button">リンクをコピー</button>
             </div>
@@ -976,7 +980,7 @@ function openKeyConfigModal(playerId) {
     const title = document.getElementById('key-config-title');
     const list = document.getElementById('key-config-list');
 
-    title.textContent = `PLAYER ${playerId.slice(-1)} - キー/パッド設定`;
+    title.textContent = `PLAYER ${playerId.slice(-1)} - 操作設定`;
     list.innerHTML = ''; 
 
     Object.keys(keyBindings[bindingPlayer]).forEach(action => {
