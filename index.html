@@ -282,6 +282,7 @@
 // =================================================================
 //  Constants & Global State
 // =================================================================
+const RESOLUTION_SCALE = 2;
 const BLOCK_SIZE = 28;
 const EDITOR_BLOCK_SIZE = 50;
 const BOARD_WIDTH = 10;
@@ -1451,29 +1452,53 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(updateScale, 0);
     });
     
-    document.getElementById('startGameBtn').addEventListener('click', () => {
-        gameState = 'PLAYING'; 
-        document.getElementById('editor-container').style.display = 'none'; 
-        document.getElementById('game-container').style.display = 'block';
-        document.getElementById('scan-controls').style.display = 'none';
-        document.getElementById('game-controls').style.display = 'block';
-        players = [];
-        if (gameMode === '1P') {
-            mainCanvas.width = PLAYER_CANVAS_WIDTH; 
-            mainCanvas.height = CANVAS_HEIGHT;
-            players.push(new Player('1', 0, keyBindings.p1, 0));
-        }
-        else {
-            mainCanvas.width = PLAYER_CANVAS_WIDTH * 2; 
-            mainCanvas.height = CANVAS_HEIGHT;
-            const p1 = new Player('1', 0, keyBindings.p1, 0);
-            const p2 = new Player('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1);
-            p1.opponent = p2; 
-            p2.opponent = p1;
-            players.push(p1, p2);
-        }
-        setTimeout(updateScale, 0);
-    });
+    // 'startGameBtn' のクリックイベントリスナー内を修正
+
+document.getElementById('startGameBtn').addEventListener('click', () => {
+    gameState = 'PLAYING'; 
+    document.getElementById('editor-container').style.display = 'none'; 
+    document.getElementById('game-container').style.display = 'block';
+    document.getElementById('scan-controls').style.display = 'none';
+    document.getElementById('game-controls').style.display = 'block';
+    
+    // Canvasのコンテキストをリセット（スケールを元に戻すため）
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+    players = [];
+    if (gameMode === '1P') {
+        // ▼▼▼▼▼▼▼▼▼▼ 修正箇所 ▼▼▼▼▼▼▼▼▼▼
+        mainCanvas.width = PLAYER_CANVAS_WIDTH * RESOLUTION_SCALE; 
+        mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
+        mainCanvas.style.width = PLAYER_CANVAS_WIDTH + 'px';
+        mainCanvas.style.height = CANVAS_HEIGHT + 'px';
+        // ▲▲▲▲▲▲▲▲▲▲ 修正箇所 ▲▲▲▲▲▲▲▲▲▲
+        
+        players.push(new Player('1', 0, keyBindings.p1, 0));
+    }
+    else {
+        // ▼▼▼▼▼▼▼▼▼▼ 修正箇所 ▼▼▼▼▼▼▼▼▼▼
+        const totalWidth = PLAYER_CANVAS_WIDTH * 2;
+        mainCanvas.width = totalWidth * RESOLUTION_SCALE; 
+        mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
+        mainCanvas.style.width = totalWidth + 'px';
+        mainCanvas.style.height = CANVAS_HEIGHT + 'px';
+        // ▲▲▲▲▲▲▲▲▲▲ 修正箇所 ▲▲▲▲▲▲▲▲▲▲
+        
+        const p1 = new Player('1', 0, keyBindings.p1, 0);
+        const p2 = new Player('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1);
+        p1.opponent = p2; 
+        p2.opponent = p1;
+        players.push(p1, p2);
+    }
+    
+    // ▼▼▼▼▼▼▼▼▼▼ 追加 ▼▼▼▼▼▼▼▼▼▼
+    // これ以降の描画命令をすべてスケールする
+    ctx.scale(RESOLUTION_SCALE, RESOLUTION_SCALE);
+    // ▲▲▲▲▲▲▲▲▲▲ 追加 ▲▲▲▲▲▲▲▲▲▲
+
+    setTimeout(updateScale, 0);
+});
+
 
     document.getElementById('backToEditorBtn').addEventListener('click', () => {
         gameState = 'EDITING';
