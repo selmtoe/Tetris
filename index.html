@@ -251,9 +251,10 @@
     </div>
 </div>
 
-<div id="game-controls" style="display: none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 160;">
-     <button id="backToEditorBtn" class="button">エディタに戻る</button>
+<div id="game-controls" style="display: none; position: fixed; top: 10px; right: 10px; z-index: 160;">
+     <button id="backToEditorBtn" class="button">戻る</button>
 </div>
+
 <div id="virtual-controller-container">
     <div id="vc-edit-controls" style="display: none;">
         <button id="vc-save-and-close-btn" class="button">保存して閉じる</button>
@@ -285,7 +286,7 @@
 <div id="settings-modal">
     <div class="modal-content">
         <h2>ゲーム設定</h2>
-        <p>これらの設定はゲーム開始時に適用されます。設定は自動で保存されます。</p>
+        <p></p>
         <div id="settings-list">
        
         </div>
@@ -507,12 +508,18 @@ const virtualController = (() => {
             const touchX = touch.clientX, touchY = touch.clientY;
 
             if (mode === 'play') {
-                const buttonId = getButtonAt(touchX, touchY, shortSide);
-                if (buttonId) {
-                    pressButton(buttonId);
-                    activeTouches[touch.identifier] = buttonId;
+                // ★ 設定値でスライド入力の実行を制御する
+                if (gameSettings.touchSlideInputEnabled) {
+                    const prevButtonId = activeTouches[touchId];
+                    const currentButtonId = getButtonAt(touchX, touchY, shortSide);
+                    if (prevButtonId !== currentButtonId) {
+                        if (prevButtonId) releaseButton(prevButtonId);
+                        if (currentButtonId) pressButton(currentButtonId);
+                        activeTouches[touchId] = currentButtonId;
+                    }
                 }
-            } else { // edit mode
+            } else { 
+
                 const sliderHit = checkSliderHit(touchX, touchY, shortSide);
                 if (sliderHit) {
                     isDraggingSlider = true;
@@ -728,7 +735,9 @@ let gameSettings = {
     maxNext: 5,
     showEffects: true,
     touchControlsEnabled: 'ontouchstart' in window, // タッチデバイスならデフォルトで有効
+    touchSlideInputEnabled: true, // ★追加: タッチ操作のスライド入力をデフォルトで有効にする
 };
+
 
 const COLORS = { 'I': '#00f0f0', 'O': '#f0f000', 'T': '#a000f0', 'L': '#f0a000', 'J': '#0000f0', 'S': '#00f000', 'Z': '#f00000', 'G': '#999999' };
 
@@ -1491,11 +1500,14 @@ function openSettingsModal() {
         list.appendChild(item);
     });
     
+
     // ★ チェックボックス設定を動的に生成するロジックを追加
     const checkboxSettings = {
         showEffects: 'エフェクトを表示する',
-        touchControlsEnabled: 'タッチ操作を有効にする (P1)'
+        touchControlsEnabled: 'タッチ操作を有効にする (P1)',
+        touchSlideInputEnabled: 'タッチ操作のスライド入力を有効にする' // ★追加
     };
+
 
     Object.entries(checkboxSettings).forEach(([key, text], index) => {
         const item = document.createElement('div');
