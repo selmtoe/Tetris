@@ -244,9 +244,6 @@
     <div id="game-container">
         <canvas id="mainCanvas"></canvas>
         <div id="scan-instructions" style="display: none;"></div>
-        <div id="game-controls" style="display: none; margin-top: 15px; text-align: center;">
-             <button id="backToEditorBtn" class="button">エディタに戻る</button>
-        </div>
         <div id="scan-controls" style="display: none; margin-top: 15px; gap: 10px; justify-content:center;">
              <button id="scanConfirmBtn" class="button">次へ</button>
              <button id="scanCancelBtn" class="button">キャンセル</button>
@@ -254,6 +251,9 @@
     </div>
 </div>
 
+<div id="game-controls" style="display: none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 160;">
+     <button id="backToEditorBtn" class="button">エディタに戻る</button>
+</div>
 <div id="virtual-controller-container">
     <div id="vc-edit-controls" style="display: none;">
         <button id="vc-save-and-close-btn" class="button">保存して閉じる</button>
@@ -320,7 +320,7 @@
 
         <div class="share-section">
             <h3>インポート</h3>
-            <p>共有リンクまたは生データ(JSON)をクリップボードにコピーした状態で、下のボタンを押してください。</p>
+            <p></p>
             <button id="import-from-data-btn" class="button">クリップボードからインポート</button>
         </div>
 
@@ -332,6 +332,7 @@
 </div>
 
 <script>
+
 // =================================================================
 //  Virtual Controller Module
 // =================================================================
