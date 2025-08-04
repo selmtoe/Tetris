@@ -251,11 +251,13 @@
     </div>
 </div>
 
-<div id="game-controls" style="display: none; position: fixed; top: 10px; right: 10px; z-index: 160;">
+<div id="game-controls" style="display: none; position: fixed; top: 10px; right: 10px; z-index: 160; gap: 10px;">
+     <button id="retryBtn" class="button">リトライ</button>
      <button id="backToEditorBtn" class="button">戻る</button>
 </div>
 
 <div id="virtual-controller-container">
+
     <div id="vc-edit-controls" style="display: none;">
         <button id="vc-save-and-close-btn" class="button">保存して閉じる</button>
     </div>
@@ -1864,7 +1866,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('editor-container').style.display = 'none'; 
         document.getElementById('game-container').style.display = 'block';
         document.getElementById('scan-controls').style.display = 'none';
-        document.getElementById('game-controls').style.display = 'block';
+        document.getElementById('game-controls').style.display = 'flex';
         
         ctx.setTransform(1, 0, 0, 1, 0, 0);
 
@@ -2011,6 +2013,23 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(err => console.error('Service Worker registration failed:', err));
     }
     
+
+   document.getElementById('retryBtn').addEventListener('click', () => {
+        if (gameState !== 'PLAYING') return;
+
+        // players配列をリセットして、エディタの設定からプレイヤーを再生成する
+        players = [];
+        if (gameMode === '1P') {
+            players.push(new Player('1', 0, keyBindings.p1, 0));
+        } else { // 2P
+            const p1 = new Player('1', 0, keyBindings.p1, 0);
+            const p2 = new Player('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1);
+            p1.opponent = p2; 
+            p2.opponent = p1;
+            players.push(p1, p2);
+        }
+    });
+
     setupEditors(); 
 
     loadStateFromURL();
