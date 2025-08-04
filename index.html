@@ -336,23 +336,19 @@
 
 <script>
 
-// =================================================================
-//  Virtual Controller Module
-// =================================================================
 const virtualController = (() => {
-    // --- DOM要素 ---
+
     let container, canvas, ctx, editControls;
 
-    // --- 状態 ---
-    let mode = 'play'; // 'play' or 'edit'
-    let layouts = {}; // { portrait: {}, landscape: {} }
-    let buttons = {}; // 現在の向きのボタンレイアウト
+    let mode = 'play';
+    let layouts = {};
+    let buttons = {};
     let selectedButtonId = null;
     let isDraggingButton = false;
     let isDraggingSlider = false;
-    const activeTouches = {}; // { touchId: buttonId | 'slider' | null }
+    const activeTouches = {};
 
-    // --- デフォルトレイアウト ---
+   
     const defaultLayout = {
         portrait: {
             'left':      { label: '←', x: 0.12, y: 0.82, r: 0.08 },
@@ -383,7 +379,6 @@ const virtualController = (() => {
         loadLayouts();
         handleResize();
 
-        // --- イベントリスナー ---
         window.addEventListener('resize', handleResize);
         window.addEventListener('orientationchange', handleResize);
 
@@ -392,7 +387,7 @@ const virtualController = (() => {
         canvas.addEventListener('touchend', handleEnd, { passive: false });
         canvas.addEventListener('touchcancel', handleEnd, { passive: false });
         
-        // PCデバッグ用
+
         let isMouseDown = false;
         const convertMouseEvent = (e) => ({ changedTouches: [{ clientX: e.clientX, clientY: e.clientY, identifier: -1 }], preventDefault: () => {} });
         canvas.addEventListener('mousedown', (e) => { isMouseDown = true; handleStart(convertMouseEvent(e)); });
@@ -415,7 +410,6 @@ const virtualController = (() => {
         mode = 'play';
         editControls.style.display = 'none';
         saveLayouts();
-        // ゲームが実行中でなければ非表示にする
         if (gameState !== 'PLAYING') {
             hide();
         }
@@ -428,13 +422,13 @@ const virtualController = (() => {
         canvas.height = window.innerHeight;
 
         const orientation = (canvas.width > canvas.height) ? 'landscape' : 'portrait';
-        // layoutsオブジェクトに対応する向きの設定がなければ、デフォルトからコピー
+       
         if (!layouts[orientation] || Object.keys(layouts[orientation]).length === 0) {
             layouts[orientation] = JSON.parse(JSON.stringify(defaultLayout[orientation]));
         }
         
         buttons = layouts[orientation];
-        // buttonsオブジェクトに isPressed プロパティがなければ初期化
+       
         for(const id in buttons) {
             if (buttons[id].isPressed === undefined) {
                 buttons[id].isPressed = false;
@@ -515,7 +509,7 @@ const virtualController = (() => {
                     pressButton(buttonId);
                     activeTouches[touch.identifier] = buttonId;
                 }
-            } else { // edit mode
+            } else {
                 const sliderHit = checkSliderHit(touchX, touchY, shortSide);
                 if (sliderHit) {
                     isDraggingSlider = true;
@@ -554,7 +548,7 @@ const virtualController = (() => {
                     if (currentButtonId) pressButton(currentButtonId);
                     activeTouches[touchId] = currentButtonId;
                 }
-            } else { // edit mode
+            } else {
                 if (isDraggingSlider && activeTouches[touchId] === 'slider') {
                     updateSlider(touchX, shortSide);
                 } else if (isDraggingButton && activeTouches[touchId] === selectedButtonId) {
@@ -585,7 +579,7 @@ const virtualController = (() => {
     }
 
     function getButtonAt(x, y, shortSide) {
-        // 逆順でループして、上に描画されているボタンを優先する
+     
         const buttonIds = Object.keys(buttons).reverse();
         for (const id of buttonIds) {
             const btn = buttons[id];
@@ -603,7 +597,7 @@ const virtualController = (() => {
         const btn = buttons[id];
         if (btn && !btn.isPressed) {
             btn.isPressed = true;
-            // DAS/ARRに影響しない操作は1回だけhandlePressを呼ぶ
+
             if (['hardDrop', 'rotateCW', 'rotateCCW', 'hold'].includes(id)) {
                 if(players.length > 0) players[0].handlePress(id);
             }
@@ -649,7 +643,6 @@ const virtualController = (() => {
             if (savedLayouts && savedLayouts.portrait && savedLayouts.landscape) {
                 layouts = savedLayouts;
             } else {
-                // デフォルト値をディープコピーして設定
                 layouts = JSON.parse(JSON.stringify(defaultLayout));
             }
         } catch (e) {
@@ -673,11 +666,10 @@ const virtualController = (() => {
         try {
             const text = await navigator.clipboard.readText();
             const newLayouts = JSON.parse(text);
-            // 簡単なバリデーション
             if (newLayouts && newLayouts.portrait && newLayouts.landscape) {
                 layouts = newLayouts;
                 saveLayouts();
-                handleResize(); // すぐに反映
+                handleResize();
                 alert('ボタン配置をインポートしました。');
             } else {
                 alert('無効なデータ形式です。');
@@ -688,7 +680,6 @@ const virtualController = (() => {
         }
     }
     
-    // 公開するAPI
     return {
         init,
         show,
@@ -701,9 +692,6 @@ const virtualController = (() => {
     };
 })();
 
-// =================================================================
-//  Constants & Global State
-// =================================================================
 const RESOLUTION_SCALE = 2;
 const BLOCK_SIZE = 28;
 const EDITOR_BLOCK_SIZE = 50;
@@ -730,14 +718,14 @@ let gameSettings = {
     garbageRandomness: 0.3,
     maxNext: 5,
     showEffects: true,
-    touchControlsEnabled: 'ontouchstart' in window, // タッチデバイスならデフォルトで有効
+    touchControlsEnabled: 'ontouchstart' in window,
 };
 
 const COLORS = { 'I': '#00f0f0', 'O': '#f0f000', 'T': '#a000f0', 'L': '#f0a000', 'J': '#0000f0', 'S': '#00f000', 'Z': '#f00000', 'G': '#999999' };
 
 const SCAN_COLOR_PALETTE = {
-    'NULL': ['#000000', '#302838'], // NULLとして判定する色
-    'G':    ['#999999', '#D8D8D8'], // Gとして判定する色
+    'NULL': ['#000000', '#302838'],
+    'G':    ['#999999', '#D8D8D8'],
     'I':    ['#019899', '#0199D5'],
     'O':    ['#999A02', '#F9B900'],
     'T':    ['#980099', '#871E88'],
@@ -828,9 +816,6 @@ function* createMinoGenerator(customQueue) {
     }
 }
 
-// =================================================================
-//  Player Class
-// =================================================================
 class Player {
     constructor(id, offsetX, keyBindings, padIndex) {
         this.id = id; this.offsetX = offsetX; this.keyBindings = keyBindings; this.padIndex = padIndex;
@@ -869,13 +854,11 @@ class Player {
         this.player.x = Math.floor(BOARD_WIDTH / 2) - Math.floor(TETROMINOS[this.player.pieceType].center[0]) -1;
 
         const shape = this.getShape(this.player.pieceType, this.player.rotation);
-        // 20段目 (y=19) で出現を試みる
         this.player.y = 19;
         if (this.checkCollision(this.player.x, this.player.y, shape)) {
-            // 失敗したら19段目 (y=18) で試みる
             this.player.y = 18;
             if (this.checkCollision(this.player.x, this.player.y, shape)) {
-                // 両方失敗したらゲームオーバー
+
                  this.gameOver = true;
             }
         }
@@ -894,7 +877,7 @@ class Player {
             }
         }
         
-        // P1のみタッチ操作をチェック
+
         if (this.id === '1' && gameSettings.touchControlsEnabled) {
             if (virtualController.isButtonPressed(action)) return true;
         }
@@ -924,12 +907,10 @@ class Player {
         const right = this.isActionPressed('right');
         const horizDir = left ? -1 : (right ? 1 : 0);
 
-        // ライン消去中でもDASタイマーは更新する
         if (horizDir !== 0) {
             if (this.dasDirection !== horizDir) { 
                 this.dasTimer = 0;
                 this.arrTimer = 0;
-                // ただし実際の移動はライン消去中でない場合のみ
                 if (!this.isClearingLine) this.move(horizDir, 0);
             } else { 
                 this.dasTimer += dt;
@@ -961,10 +942,8 @@ class Player {
         if (this.isClearingLine) {
             this.lineClearDelayTimer -= dt;
             if (this.lineClearDelayTimer <= 0) { this.isClearingLine = false; this.riseGarbage(); this.spawnNewPiece(); }
-            return; // 接地や重力処理は行わない
+            return;
         }
-        
-        // ... (以降のソフトドロップ、接地、重力処理は変更なし)
 
         if (this.isActionPressed('softDrop')) {
              if (gameSettings.sdf > 0) {
@@ -1270,9 +1249,6 @@ class Player {
     drawMessage(t) { const cX = PLAYFIELD_WIDTH / 2; const cY = CANVAS_HEIGHT / 2; ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(0, -0.5*BLOCK_SIZE, PLAYFIELD_WIDTH, CANVAS_HEIGHT); ctx.fillStyle = '#FFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `bold ${BLOCK_SIZE * 1.5}px "Orbitron"`; ctx.fillText(t, cX, cY); ctx.textBaseline = 'alphabetic'; }
 }
 
-// =================================================================
-//  Editor, UI & Config Functions
-// =================================================================
 function setupEditors() { ['p1', 'p2'].forEach(setupPlayerEditor); }
 function setupPlayerEditor(playerId) {
     editorData[playerId].board = Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill(null));
@@ -1357,7 +1333,7 @@ function shiftField(playerId, direction) {
     if (direction === 'up') {
         board.shift();
         board.push(Array(BOARD_WIDTH).fill(null));
-    } else { // 'down'
+    } else {
         board.pop();
         board.unshift(Array(BOARD_WIDTH).fill(null));
     }
@@ -1463,7 +1439,6 @@ function openSettingsModal() {
         gravity: { label: 'Gravity Interval (ms)', min: 0, max: 5000, step: 50 },
         lockDelay: { label: 'Lock Delay (ms)', min: 0, max: 3000, step: 50 },
         maxNext: { label: 'Max NEXT Display', min: 1, max: 10, step: 1 },
-        // ★ showEffects は数値入力から削除
         garbageGrace: { label: 'Garbage Grace (ms)', min: 0, max: 5000, step: 100 },
         garbageRandomness: { label: 'Garbage Hole Randomness (%)', min: 0, max: 100, step: 1 }
     };
@@ -1494,7 +1469,6 @@ function openSettingsModal() {
         list.appendChild(item);
     });
     
-    // ★ チェックボックス設定を動的に生成するロジックを追加
     const checkboxSettings = {
         showEffects: 'エフェクトを表示する',
         touchControlsEnabled: 'タッチ操作を有効にする (P1)'
@@ -1503,7 +1477,7 @@ function openSettingsModal() {
     Object.entries(checkboxSettings).forEach(([key, text], index) => {
         const item = document.createElement('div');
         item.className = 'setting-item';
-        if (index === 0) { // 最初のチェックボックスの上に区切り線を追加
+        if (index === 0) { 
             item.style.marginTop = '20px';
             item.style.borderTop = '1px solid var(--primary-color)';
             item.style.paddingTop = '15px';
@@ -1532,9 +1506,7 @@ function openSettingsModal() {
 }
 
 
-// =================================================================
-//  Image Scanner Functions
-// =================================================================
+
 function startScanProcess(file, playerId) { const reader = new FileReader(); reader.onload = e => { scanState.image = new Image(); scanState.image.onload = () => { scanState.targetPlayerId = playerId; scanState.bottomLeft = null; scanState.topRight = null; gameState = 'SCAN_BL'; document.getElementById('editor-container').style.display = 'none'; document.getElementById('game-container').style.display = 'block'; document.getElementById('scan-controls').style.display = 'flex'; 
 const ar = scanState.image.naturalWidth / scanState.image.naturalHeight; const displayMaxWidth = window.innerWidth * 0.9; const displayMaxHeight = window.innerHeight * 0.8; let displayWidth = displayMaxWidth; let displayHeight = displayWidth / ar; if (displayHeight > displayMaxHeight) { displayHeight = displayMaxHeight; displayWidth = displayHeight * ar; } const canvasWidth = Math.min(2048, scanState.image.naturalWidth); mainCanvas.width = canvasWidth; mainCanvas.height = canvasWidth / ar; mainCanvas.style.width = `${displayWidth}px`; mainCanvas.style.height = `${displayHeight}px`; updateScanUI(); }; scanState.image.src = e.target.result; }; reader.readAsDataURL(file); }
 function endScanProcess() { gameState = 'EDITING'; scanState.image = null; mainCanvas.style.width = ''; mainCanvas.style.height = ''; document.getElementById('editor-container').style.display = 'flex'; document.getElementById('game-container').style.display = 'none'; document.getElementById('scan-controls').style.display = 'none'; ['p1', 'p2'].forEach(drawEditorField); setTimeout(updateScale, 0); }
@@ -1572,9 +1544,6 @@ function findClosestColor(r, g, b) {
     return (minDistance > 25000) ? null : closestKey;
 }
 
-// =================================================================
-//  Share & Import Functions
-// =================================================================
 function boardToString(board) {
     return board.map(row => 
         row.map(cell => cell === null ? '_' : cell).join('')
@@ -1648,7 +1617,6 @@ function loadStateFromURL() {
     if (window.location.hash) {
         try {
             const base64Data = window.location.hash.substring(1);
-            // ★ 新しいエンコード方式に対応したデコード方式に変更
             const binaryString = atob(base64Data);
             const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
             const jsonString = new TextDecoder().decode(bytes);
@@ -1669,22 +1637,14 @@ function loadStateFromURL() {
 function openShareModal() {
     const stateData = getGameStateForExport();
     const jsonString = JSON.stringify(stateData);
-    // ★ エラーの起きにくい、より現代的なエンコード方式に変更
     const uint8Array = new TextEncoder().encode(jsonString);
     const base64Data = btoa(String.fromCharCode.apply(null, uint8Array));
     const url = new URL(window.location);
     url.hash = base64Data;
     document.getElementById('share-link-input').value = url.href;
     document.getElementById('share-raw-data-textarea').value = jsonString;
-    // ★ 修正前のコードにあった 'import-raw-data-textarea' は削除されているため、この行も不要
-    // document.getElementById('import-raw-data-textarea').value = '';
     document.getElementById('share-modal').style.display = 'flex';
 }
-
-
-// =================================================================
-//  Main Game Loop & Initialization
-// =================================================================
 function pollGamepads() {
     const rawPads = navigator.getGamepads();
     if (!rawPads) return;
@@ -1750,9 +1710,6 @@ function gameLoop(currentTime) {
     requestAnimationFrame(gameLoop);
 }
 
-// =================================================================
-//  Auto Scaling Functionality
-// =================================================================
 const mainContainer = document.querySelector('.main-container');
 
 function updateScale() {
@@ -1821,16 +1778,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             let data;
-            // URL形式かどうかを判定
+
                 if (text.startsWith('http') && text.includes('#')) {
                 const base64Data = text.substring(text.indexOf('#') + 1);
-                // ★ 新しいエンコード方式に対応したデコード方式に変更
                 const binaryString = atob(base64Data);
                 const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
                 const jsonString = new TextDecoder().decode(bytes);
                 data = JSON.parse(jsonString);
             } else {
-                // JSON形式として解釈を試みる
                 data = JSON.parse(text);
             }
             
@@ -1983,8 +1938,8 @@ document.addEventListener('DOMContentLoaded', () => {
         "display": "standalone", "background_color": "#1a1a2e", "theme_color": "#1a1a2e",
         "description": "A Tetris simulator with a 2-player mode and a powerful board editor.",
     "icons": [
-        { "src": "https://raw.githubusercontent.com/selmtoe/Tetris/main/icons/icon-192x192.png", "type": "image/png", "sizes": "192x192" },
-        { "src": "https://raw.githubusercontent.com/selmtoe/Tetris/main/icons/icon-512x512.png", "type": "image/png", "sizes": "512x512" }
+        { "src": "https://raw.githubusercontent.com/selmtoe/Tetris_Simulator/main/icons/icon-192x192.png", "type": "image/png", "sizes": "192x192" },
+        { "src": "https://raw.githubusercontent.com/selmtoe/Tetris_Simulator/main/icons/icon-512x512.png", "type": "image/png", "sizes": "512x512" }
     ]
     };
     const manifestURL = 'data:application/json;base64,' + btoa(unescape(encodeURIComponent(JSON.stringify(manifest))));
@@ -2017,11 +1972,10 @@ document.addEventListener('DOMContentLoaded', () => {
    document.getElementById('retryBtn').addEventListener('click', () => {
         if (gameState !== 'PLAYING') return;
 
-        // players配列をリセットして、エディタの設定からプレイヤーを再生成する
         players = [];
         if (gameMode === '1P') {
             players.push(new Player('1', 0, keyBindings.p1, 0));
-        } else { // 2P
+        } else {
             const p1 = new Player('1', 0, keyBindings.p1, 0);
             const p2 = new Player('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1);
             p1.opponent = p2; 
