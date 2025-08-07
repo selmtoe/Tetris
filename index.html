@@ -1388,32 +1388,50 @@ class AIPlayer extends Player {
 
     // class AIPlayer の中の executeBestMove メソッドを修正
 
+    // class AIPlayer の中の executeBestMove メソッドを修正
+
     executeBestMove() {
         if (!aiReady || this.gameOver) return;
         
         this.isThinking = false;
         const bestMove = Module.getBestMove();
 
-        // ▼▼▼ ここの処理をより安全な形に修正 ▼▼▼
-        // AIが有効な手を見つけられなかった場合のフォールバック処理
         if (!bestMove || bestMove.pieceType === ' ') {
             console.warn("AI could not find a valid move. Performing hard drop as fallback.");
-            this.hardDrop(); // とりあえずそのまま落とす
-            
-            // AIの内部状態が不整合になっている可能性が高いので、リセットして次の手から復帰させる
+            this.hardDrop();
             Module.resetAI();
-            return; // この後の commitMoveAndPrune を実行しないように処理を中断
+            return;
+        }
+
+        // ▼▼▼ ホールド判定ロジックを修正 ▼▼▼
+        const intendedPieceType = bestMove.pieceType;
+        let pieceToPlaceIsNext = false;
+        if(this.nextQueue.length > 0 && intendedPieceType === this.nextQueue[0]) {
+             pieceToPlaceIsNext = true;
+        }
+
+        // AIが「現在持っているミノ」とは違うミノを置こうとしている場合、ホールドを実行する
+        // (ホールドが空でNextミノを置こうとする場合も含む)
+        if (this.player.pieceType !== intendedPieceType) {
+            // ホールドが空で、AIがNextミノを置こうとしているかチェック
+            if(this.holdPiece === null && pieceToPlaceIsNext) {
+                this.hold();
+            } 
+            // ホールドに既にあって、AIがそのホールドミノを置こうとしているかチェック
+            else if (this.holdPiece !== null && intendedPieceType === this.holdPiece) {
+                this.hold();
+            }
+            else {
+                 console.error("AI requested to place a piece it doesn't have access to:", intendedPieceType);
+                 this.hardDrop(); // 不正な手なのでとりあえず落とす
+                 Module.resetAI();
+                 return;
+            }
         }
         // ▲▲▲ ここまで修正 ▲▲▲
 
-        // AIがホールドを選択した場合、まずホールドを実行
-        if (this.player.pieceType !== bestMove.pieceType) {
-            this.hold();
-        }
-
         // AIが算出した最適な位置と回転にミノをセット
         this.player.x = bestMove.x;
-        // AIのy座標は着地後の座標なので、現在のミノにはセットしない
         this.player.rotation = bestMove.rotation;
 
         // ハードドロップで即座に配置
@@ -1423,22 +1441,34 @@ class AIPlayer extends Player {
         Module.commitMoveAndPrune(bestMove);
     }
 
+
+    // class AIPlayer の中の convertBoardToWasmFormat メソッドを修正
+
     convertBoardToWasmFormat() {
         const boardData = new Uint16Array(BOARD_HEIGHT);
         for (let y = 0; y < BOARD_HEIGHT; y++) {
+            // ▼▼▼ ここから修正 ▼▼▼
+            // C++のy軸(上向きが正)とJSのy軸(下向きが正)を合わせるため、
+            // JSの盤面(y)をC++の盤面(BOARD_HEIGHT - 1 - y)にマッピングする
+            const cpp_y = BOARD_HEIGHT - 1 - y;
+            
             let line = 0;
-            for (let x = 0; x < BOARD_WIDTH; x++) {
-                if (this.board[y] && this.board[y][x] !== null) {
-                    line |= (1 << x);
+            // this.board[y] はJS座標系の行
+            if (this.board[y]) { 
+                for (let x = 0; x < BOARD_WIDTH; x++) {
+                    if (this.board[y][x] !== null) {
+                        line |= (1 << x);
+                    }
                 }
             }
-            boardData[y] = line;
+            // boardData[cpp_y] にC++座標系の行として格納する
+            boardData[cpp_y] = line;
+            // ▲▲▲ ここまで修正 ▲▲▲
         }
         return boardData;
     }
 }
 
-// (省略)...
 
 
 function setupEditors() { ['p1', 'p2'].forEach(setupPlayerEditor); }
