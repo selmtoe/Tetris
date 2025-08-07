@@ -1364,6 +1364,8 @@ class AIPlayer extends Player {
         }
     }
 
+    // class AIPlayer の中の startThinking メソッドを修正
+
     startThinking() {
         // AIモジュールが準備完了していない、ゲームオーバー、または既に思考中の場合は何もしない
         if (!aiReady || this.gameOver || this.isThinking) return;
@@ -1376,8 +1378,11 @@ class AIPlayer extends Player {
         const holdMino = this.holdPiece || ' '; // ホールドがない場合は空白文字
         const nextMinosStr = this.nextQueue.slice(0, 15).join('');
 
+        // ▼▼▼ ここを修正 ▼▼▼
         // C++側のAIに現在のゲーム状態を渡して思考を開始
-        Module.updateGameState(boardForAI, currentMino, holdMino, nextMinosStr);
+        // 不足していた引数 `this.isB2B` と `this.ren` を追加
+        Module.updateGameState(boardForAI, currentMino, holdMino, nextMinosStr, this.isB2B, this.ren + 1);
+        // ▲▲▲ ここまで修正 ▲▲▲
         Module.startThinking();
     }
 
