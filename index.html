@@ -877,8 +877,6 @@ class Player {
         this.reset();
     }
 
-// } class Player の終わり
-
 class AIPlayer extends Player {
     constructor(id, offsetX, keyBindings, padIndex) {
         super(id, offsetX, keyBindings, padIndex);
@@ -887,7 +885,7 @@ class AIPlayer extends Player {
         this.THINK_TIME_MS = 250; // 1手あたりの思考時間(ミリ秒)
     }
 
-    // AIはキー入力を受け付けない
+    // AIはキー入力やゲームパッド操作を受け付けない
     isActionPressed(action) {
         return false;
     }
@@ -895,7 +893,7 @@ class AIPlayer extends Player {
         // 何もしない
     }
 
-    // 新しいミノが来たら思考を開始する
+    // 新しいミノが出現したら、次の手の思考を開始する
     spawnNewPiece() {
         super.spawnNewPiece();
         if (this.gameOver) return;
@@ -903,14 +901,34 @@ class AIPlayer extends Player {
     }
 
     update(dt) {
-        // isClearingLineなどの状態更新は親クラスに任せる
-        super.update(dt);
+        if (this.gameOver) return;
 
+        // Playerクラスのupdateから、AIに必要な処理のみを移植
+        if (this.specialMoveTextTimer > 0) {
+            this.specialMoveTextTimer -= dt;
+        }
+        this.processGarbageQueue();
+
+        // ライン消去中のアニメーション処理
+        if (this.isClearingLine) {
+            this.lineClearDelayTimer -= dt;
+            if (this.lineClearDelayTimer <= 0) {
+                this.isClearingLine = false;
+                this.riseGarbage();
+                this.spawnNewPiece(); // ライン消去完了後、新しいミノで思考を再開
+            }
+            return; // ライン消去中は他の処理は行わない
+        }
+
+        // AIの思考ロジック
         if (this.isThinking) {
             this.thinkingTimer += dt;
-            // 思考を継続させる (ステップごとに呼ぶことでメインスレッドをブロックしない)
-            if (aiReady) Module.thinkSteps(500); 
+            // 思考を少しずつ進める (メインスレッドのフリーズ防止)
+            if (aiReady) {
+                Module.thinkSteps(500);
+            }
 
+            // 思考時間が上限に達したら、最善手を実行
             if (this.thinkingTimer >= this.THINK_TIME_MS) {
                 this.executeBestMove();
             }
@@ -918,7 +936,8 @@ class AIPlayer extends Player {
     }
 
     startThinking() {
-        if (!aiReady || this.gameOver) return;
+        // AIモジュールが準備完了していない、ゲームオーバー、または既に思考中の場合は何もしない
+        if (!aiReady || this.gameOver || this.isThinking) return;
 
         this.isThinking = true;
         this.thinkingTimer = 0;
@@ -928,44 +947,47 @@ class AIPlayer extends Player {
         const holdMino = this.holdPiece || ' '; // ホールドがない場合は空白文字
         const nextMinosStr = this.nextQueue.slice(0, 15).join('');
 
-        // C++側のAIに現在のゲーム状態を渡す
+        // C++側のAIに現在のゲーム状態を渡して思考を開始
         Module.updateGameState(boardForAI, currentMino, holdMino, nextMinosStr);
         Module.startThinking();
     }
 
     executeBestMove() {
-        this.isThinking = false;
         if (!aiReady || this.gameOver) return;
-
+        
+        this.isThinking = false;
         const bestMove = Module.getBestMove();
 
-        // AIが手を見つけられなかった場合 (フォールバック)
+        // AIが有効な手を見つけられなかった場合のフォールバック処理
         if (!bestMove || bestMove.pieceType === ' ') {
-            console.warn("AI could not find a valid move. Performing hard drop.");
-            this.hardDrop(); 
-            // ダミーのPlacementでコミットするか、リセットする
-            if(bestMove) Module.commitMoveAndPrune(bestMove);
-            else Module.resetAI();
+            console.warn("AI could not find a valid move. Performing hard drop as fallback.");
+            this.hardDrop(); // とりあえずそのまま落とす
+            
+            // AIの内部状態をリセットするか、ダミーの手で更新する
+            if (bestMove) {
+                Module.commitMoveAndPrune(bestMove);
+            } else {
+                Module.resetAI(); // 手が全くない場合はリセットが安全
+            }
             return;
         }
 
-        // AIがホールドの使用を選択した場合
+        // AIがホールドを選択した場合、まずホールドを実行
         if (this.player.pieceType !== bestMove.pieceType) {
             this.hold();
         }
 
-        // AIの推奨する位置と回転に設定
+        // AIが算出した最適な位置と回転にミノをセット
         this.player.x = bestMove.x;
         this.player.rotation = bestMove.rotation;
 
         // ハードドロップで即座に配置
         this.hardDrop();
 
-        // AIの探索木を更新
+        // AIの探索木を、実行した手に基づいて更新
         Module.commitMoveAndPrune(bestMove);
     }
 
-    // JSの盤面表現をC++のAIが扱える Uint16Array に変換する
     convertBoardToWasmFormat() {
         const boardData = new Uint16Array(BOARD_HEIGHT);
         for (let y = 0; y < BOARD_HEIGHT; y++) {
@@ -981,7 +1003,6 @@ class AIPlayer extends Player {
     }
 }
 
-// function setupEditors() の始まり
 
     reset() {
         this.player = { x: 0, y: 0, pieceType: null, rotation: 0 };
