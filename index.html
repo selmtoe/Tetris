@@ -1386,25 +1386,25 @@ class AIPlayer extends Player {
         Module.startThinking();
     }
 
+    // class AIPlayer の中の executeBestMove メソッドを修正
+
     executeBestMove() {
         if (!aiReady || this.gameOver) return;
         
         this.isThinking = false;
         const bestMove = Module.getBestMove();
 
+        // ▼▼▼ ここの処理をより安全な形に修正 ▼▼▼
         // AIが有効な手を見つけられなかった場合のフォールバック処理
         if (!bestMove || bestMove.pieceType === ' ') {
             console.warn("AI could not find a valid move. Performing hard drop as fallback.");
             this.hardDrop(); // とりあえずそのまま落とす
             
-            // AIの内部状態をリセットするか、ダミーの手で更新する
-            if (bestMove) {
-                Module.commitMoveAndPrune(bestMove);
-            } else {
-                Module.resetAI(); // 手が全くない場合はリセットが安全
-            }
-            return;
+            // AIの内部状態が不整合になっている可能性が高いので、リセットして次の手から復帰させる
+            Module.resetAI();
+            return; // この後の commitMoveAndPrune を実行しないように処理を中断
         }
+        // ▲▲▲ ここまで修正 ▲▲▲
 
         // AIがホールドを選択した場合、まずホールドを実行
         if (this.player.pieceType !== bestMove.pieceType) {
@@ -1413,6 +1413,7 @@ class AIPlayer extends Player {
 
         // AIが算出した最適な位置と回転にミノをセット
         this.player.x = bestMove.x;
+        // AIのy座標は着地後の座標なので、現在のミノにはセットしない
         this.player.rotation = bestMove.rotation;
 
         // ハードドロップで即座に配置
