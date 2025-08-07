@@ -1442,32 +1442,22 @@ class AIPlayer extends Player {
     }
 
 
-    // class AIPlayer の中の convertBoardToWasmFormat メソッドを修正
-
     convertBoardToWasmFormat() {
         const boardData = new Uint16Array(BOARD_HEIGHT);
         for (let y = 0; y < BOARD_HEIGHT; y++) {
-            // ▼▼▼ ここから修正 ▼▼▼
-            // C++のy軸(上向きが正)とJSのy軸(下向きが正)を合わせるため、
-            // JSの盤面(y)をC++の盤面(BOARD_HEIGHT - 1 - y)にマッピングする
-            const cpp_y = BOARD_HEIGHT - 1 - y;
-            
             let line = 0;
-            // this.board[y] はJS座標系の行
-            if (this.board[y]) { 
-                for (let x = 0; x < BOARD_WIDTH; x++) {
-                    if (this.board[y][x] !== null) {
-                        line |= (1 << x);
-                    }
+            for (let x = 0; x < BOARD_WIDTH; x++) {
+                if (this.board[y] && this.board[y][x] !== null) {
+                    line |= (1 << x);
                 }
             }
-            // boardData[cpp_y] にC++座標系の行として格納する
-            boardData[cpp_y] = line;
-            // ▲▲▲ ここまで修正 ▲▲▲
+            boardData[y] = line;
         }
         return boardData;
     }
+}
 
+// (省略)...
 
 
 function setupEditors() { ['p1', 'p2'].forEach(setupPlayerEditor); }
