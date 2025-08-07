@@ -2005,9 +2005,40 @@ document.getElementById('mode-ai').addEventListener('click', () => {
             mainCanvas.style.width = PLAYER_CANVAS_WIDTH + 'px';
             mainCanvas.style.height = CANVAS_HEIGHT + 'px';
             players.push(new Player('1', 0, keyBindings.p1, 0));
+        } else if (gameMode === '2P') {
+            const totalWidth = PLAYER_CANVAS_WIDTH * 2;
+            mainCanvas.width = totalWidth * RESOLUTION_SCALE;
+            mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
+            mainCanvas.style.width = totalWidth + 'px';
+            mainCanvas.style.height = CANVAS_HEIGHT + 'px';
+            const p1 = new Player('1', 0, keyBindings.p1, 0);
+            const p2 = new Player('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1);
+            p1.opponent = p2;
+            p2.opponent = p1;
+            players.push(p1, p2);
+        } else if (gameMode === 'AI') {
+            if (!aiReady) {
+                alert("AI module is not ready. Please wait a moment and try again.");
+                gameState = 'EDITING';
+                document.getElementById('editor-container').style.display = 'flex';
+                document.getElementById('game-container').style.display = 'none';
+                document.getElementById('game-controls').style.display = 'none';
+                return;
+            }
+            const totalWidth = PLAYER_CANVAS_WIDTH * 2;
+            mainCanvas.width = totalWidth * RESOLUTION_SCALE;
+            mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
+            mainCanvas.style.width = totalWidth + 'px';
+            mainCanvas.style.height = CANVAS_HEIGHT + 'px';
+            const p1 = new Player('1', 0, keyBindings.p1, 0);
+            const p2 = new AIPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, null); // AIはゲームパッドを使わない
+            p1.opponent = p2;
+            p2.opponent = p1;
+            players.push(p1, p2);
+            Module.resetAI();
         }
 
-else if (gameMode === '2P') { // '2P'モードを明示的に const totalWidth = PLAYER_CANVAS_WIDTH * 2; mainCanvas.width = totalWidth * RESOLUTION_SCALE; mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE; mainCanvas.style.width = totalWidth + 'px'; mainCanvas.style.height = CANVAS_HEIGHT + 'px'; const p1 = new Player('1', 0, keyBindings.p1, 0); const p2 = new Player('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1); p1.opponent = p2; p2.opponent = p1; players.push(p1, p2); } else if (gameMode === 'AI') { // AIモードの処理を追加 if (!aiReady) { alert("AI module is not ready. Please wait a moment and try again."); // 編集画面に戻す gameState = 'EDITING'; document.getElementById('editor-container').style.display = 'flex';document.getElementById('game-container').style				document.getElementById('game-controls').style.display = 'none'; return; } const totalWidth = PLAYER_CANVAS_WIDTH * 2; mainCanvas.width = totalWidth * RESOLUTION_SCALE; mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE; mainCanvas.style.width = totalWidth + 'px'; mainCanvas.style.height = CANVAS_HEIGHT + 'px'; // P1は人間、P2はAIconst p1 = new Player('1', 0, keyBindings.p1, 0); const p2 = new AIPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1); p1.opponent = p2; p2.opponent = p1; players.push(p1, p2); // AIの状態をリセットModule.resetAI(); } ctx.scale(RESOLUTION_SCALE, RESOLUTION_SCALE);
+        ctx.scale(RESOLUTION_SCALE, RESOLUTION_SCALE);
 
         if (gameSettings.touchControlsEnabled) {
             virtualController.show();
@@ -2015,6 +2046,7 @@ else if (gameMode === '2P') { // '2P'モードを明示的に const totalWidth =
 
         setTimeout(updateScale, 0);
     });
+
 
 
     document.getElementById('backToEditorBtn').addEventListener('click', () => {
