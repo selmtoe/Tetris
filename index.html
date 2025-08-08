@@ -1436,8 +1436,6 @@ class AIPlayer extends Player {
      // AIの座標系がJSと左右逆の場合、x座標を反転させる
         bestMove.x = BOARD_WIDTH - 1 - bestMove.x;
 
-        // AIの座標系がJSと上下逆の場合、y座標を反転させる
-        bestMove.y = BOARD_HEIGHT - 1 - bestMove.y;
     // この時点で、this.player.pieceType は bestMove.pieceType と一致しているはずです。
     // (ホールドが実行された場合は、カレントミノが入れ替わっているため)
 
