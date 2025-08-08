@@ -1377,18 +1377,10 @@ class AIPlayer extends Player {
         const currentMino = this.player.pieceType;
         const holdMino = this.holdPiece || ' '; // ホールドがない場合は空白文字
         const nextMinosStr = this.nextQueue.slice(0, 15).join('');
-
-        // ▼▼▼ ここを修正 ▼▼▼
-        // C++側のAIに現在のゲーム状態を渡して思考を開始
-        // 不足していた引数 `this.isB2B` と `this.ren` を追加
         Module.updateGameState(boardForAI, currentMino, holdMino, nextMinosStr, this.isB2B, this.ren + 1);
-        // ▲▲▲ ここまで修正 ▲▲▲
         Module.startThinking();
     }
 
-    // class AIPlayer の中の executeBestMove メソッドを修正
-
-    // class AIPlayer の中の executeBestMove メソッドを修正
 
     executeBestMove() {
     if (!aiReady || this.gameOver) return;
@@ -1435,7 +1427,7 @@ class AIPlayer extends Player {
     convertBoardToWasmFormat() {
         const boardData = new Uint16Array(BOARD_HEIGHT);
         for (let y = 0; y < BOARD_HEIGHT; y++) {
-            // ▼▼▼ ここから修正 ▼▼▼
+
             // C++のy軸(上向きが正)とJSのy軸(下向きが正)を合わせるため、
             // JSの盤面(y)をC++の盤面(BOARD_HEIGHT - 1 - y)にマッピングする
             const cpp_y = BOARD_HEIGHT - 1 - y;
@@ -1451,7 +1443,6 @@ class AIPlayer extends Player {
             }
             // boardData[cpp_y] にC++座標系の行として格納する
             boardData[cpp_y] = line;
-            // ▲▲▲ ここまで修正 ▲▲▲
         }
         return boardData;
     }
