@@ -1391,59 +1391,47 @@ class AIPlayer extends Player {
     // class AIPlayer の中の executeBestMove メソッドを修正
 
     executeBestMove() {
-        if (!aiReady || this.gameOver) return;
-        
-        this.isThinking = false;
-        const bestMove = Module.getBestMove();
+    if (!aiReady || this.gameOver) return;
 
-        if (!bestMove || bestMove.pieceType === ' ') {
-            console.warn("AI could not find a valid move. Performing hard drop as fallback.");
-            this.hardDrop();
-            Module.resetAI();
-            return;
-        }
+    this.isThinking = false;
+    const bestMove = Module.getBestMove();
+    console.log("AI returned move:", JSON.parse(JSON.stringify(bestMove)));
 
-        // ▼▼▼ ホールド判定ロジックを修正 ▼▼▼
-        const intendedPieceType = bestMove.pieceType;
-        let pieceToPlaceIsNext = false;
-        if(this.nextQueue.length > 0 && intendedPieceType === this.nextQueue[0]) {
-             pieceToPlaceIsNext = true;
-        }
-
-        // AIが「現在持っているミノ」とは違うミノを置こうとしている場合、ホールドを実行する
-        // (ホールドが空でNextミノを置こうとする場合も含む)
-        if (this.player.pieceType !== intendedPieceType) {
-            // ホールドが空で、AIがNextミノを置こうとしているかチェック
-            if(this.holdPiece === null && pieceToPlaceIsNext) {
-                this.hold();
-            } 
-            // ホールドに既にあって、AIがそのホールドミノを置こうとしているかチェック
-            else if (this.holdPiece !== null && intendedPieceType === this.holdPiece) {
-                this.hold();
-            }
-            else {
-                 console.error("AI requested to place a piece it doesn't have access to:", intendedPieceType);
-                 this.hardDrop(); // 不正な手なのでとりあえず落とす
-                 Module.resetAI();
-                 return;
-            }
-        }
-        // ▲▲▲ ここまで修正 ▲▲▲
-
-        // AIが算出した最適な位置と回転にミノをセット
-        this.player.x = bestMove.x;
-        this.player.rotation = bestMove.rotation;
-
-        // ハードドロップで即座に配置
+    // AIが有効な手を返さなかった場合のフォールバック処理
+    if (!bestMove || bestMove.pieceType === ' ' || bestMove.pieceType === null) {
+        console.warn("AI did not return a valid move. Performing hard drop as a fallback.");
         this.hardDrop();
-
-        // AIの探索木を、実行した手に基づいて更新
-        Module.commitMoveAndPrune(bestMove);
+        Module.resetAI(); // AIの状態が不明なのでリセット
+        return;
     }
 
+    // AIが置きたいミノ(bestMove.pieceType)と、今持っているミノ(this.player.pieceType)が違う場合
+    // → ホールドを実行する必要がある
+    if (this.player.pieceType !== bestMove.pieceType) {
+        // ホールドが可能な状態かチェック
+        if (this.canHold) {
+            this.hold();
+        } else {
+            // ホールド不可の状況でホールドを要求された場合 (通常は起こらないはず)
+            console.error("AI requested a hold, but it is not possible. Aborting the move for this frame.");
+            this.isThinking = false; // 思考を一旦停止
+            return;
+        }
+    }
+    
+    // この時点で、this.player.pieceType は bestMove.pieceType と一致しているはずです。
+    // (ホールドが実行された場合は、カレントミノが入れ替わっているため)
 
-    // class AIPlayer の中の convertBoardToWasmFormat メソッドを修正
+    // AIが算出した最適な位置と回転にミノをセット
+    this.player.x = bestMove.x;
+    this.player.rotation = bestMove.rotation;
 
+    // ハードドロップで即座に配置
+    this.hardDrop();
+
+    // 実行した手をAIに伝えて、探索木を更新
+    Module.commitMoveAndPrune(bestMove);
+}
     convertBoardToWasmFormat() {
         const boardData = new Uint16Array(BOARD_HEIGHT);
         for (let y = 0; y < BOARD_HEIGHT; y++) {
