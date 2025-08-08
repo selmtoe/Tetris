@@ -302,7 +302,14 @@
     <canvas id="virtualControllerCanvas"></canvas>
 </div>
 
-<div id="settings-modal"> <div class="modal-content"> <div class="modal-tabs"> <button class="tab-button active"data-tab="general">諸設定</button> <button class="tab-button" data-tab="p1-keys">1P操作設定</button> <buttonclass="tab-button" data-tab="p2-keys" id="p2-keys-tab-btn" style="display: none;">2P操作設定</button> <buttonclass="tab-button" data-tab="ai-settings" id="ai-settings-tab-btn" style="display: none;">AI設定</button> </div>
+<div id="settings-modal">
+    <div class="modal-content">
+        <div class="modal-tabs">
+            <button class="tab-button active" data-tab="general">諸設定</button>
+            <button class="tab-button" data-tab="p1-keys">1P操作設定</button>
+            <button class="tab-button" data-tab="p2-keys" id="p2-keys-tab-btn" style="display: none;">2P操作設定</button>
+            <button class="tab-button" data-tab="ai-settings" id="ai-settings-tab-btn" style="display: none;">AI設定</button>
+        </div>
 
         <div class="tab-content active" id="tab-content-general">
              <h2 style="margin-top: 20px;">ゲーム設定</h2>
@@ -324,8 +331,23 @@
             </div>
         </div>
         
-
-<div class="tab-content" id="tab-content-p2-keys"> <h2 style="margin-top: 20px;">PLAYER 2 - 操作設定</h2> <p></p> <div id="p2-key-config-list" class="key-config-list-container"></div> </div> <div class="tab-content" id="tab-content-ai-settings"> <h2 style="margin-top: 20px;">AI 設定</h2> <p></p> <div id="ai-settings-list" class="key-config-list-container"></div> </div>
+        <div class="tab-content" id="tab-content-p2-keys">
+            <h2 style="margin-top: 20px;">PLAYER 2 - 操作設定</h2>
+            <p></p>
+            <div id="p2-key-config-list" class="key-config-list-container"></div>
+        </div>
+        
+        <div class="tab-content" id="tab-content-ai-settings">
+            <h2 style="margin-top: 20px;">AI 設定</h2>
+            <p></p>
+            <div id="ai-settings-list" class="key-config-list-container"></div>
+        </div>
+        
+        <div class="modal-controls" style="border-top: 1px solid var(--primary-color); padding-top: 15px; margin-top: 20px;">
+            <button id="settings-close" class="button">保存して閉じる</button>
+        </div>
+    </div>
+</div>
 
         
         <div class="modal-controls" style="border-top: 1px solid var(--primary-color); padding-top: 15px; margin-top: 20px;">
@@ -1433,8 +1455,7 @@ class AIPlayer extends Player {
             return;
         }
     }
-     // AIの座標系がJSと左右逆の場合、x座標を反転させる
-        bestMove.x = BOARD_WIDTH - 1 - bestMove.x;
+
 
     // この時点で、this.player.pieceType は bestMove.pieceType と一致しているはずです。
     // (ホールドが実行された場合は、カレントミノが入れ替わっているため)
@@ -2277,18 +2298,25 @@ document.getElementById('settingsBtn').addEventListener('click', () => openUnifi
     }
     
 
-   document.getElementById('retryBtn').addEventListener('click', () => {
+document.getElementById('retryBtn').addEventListener('click', () => {
         if (gameState !== 'PLAYING') return;
 
         players = [];
         if (gameMode === '1P') {
             players.push(new Player('1', 0, keyBindings.p1, 0));
-        } else {
+        } else if (gameMode === '2P') {
             const p1 = new Player('1', 0, keyBindings.p1, 0);
             const p2 = new Player('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1);
             p1.opponent = p2; 
             p2.opponent = p1;
             players.push(p1, p2);
+        } else if (gameMode === 'AI') {
+            const p1 = new Player('1', 0, keyBindings.p1, 0);
+            const p2 = new AIPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, null);
+            p1.opponent = p2;
+            p2.opponent = p1;
+            players.push(p1, p2);
+            Module.resetAI();
         }
     });
 
