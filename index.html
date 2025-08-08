@@ -1450,15 +1450,18 @@ class AIPlayer extends Player {
     convertBoardToWasmFormat() {
         const boardData = new Uint16Array(BOARD_HEIGHT);
         for (let y = 0; y < BOARD_HEIGHT; y++) {
-
+            // C++座標系ではy軸が反転していると仮定して、y座標を変換
             const cpp_y = BOARD_HEIGHT - 1 - y;
             
             let line = 0;
             // this.board[y] はJS座標系の行
             if (this.board[y]) { 
                 for (let x = 0; x < BOARD_WIDTH; x++) {
+                    // ここでx座標も反転させる
+                    // JSの0-9からC++の9-0へ
+                    const cpp_x = BOARD_WIDTH - 1 - x;
                     if (this.board[y][x] !== null) {
-                        line |= (1 << x);
+                        line |= (1 << cpp_x);
                     }
                 }
             }
