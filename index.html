@@ -252,29 +252,31 @@
                     </div>
                 </div>
             </div>
-            <div class="editor-column" id="p2-editor-col" style="display: none;">
-                <div class="edit-section next-editor">
-                    <h2>PLAYER 2 - NEXT</h2>
-                    <div class="mino-icons" id="p2-next-icons"></div>
-                    <div class="next-queue-display" id="p2-next-queue"></div>
-                    <div class="button-group"> <button class="button" id="p2-next-clear">Clear</button> </div>
-                </div>
-                <div class="edit-section field-editor">
-                    <h2>PLAYER 2 - FIELD</h2>
-                    <div class="color-palette" id="p2-palette"></div>
-                    <canvas id="field-editor-canvas-p2"></canvas>
-                    <div class="field-controls">
-                        <button class="button" id="p2-field-shift-up">↑ Up</button>
-                        <button class="button" id="p2-field-shift-down">↓ Down</button>
-                        <button class="button" id="p2-field-clear">Clear</button>
-                        <label for="imageLoader-p2" class="button">Load Img</label>
-                        <input type="file" id="imageLoader-p2" data-player="p2" accept="image/*">
-                    </div>
-                    <div class="key-config-controls" style="margin-top: 15px; text-align: center;">
-                        <button class="button" id="p2-key-config-btn">操作設定</button>
-                    </div>
-                </div>
-            </div>
+
+<div class="editor-column" id="p2-editor-col" style="display: none;">
+    <div class="edit-section next-editor">
+        <h2 id="p2-next-header">PLAYER 2 - NEXT</h2>
+        <div class="mino-icons" id="p2-next-icons"></div>
+        <div class="next-queue-display" id="p2-next-queue"></div>
+        <div class="button-group"> <button class="button" id="p2-next-clear">Clear</button> </div>
+    </div>
+    <div class="edit-section field-editor">
+        <h2 id="p2-field-header">PLAYER 2 - FIELD</h2>
+        <div class="color-palette" id="p2-palette"></div>
+        <canvas id="field-editor-canvas-p2"></canvas>
+        <div class="field-controls">
+            <button class="button" id="p2-field-shift-up">↑ Up</button>
+            <button class="button" id="p2-field-shift-down">↓ Down</button>
+            <button class="button" id="p2-field-clear">Clear</button>
+            <label for="imageLoader-p2" class="button">Load Img</label>
+            <input type="file" id="imageLoader-p2" data-player="p2" accept="image/*">
+        </div>
+        <div class="key-config-controls" style="margin-top: 15px; text-align: center;">
+            <button class="button" id="p2-key-config-btn">操作設定</button>
+        </div>
+    </div>
+</div>
+
         </div>
     </div>
     <div id="game-container">
@@ -300,13 +302,7 @@
     <canvas id="virtualControllerCanvas"></canvas>
 </div>
 
-<div id="settings-modal">
-    <div class="modal-content">
-        <div class="modal-tabs">
-            <button class="tab-button active" data-tab="general">諸設定</button>
-            <button class="tab-button" data-tab="p1-keys">1P操作設定</button>
-            <button class="tab-button" data-tab="p2-keys" id="p2-keys-tab-btn" style="display: none;">2P操作設定</button>
-        </div>
+<div id="settings-modal"> <div class="modal-content"> <div class="modal-tabs"> <button class="tab-button active"data-tab="general">諸設定</button> <button class="tab-button" data-tab="p1-keys">1P操作設定</button> <buttonclass="tab-button" data-tab="p2-keys" id="p2-keys-tab-btn" style="display: none;">2P操作設定</button> <buttonclass="tab-button" data-tab="ai-settings" id="ai-settings-tab-btn" style="display: none;">AI設定</button> </div>
 
         <div class="tab-content active" id="tab-content-general">
              <h2 style="margin-top: 20px;">ゲーム設定</h2>
@@ -328,11 +324,9 @@
             </div>
         </div>
         
-        <div class="tab-content" id="tab-content-p2-keys">
-            <h2 style="margin-top: 20px;">PLAYER 2 - 操作設定</h2>
-            <p></p>
-            <div id="p2-key-config-list" class="key-config-list-container"></div>
-        </div>
+
+<div class="tab-content" id="tab-content-p2-keys"> <h2 style="margin-top: 20px;">PLAYER 2 - 操作設定</h2> <p></p> <div id="p2-key-config-list" class="key-config-list-container"></div> </div> <div class="tab-content" id="tab-content-ai-settings"> <h2 style="margin-top: 20px;">AI 設定</h2> <p></p> <div id="ai-settings-list" class="key-config-list-container"></div> </div>
+
         
         <div class="modal-controls" style="border-top: 1px solid var(--primary-color); padding-top: 15px; margin-top: 20px;">
             <button id="settings-close" class="button">保存して閉じる</button>
@@ -760,6 +754,7 @@ let gameSettings = {
     maxNext: 5,
     showEffects: true,
     touchControlsEnabled: 'ontouchstart' in window,
+    aiThinkTime: 250, // AIの1手あたりの思考時間(ms)
 };
 
 const COLORS = { 'I': '#00f0f0', 'O': '#f0f000', 'T': '#a000f0', 'L': '#f0a000', 'J': '#0000f0', 'S': '#00f000', 'Z': '#f00000', 'G': '#999999' };
@@ -1311,7 +1306,7 @@ class AIPlayer extends Player {
         super(id, offsetX, keyBindings, padIndex);
         this.isThinking = false;
         this.thinkingTimer = 0;
-        this.THINK_TIME_MS = 250; // 1手あたりの思考時間(ミリ秒)
+        this.THINK_TIME_MS = gameSettings.aiThinkTime;
         this.isFirstMove = true; // ★追加：初手かどうかを判定するフラグ
     }
 
@@ -1683,23 +1678,81 @@ function populateKeyConfigTab(playerId) {
     });
 }
 
+function populateAiSettingsTab() {
+    const list = document.getElementById('ai-settings-list');
+    list.innerHTML = ''; // 中身をクリア
 
+    // AIの思考時間設定
+    const thinkTimeItem = document.createElement('div');
+    thinkTimeItem.className = 'setting-item';
+    const thinkTimeLabel = document.createElement('span');
+    thinkTimeLabel.textContent = 'AIの思考時間 (ms)';
+    const thinkTimeInput = document.createElement('input');
+    thinkTimeInput.type = 'number';
+    thinkTimeInput.min = 50;
+    thinkTimeInput.max = 2000;
+    thinkTimeInput.step = 10;
+    thinkTimeInput.value = gameSettings.aiThinkTime;
+    thinkTimeInput.onchange = e => {
+        gameSettings.aiThinkTime = parseInt(e.target.value, 10);
+        // AIプレイヤーインスタンスが存在すれば、設定を即時反映
+        const aiPlayer = players.find(p => p instanceof AIPlayer);
+        if (aiPlayer) {
+            aiPlayer.THINK_TIME_MS = gameSettings.aiThinkTime;
+        }
+    };
+    thinkTimeItem.append(thinkTimeLabel, thinkTimeInput);
+    list.appendChild(thinkTimeItem);
+
+    // AIの種類 (将来的な拡張用)
+    const aiTypeItem = document.createElement('div');
+    aiTypeItem.className = 'setting-item';
+    const aiTypeLabel = document.createElement('span');
+    aiTypeLabel.textContent = 'AIの種類';
+    const aiTypeSelect = document.createElement('select');
+    aiTypeSelect.style.minWidth = '150px';
+    aiTypeSelect.style.textAlign = 'center';
+    aiTypeSelect.disabled = true; // 今は選択肢が1つなので無効化
+    const option = document.createElement('option');
+    option.value = 'default';
+    option.textContent = 'Default AI (T-Spin)';
+    aiTypeSelect.appendChild(option);
+    aiTypeItem.append(aiTypeLabel, aiTypeSelect);
+    list.appendChild(aiTypeItem);
+
+    const info = document.createElement('p');
+    info.textContent = '※思考時間はゲーム開始前に設定してください。';
+    info.style.marginTop = '20px';
+    info.style.fontSize = '14px';
+    list.appendChild(info);
+}
 
 function openUnifiedSettingsModal(initialTab = 'general') {
     const modal = document.getElementById('settings-modal');
     
-    const p2TabBtn = document.getElementById('p2-keys-tab-btn');
+    const p2KeysTab = document.getElementById('p2-keys-tab-btn');
+    const aiSettingsTab = document.getElementById('ai-settings-tab-btn');
+
+    p2KeysTab.style.display = 'none';
+    aiSettingsTab.style.display = 'none';
+
     if (gameMode === '2P') {
-        p2TabBtn.style.display = 'block';
-    } else {
-        p2TabBtn.style.display = 'none';
+        p2KeysTab.style.display = 'block';
+        if (initialTab === 'ai-settings') initialTab = 'general';
+    } else if (gameMode === 'AI') {
+        aiSettingsTab.style.display = 'block';
         if (initialTab === 'p2-keys') initialTab = 'general';
+    } else {
+        if (initialTab === 'p2-keys' || initialTab === 'ai-settings') initialTab = 'general';
     }
 
     populateGeneralSettingsTab();
     populateKeyConfigTab('p1');
     if (gameMode === '2P') {
         populateKeyConfigTab('p2');
+    }
+    if (gameMode === 'AI') {
+        populateAiSettingsTab(); // AI設定タブを生成する関数を呼び出す
     }
 
     const tabs = modal.querySelectorAll('.tab-button');
@@ -2012,30 +2065,37 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 
-    document.getElementById('mode-1p').addEventListener('click', () => { 
+   document.getElementById('mode-1p').addEventListener('click', () => { 
         gameMode = '1P'; 
         document.getElementById('mode-1p').classList.add('active'); 
-        document.getElementById('mode-2p').classList.remove('active'); 
+        document.getElementById('mode-2p').classList.remove('active');
+        document.getElementById('mode-ai').classList.remove('active');
         document.getElementById('p2-editor-col').style.display = 'none'; 
         setTimeout(updateScale, 0);
     });
     document.getElementById('mode-2p').addEventListener('click', () => { 
         gameMode = '2P'; 
         document.getElementById('mode-2p').classList.add('active'); 
-        document.getElementById('mode-1p').classList.remove('active'); 
+        document.getElementById('mode-1p').classList.remove('active');
+        document.getElementById('mode-ai').classList.remove('active');
+        document.getElementById('p2-next-header').textContent = 'PLAYER 2 - NEXT';
+        document.getElementById('p2-field-header').textContent = 'PLAYER 2 - FIELD';
         document.getElementById('p2-editor-col').style.display = 'flex';
         setTimeout(updateScale, 0);
     });
 
-document.getElementById('mode-ai').addEventListener('click', () => {
-    if (gameMode === 'AI') return;
-    gameMode = 'AI';
-    document.getElementById('mode-ai').classList.add('active');
-    document.getElementById('mode-1p').classList.remove('active');
-    document.getElementById('mode-2p').classList.remove('active');
-    document.getElementById('p2-editor-col').style.display = 'none';
-    setTimeout(updateScale, 0);
-});
+    document.getElementById('mode-ai').addEventListener('click', () => {
+        if (gameMode === 'AI') return;
+        gameMode = 'AI';
+        document.getElementById('mode-ai').classList.add('active');
+        document.getElementById('mode-1p').classList.remove('active');
+        document.getElementById('mode-2p').classList.remove('active');
+        // P2エディタを表示し、ヘッダーをAI用に変更
+        document.getElementById('p2-editor-col').style.display = 'flex';
+        document.getElementById('p2-next-header').textContent = 'AI - NEXT';
+        document.getElementById('p2-field-header').textContent = 'AI - FIELD';
+        setTimeout(updateScale, 0);
+    });
 
     
     document.getElementById('startGameBtn').addEventListener('click', () => {
