@@ -1312,6 +1312,7 @@ class AIPlayer extends Player {
         this.isThinking = false;
         this.thinkingTimer = 0;
         this.THINK_TIME_MS = 250; // 1手あたりの思考時間(ミリ秒)
+        this.isFirstMove = true; // ★追加：初手かどうかを判定するフラグ
     }
 
     // AIはキー入力やゲームパッド操作を受け付けない
@@ -1331,6 +1332,11 @@ class AIPlayer extends Player {
 
        update(dt) {
         if (this.gameOver) return;
+        if (this.isFirstMove && this.canHold) {
+            this.hold(); // 既存のホールドメソッドを呼び出す
+            this.isFirstMove = false; // フラグを倒して、次回以降はこの処理を通らないようにする
+            return; // このフレームの処理はここまで
+        }
 
         // 共通処理 (Player.updateより)
         if (this.specialMoveTextTimer > 0) {
