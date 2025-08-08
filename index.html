@@ -1329,40 +1329,63 @@ class AIPlayer extends Player {
         this.startThinking();
     }
 
-    update(dt) {
+       update(dt) {
         if (this.gameOver) return;
 
-        // Playerクラスのupdateから、AIに必要な処理のみを移植
+        // 共通処理 (Player.updateより)
         if (this.specialMoveTextTimer > 0) {
             this.specialMoveTextTimer -= dt;
         }
         this.processGarbageQueue();
-
-        // ライン消去中のアニメーション処理
+        
+        // ラインクリア中の処理 (Player.updateより)
         if (this.isClearingLine) {
             this.lineClearDelayTimer -= dt;
             if (this.lineClearDelayTimer <= 0) {
                 this.isClearingLine = false;
                 this.riseGarbage();
-                this.spawnNewPiece(); // ライン消去完了後、新しいミノで思考を再開
+                this.spawnNewPiece();
             }
-            return; // ライン消去中は他の処理は行わない
+            return;
         }
-
+        
         // AIの思考ロジック
         if (this.isThinking) {
             this.thinkingTimer += dt;
-            // 思考を少しずつ進める (メインスレッドのフリーズ防止)
             if (aiReady) {
                 Module.thinkSteps(500);
             }
-
-            // 思考時間が上限に達したら、最善手を実行
+            // 思考が完了したら即座に手を打つ
             if (this.thinkingTimer >= this.THINK_TIME_MS) {
                 this.executeBestMove();
+                // executeBestMove内でhardDrop->lockPieceが呼ばれるので、
+                // このフレームの残りの物理処理は不要。
+                return;
+            }
+        }
+
+        // 物理挙動 (Player.updateより、キー入力/ソフトドロップ処理を削除)
+        this.isGrounded = this.checkCollision(this.player.x, this.player.y + 1, this.getShape(this.player.pieceType, this.player.rotation));
+        if (this.isGrounded) {
+            this.lockTimer += dt;
+            if (this.lockTimer >= gameSettings.lockDelay) {
+                this.lockPiece();
+            }
+        } else {
+            this.lockTimer = 0;
+            // 自然落下
+            if (gameSettings.gravity > 0) {
+                this.gravityTimer -= dt;
+                if (this.gravityTimer <= 0) {
+                    this.move(0, 1, false);
+                    this.gravityTimer += gameSettings.gravity;
+                }
+            } else { // 0G (20G) の場合
+                this.player.y = this.getGhostY();
             }
         }
     }
+
 
 
     startThinking() {
