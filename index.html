@@ -6,7 +6,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#1a1a2e">
 <link rel="manifest" id="manifest-link">
+
 <title>Tetris Simulator</title>
+<script async src="tetris_ai.js"></script>
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
@@ -221,7 +224,7 @@
                 <h2>MODE</h2>
                 <div class="button active" id="mode-1p">1P</div>
                 <div class="button" id="mode-2p">2P</div>
-                <div class="button" id="mode-ai">AI</div>
+                <div class="button" id="mode-ai" style="opacity: 0.5; cursor: not-allowed;" title="実装予定">AI</div>
                  <button id="settingsBtn" class="button" style="margin-left: 15px;">設定</button>
                  <button id="shareBtn" class="button" style="margin-left: 5px;">共有</button>
             </div>
@@ -247,36 +250,34 @@
                         <label for="imageLoader-p1" class="button">Load Img</label>
                         <input type="file" id="imageLoader-p1" data-player="p1" accept="image/*">
                     </div>
-                    <div class="key-config-controls" style="margin-top: 15px; text-align: center;">
-                        <button class="button" id="p1-key-config-btn">操作設定</button>
-                    </div>
+
+<div class="key-config-controls" style="margin-top: 15px; text-align: center; display: flex; justify-content: center; align-items: center; gap: 10px;"> <button class="button" id="p1-key-config-btn">操作設定</button> <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-family: var(--font-ui);"> <input type="checkbox" id="p1-ai-toggle" style="width: 18px; height: 18px;"> AI </label> </div>
+
                 </div>
             </div>
+            <div class="editor-column" id="p2-editor-col" style="display: none;">
+                <div class="edit-section next-editor">
+                    <h2>PLAYER 2 - NEXT</h2>
+                    <div class="mino-icons" id="p2-next-icons"></div>
+                    <div class="next-queue-display" id="p2-next-queue"></div>
+                    <div class="button-group"> <button class="button" id="p2-next-clear">Clear</button> </div>
+                </div>
+                <div class="edit-section field-editor">
+                    <h2>PLAYER 2 - FIELD</h2>
+                    <div class="color-palette" id="p2-palette"></div>
+                    <canvas id="field-editor-canvas-p2"></canvas>
+                    <div class="field-controls">
+                        <button class="button" id="p2-field-shift-up">↑ Up</button>
+                        <button class="button" id="p2-field-shift-down">↓ Down</button>
+                        <button class="button" id="p2-field-clear">Clear</button>
+                        <label for="imageLoader-p2" class="button">Load Img</label>
+                        <input type="file" id="imageLoader-p2" data-player="p2" accept="image/*">
+                    </div>
 
-<div class="editor-column" id="p2-editor-col" style="display: none;">
-    <div class="edit-section next-editor">
-        <h2 id="p2-next-header">PLAYER 2 - NEXT</h2>
-        <div class="mino-icons" id="p2-next-icons"></div>
-        <div class="next-queue-display" id="p2-next-queue"></div>
-        <div class="button-group"> <button class="button" id="p2-next-clear">Clear</button> </div>
-    </div>
-    <div class="edit-section field-editor">
-        <h2 id="p2-field-header">PLAYER 2 - FIELD</h2>
-        <div class="color-palette" id="p2-palette"></div>
-        <canvas id="field-editor-canvas-p2"></canvas>
-        <div class="field-controls">
-            <button class="button" id="p2-field-shift-up">↑ Up</button>
-            <button class="button" id="p2-field-shift-down">↓ Down</button>
-            <button class="button" id="p2-field-clear">Clear</button>
-            <label for="imageLoader-p2" class="button">Load Img</label>
-            <input type="file" id="imageLoader-p2" data-player="p2" accept="image/*">
-        </div>
-        <div class="key-config-controls" style="margin-top: 15px; text-align: center;">
-            <button class="button" id="p2-key-config-btn">操作設定</button>
-        </div>
-    </div>
-</div>
+<div class="key-config-controls" style="margin-top: 15px; text-align: center; display: flex; justify-content: center; align-items: center; gap: 10px;"> <button class="button" id="p2-key-config-btn">操作設定</button> <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-family: var(--font-ui);"> <input type="checkbox" id="p2-ai-toggle" style="width: 18px; height: 18px;"> AI </label> </div>
 
+                </div>
+            </div>
         </div>
     </div>
     <div id="game-container">
@@ -308,7 +309,7 @@
             <button class="tab-button active" data-tab="general">諸設定</button>
             <button class="tab-button" data-tab="p1-keys">1P操作設定</button>
             <button class="tab-button" data-tab="p2-keys" id="p2-keys-tab-btn" style="display: none;">2P操作設定</button>
-            <button class="tab-button" data-tab="ai-settings" id="ai-settings-tab-btn" style="display: none;">AI設定</button>
+<button class="tab-button" data-tab="ai-settings">AI設定</button>
         </div>
 
         <div class="tab-content active" id="tab-content-general">
@@ -337,12 +338,9 @@
             <div id="p2-key-config-list" class="key-config-list-container"></div>
         </div>
         
-        <div class="tab-content" id="tab-content-ai-settings">
-            <h2 style="margin-top: 20px;">AI 設定</h2>
-            <p></p>
-            <div id="ai-settings-list" class="key-config-list-container"></div>
-        </div>
-        
+
+<div class="tab-content" id="tab-content-ai-settings">     <h2 style="margin-top: 20px;">AI 設定</h2>     <p></p>     <div id="ai-settings-list" class="key-config-list-container"></div> </div>
+
         <div class="modal-controls" style="border-top: 1px solid var(--primary-color); padding-top: 15px; margin-top: 20px;">
             <button id="settings-close" class="button">保存して閉じる</button>
         </div>
@@ -742,6 +740,21 @@ const virtualController = (() => {
     };
 })();
 
+let Module = {};
+const isWasmReady = new Promise(resolve => {
+    Module.onRuntimeInitialized = () => {
+        console.log('WASM AI module initialized.');
+        resolve(true);
+    };
+});
+
+let aiSettings = {
+    thinkInterval: 200, // AIが次の手を考える間隔(ms)
+    // 今後、AIの種類などを追加可能
+};
+
+const AXIS_THRESHOLD = 0.8; // この行は既存のコードから移動
+
 const RESOLUTION_SCALE = 2;
 const BLOCK_SIZE = 28;
 const EDITOR_BLOCK_SIZE = 50;
@@ -755,7 +768,6 @@ const PADDING = 20;
 const PLAYER_CANVAS_WIDTH = HOLD_AREA_WIDTH + PLAYFIELD_WIDTH + NEXT_AREA_WIDTH + PADDING * 2;
 const CANVAS_HEIGHT = (BOARD_VISIBLE_HEIGHT + 0.5) * BLOCK_SIZE;
 const PLAYFIELD_X_OFFSET = HOLD_AREA_WIDTH + PADDING;
-const AXIS_THRESHOLD = 0.8;
 
 let gameSettings = {
     das: 140,
@@ -769,7 +781,6 @@ let gameSettings = {
     maxNext: 5,
     showEffects: true,
     touchControlsEnabled: 'ontouchstart' in window,
-    aiThinkTime: 250, // AIの1手あたりの思考時間(ms)
 };
 
 const COLORS = { 'I': '#00f0f0', 'O': '#f0f000', 'T': '#a000f0', 'L': '#f0a000', 'J': '#0000f0', 'S': '#00f000', 'Z': '#f00000', 'G': '#999999' };
@@ -812,17 +823,7 @@ const TETROMINOS = {
 };
 const SRS_OFFSETS = { "JLSTZ": { "0_1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], "1_0": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], "1_2": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], "2_1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], "2_3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], "3_2": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], "3_0": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], "0_3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], }, "I": { "0_1": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], "1_0": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], "1_2": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], "2_1": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], "2_3": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], "3_2": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], "3_0": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], "0_3": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], } };
 
-// (ファイル先頭付近)
 let players = [], gameMode = '1P', gameState = 'EDITING', lastTime = 0, mainCanvas, ctx;
-let aiReady = false; // AIモジュールが準備完了したか
-
-// WASMモジュールのロード完了をハンドル
-var Module = {
-    onRuntimeInitialized: () => {
-        console.log("Tetris AI module is ready.");
-        aiReady = true;
-    }
-};
 
 let keyBindings = {
     p1: {
@@ -852,10 +853,12 @@ const keyActionLabels = {
 let isBindingKey = false, bindingPlayer = null, bindingAction = null;
 let gamepads = {}, prevGamepads = {};
 
+
 const editorData = {
-    p1: { board: null, nextQueue: [], viewY: BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT, activeColor: 'I' },
-    p2: { board: null, nextQueue: [], viewY: BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT, activeColor: 'I' }
+    p1: { board: null, nextQueue: [], viewY: BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT, activeColor: 'I', isAI: false },
+    p2: { board: null, nextQueue: [], viewY: BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT, activeColor: 'I', isAI: false }
 };
+
 let scanState = { image: null, bottomLeft: null, topRight: null, currentMousePos: {x: 0, y: 0}, targetPlayerId: null, parsedColors: null };
 
 function* createMinoGenerator(customQueue) {
@@ -877,19 +880,23 @@ function* createMinoGenerator(customQueue) {
     }
 }
 
-// (省略)...
-
 class Player {
-    constructor(id, offsetX, keyBindings, padIndex) {
+    constructor(id, offsetX, keyBindings, padIndex, isAI) {
         this.id = id; this.offsetX = offsetX; this.keyBindings = keyBindings; this.padIndex = padIndex;
+        this.isAI = isAI;
+
+        // AI関連のプロパティを初期化
+        this.aiThinkTimer = 0;
+        this.isThinking = false;
+        this.nextMove = null;
+
         this.keys = {};
         this.board = editorData[`p${id}`].board.map(row => [...row]);
         this.minoGenerator = createMinoGenerator(editorData[`p${id}`].nextQueue);
         this.opponent = null;
         this.reset();
     }
-    
-    // ▼▼▼ Playerクラスのメソッドをクラス定義内に移動 ▼▼▼
+
     reset() {
         this.player = { x: 0, y: 0, pieceType: null, rotation: 0 };
         this.nextQueue = [];
@@ -908,8 +915,6 @@ class Player {
         this.spawnNewPiece();
     }
     
-    // ... (ここから Player の spawnNewPiece() から drawMessage() までの全てのメソッドが入る) ...
-
     spawnNewPiece() {
         this.player.pieceType = this.nextQueue.shift();
         this.nextQueue.push(this.minoGenerator.next().value);
@@ -968,6 +973,8 @@ class Player {
         }
 
         this.processGarbageQueue();
+
+if (this.isAI) { if (this.isClearingLine) return; // ライン消去中は思考しない if (this.nextMove) { this.applyAIMove();return; // AIの操作を適用したらそのフレームは終了 } this.aiThinkTimer += dt; if (this.aiThinkTimer >= aiSettings.thinkInterval && !this.isThinking) { this.runAIThinking(); this.aiThinkTimer = 0; } return; // AIプレイヤーは以降のキー入力処理をスキップ }
 
         const left = this.isActionPressed('left');
         const right = this.isActionPressed('right');
@@ -1074,7 +1081,8 @@ class Player {
         ctx.restore(); ctx.restore();
     }
     
-    getShape(p, r) { if(!p) return []; const o=TETROMINOS[p].shape; if(r===0||p==='O')return o; const c=TETROMINOS[p].center; return o.map(b=>{let [x,y]=[b[0]-c[0],b[1]-c[1]]; for(let i=0;i<r;i++){[x,y]=[-y,x];} return [x+c[0]+(p==='O'?0.5:0),y+c[1]+(p==='O'?0.5:0)];});}
+
+getShape(p, r) { if(!p) return []; const o=TETROMINOS[p].shape; if(r===0||p==='O')return o; const c=TETROMINOS[p].center; return o.map(b=>{let [x,y]=[b[0]-c[0],b[1]-c[1]]; for(let i=0;i<r;i++){[x,y]=[-y,x];} return [x+c[0]+(p==='O'?0.5:0),y+c[1]+(p==='O'?0.5:0)];});}
     checkCollision(x,y,s) { for(const b of s) { const bx=Math.floor(x+b[0]), by=Math.floor(y+b[1]); if(bx<0||bx>=BOARD_WIDTH||by>=BOARD_HEIGHT||(by>=0&&this.board[by]?.[bx])) return true; } return false; }
     rotate(d) { if(this.gameOver||!this.player.pieceType||this.player.pieceType==='O')return; const oR=this.player.rotation, nR=(oR+d+4)%4; const oD=(this.player.pieceType==='I'?SRS_OFFSETS.I:SRS_OFFSETS.JLSTZ)[`${oR}_${nR}`]; const nS=this.getShape(this.player.pieceType,nR); for(let i=0;i<oD.length;i++){const t=oD[i];const oX=t[0],oY=-t[1]; if(!this.checkCollision(this.player.x+oX,this.player.y+oY,nS)){this.player.x+=oX;this.player.y+=oY;this.player.rotation=nR;this.lockTimer=0;this.lastMoveWasRotation=true;this.lastSrsKickIndex=i;return;}}}
     move(dx,dy,isPlayer=true) { if(this.gameOver||!this.player.pieceType)return; const s=this.getShape(this.player.pieceType,this.player.rotation); if(!this.checkCollision(this.player.x+dx,this.player.y+dy,s)){this.player.x+=dx;this.player.y+=dy;if(isPlayer){this.lockTimer=0;this.lastMoveWasRotation=false;}}}
@@ -1313,182 +1321,92 @@ class Player {
     }
 
     drawMessage(t) { const cX = PLAYFIELD_WIDTH / 2; const cY = CANVAS_HEIGHT / 2; ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(0, -0.5*BLOCK_SIZE, PLAYFIELD_WIDTH, CANVAS_HEIGHT); ctx.fillStyle = '#FFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `bold ${BLOCK_SIZE * 1.5}px "Orbitron"`; ctx.fillText(t, cX, cY); ctx.textBaseline = 'alphabetic'; }
-}
 
-
-class AIPlayer extends Player {
-    constructor(id, offsetX, keyBindings, padIndex) {
-        super(id, offsetX, keyBindings, padIndex);
-        this.isThinking = false;
-        this.thinkingTimer = 0;
-        this.THINK_TIME_MS = gameSettings.aiThinkTime;
-        this.isFirstMove = true; // ★追加：初手かどうかを判定するフラグ
-    }
-
-    // AIはキー入力やゲームパッド操作を受け付けない
-    isActionPressed(action) {
-        return false;
-    }
-    handlePress(action) {
-        // 何もしない
-    }
-
-    // 新しいミノが出現したら、次の手の思考を開始する
-    spawnNewPiece() {
-        super.spawnNewPiece();
-        if (this.gameOver) return;
-        this.startThinking();
-    }
-
-       update(dt) {
-        if (this.gameOver) return;
-        if (this.isFirstMove && this.canHold) {
-            this.hold(); // 既存のホールドメソッドを呼び出す
-            this.isFirstMove = false; // フラグを倒して、次回以降はこの処理を通らないようにする
-            return; // このフレームの処理はここまで
-        }
-
-        // 共通処理 (Player.updateより)
-        if (this.specialMoveTextTimer > 0) {
-            this.specialMoveTextTimer -= dt;
-        }
-        this.processGarbageQueue();
-        
-        // ラインクリア中の処理 (Player.updateより)
-        if (this.isClearingLine) {
-            this.lineClearDelayTimer -= dt;
-            if (this.lineClearDelayTimer <= 0) {
-                this.isClearingLine = false;
-                this.riseGarbage();
-                this.spawnNewPiece();
-            }
-            return;
-        }
-        
-        // AIの思考ロジック
-        if (this.isThinking) {
-            this.thinkingTimer += dt;
-            if (aiReady) {
-                Module.thinkSteps(500);
-            }
-            // 思考が完了したら即座に手を打つ
-            if (this.thinkingTimer >= this.THINK_TIME_MS) {
-                this.executeBestMove();
-                // executeBestMove内でhardDrop->lockPieceが呼ばれるので、
-                // このフレームの残りの物理処理は不要。
-                return;
-            }
-        }
-
-        // 物理挙動 (Player.updateより、キー入力/ソフトドロップ処理を削除)
-        this.isGrounded = this.checkCollision(this.player.x, this.player.y + 1, this.getShape(this.player.pieceType, this.player.rotation));
-        if (this.isGrounded) {
-            this.lockTimer += dt;
-            if (this.lockTimer >= gameSettings.lockDelay) {
-                this.lockPiece();
-            }
-        } else {
-            this.lockTimer = 0;
-            // 自然落下
-            if (gameSettings.gravity > 0) {
-                this.gravityTimer -= dt;
-                if (this.gravityTimer <= 0) {
-                    this.move(0, 1, false);
-                    this.gravityTimer += gameSettings.gravity;
-                }
-            } else { // 0G (20G) の場合
-                this.player.y = this.getGhostY();
-            }
-        }
-    }
-
-
-
-    startThinking() {
-        // AIモジュールが準備完了していない、ゲームオーバー、または既に思考中の場合は何もしない
-        if (!aiReady || this.gameOver || this.isThinking) return;
-
+    async runAIThinking() {
         this.isThinking = true;
-        this.thinkingTimer = 0;
+        await isWasmReady; // WASMの準備が完了するまで待つ
 
-        const boardForAI = this.convertBoardToWasmFormat();
-        const currentMino = this.player.pieceType;
-        const holdMino = this.holdPiece || ' '; // ホールドがない場合は空白文字
-        const nextMinosStr = this.nextQueue.slice(0, 15).join('');
-        Module.updateGameState(boardForAI, currentMino, holdMino, nextMinosStr, this.isB2B, this.ren + 1);
-        Module.startThinking();
-    }
+        // 1. WASMに渡すゲーム状態を作成
+        const wasmBoard = this.convertBoardToWASMFormat(this.board);
 
+        let minoSequenceStr = '';
+        if (this.player.pieceType) minoSequenceStr += this.player.pieceType;
+        if (this.holdPiece) minoSequenceStr += this.holdPiece;
+        else if (this.nextQueue.length > 0) minoSequenceStr += this.nextQueue[0];
+        this.nextQueue.forEach(p => minoSequenceStr += p);
 
-    executeBestMove() {
-    if (!aiReady || this.gameOver) return;
-
-    this.isThinking = false;
-    const bestMove = Module.getBestMove();
-    console.log("AI returned move:", JSON.parse(JSON.stringify(bestMove)));
-
-    // AIが有効な手を返さなかった場合のフォールバック処理
-    if (!bestMove || bestMove.pieceType === ' ' || bestMove.pieceType === null) {
-        console.warn("AI did not return a valid move. Performing hard drop as a fallback.");
-        this.hardDrop();
-        Module.resetAI(); // AIの状態が不明なのでリセット
-        return;
-    }
-
-    // AIが置きたいミノ(bestMove.pieceType)と、今持っているミノ(this.player.pieceType)が違う場合
-    // → ホールドを実行する必要がある
-    if (this.player.pieceType !== bestMove.pieceType) {
-        // ホールドが可能な状態かチェック
-        if (this.canHold) {
-            this.hold();
-        } else {
-            // ホールド不可の状況でホールドを要求された場合 (通常は起こらないはず)
-            console.error("AI requested a hold, but it is not possible. Aborting the move for this frame.");
-            this.isThinking = false; // 思考を一旦停止
-            return;
+        // 2. WASMのAIに状態を渡して思考を開始
+        try {
+            const b2bStatus = this.isB2B;
+            const renCount = this.ren < 0 ? 0 : this.ren;
+            Module.updateGameState(wasmBoard, this.player.pieceType, this.holdPiece || ' ', this.nextQueue.join(''), b2bStatus, renCount);
+            
+            Module.startThinking();
+            
+            // 思考ステップを少しずつ進める (ここでは単純化のため一括実行)
+            // Web Workerで実行するのが理想だが、まずはメインスレッドで短時間実行
+            Module.thinkSteps(1500); // 思考ステップ数 (調整が必要)
+            
+            const move = Module.getBestMove();
+            if (move && move.pieceType !== ' ') {
+                this.nextMove = move;
+                Module.commitMoveAndPrune(move);
+            } else {
+                 console.warn(`AI on player ${this.id} could not decide a move.`);
+                 this.nextMove = null;
+            }
+        } catch(e) {
+            console.error("AI execution error:", e);
+            this.nextMove = null;
+        } finally {
+            this.isThinking = false;
         }
     }
-     // AIの座標系がJSと左右逆の場合、x座標を反転させる
-        //bestMove.x = BOARD_WIDTH - 1 - bestMove.x;
 
-    // この時点で、this.player.pieceType は bestMove.pieceType と一致しているはずです。
-    // (ホールドが実行された場合は、カレントミノが入れ替わっているため)
+    applyAIMove() {
+        if (!this.nextMove || this.isClearingLine) return;
+        const move = this.nextMove;
 
-    // AIが算出した最適な位置と回転にミノをセット
-    this.player.x = bestMove.x;
-    this.player.rotation = bestMove.rotation;
+        // ホールドが必要か判断
+        if (move.pieceType !== this.player.pieceType) {
+            this.hold();
+        }
+        
+        // 回転と位置を直接設定
+        this.player.rotation = move.rotation;
+        this.player.x = move.x;
+        // AIが返すY座標は直接落下後の位置なので、一旦仮のY座標から再計算
+        this.player.y = 18; 
+        const ghostY = this.getGhostY();
+        
+        if (Math.abs(ghostY - move.y) <= 2) { // AIの計算結果とゴーストの位置が近ければ採用
+            this.player.y = ghostY;
+            this.lockPiece();
+        } else {
+             // 稀にAIのY座標計算がずれることがあるため、ハードドロップで代用
+             this.hardDrop();
+        }
 
-    // ハードドロップで即座に配置
-    this.hardDrop();
+        this.nextMove = null;
+    }
 
-    // 実行した手をAIに伝えて、探索木を更新
-    Module.commitMoveAndPrune(bestMove);
-}
-    convertBoardToWasmFormat() {
-        const boardData = new Uint16Array(BOARD_HEIGHT);
+    convertBoardToWASMFormat(jsBoard) {
+        // Uint16ArrayはJavaScriptの型付き配列
+        const wasmRows = new Uint16Array(BOARD_HEIGHT); 
         for (let y = 0; y < BOARD_HEIGHT; y++) {
-            // C++座標系ではy軸が反転していると仮定して、y座標を変換
-            const cpp_y = BOARD_HEIGHT - 1 - y;
-            
-            let line = 0;
-            // this.board[y] はJS座標系の行
-            if (this.board[y]) { 
-                for (let x = 0; x < BOARD_WIDTH; x++) {
-                    // ここでx座標も反転させる
-                    // JSの0-9からC++の9-0へ
-                    const cpp_x = BOARD_WIDTH - 1 - x;
-                    if (this.board[y][x] !== null) {
-                        line |= (1 << cpp_x);
-                    }
+            let rowBits = 0;
+            for (let x = 0; x < BOARD_WIDTH; x++) {
+                if (jsBoard[y][x] !== null) {
+                    rowBits |= (1 << x);
                 }
             }
-            // boardData[cpp_y] にC++座標系の行として格納する
-            boardData[cpp_y] = line;
+            // 座標系を変換: JSのy=0(上)をC++のrow=39(上)に対応させる
+            wasmRows[(BOARD_HEIGHT - 1) - y] = rowBits;
         }
-        return boardData;
+        return wasmRows;
     }
-}
 
+}
 
 
 function setupEditors() { ['p1', 'p2'].forEach(setupPlayerEditor); }
@@ -1679,7 +1597,12 @@ function populateGeneralSettingsTab() {
         const span = document.createElement('span'); span.textContent = text;
         label.append(checkbox, span); item.appendChild(label); list.appendChild(item);
     });
+
+populateAISettingsTab();
+
 }
+
+function populateAISettingsTab() { const list = document.getElementById('ai-settings-list'); list.innerHTML = ''; constsettings = { thinkInterval: { label: '思考間隔 (ms)', min: 50, max: 2000, step: 50 } }; Object.keys(settings).forEach(key=> { const item = document.createElement('div'); item.className = 'setting-item'; const label = document.createElement('span'); label.textContent = settings[key].label; const input = document.createElement('input'); input.type = 'number'; Object.assign(input, settings[key]); input.value = aiSettings[key]; input.onchange = e => { aiSettings[key] = Math.max(settings[key].min, Math.min(settings[key].max, parseInt(e.target.value, 10))); }; item.append(label, input); list.appendChild(item); }); }
 
 function populateKeyConfigTab(playerId) {
     const list = document.getElementById(`${playerId}-key-config-list`);
@@ -1698,101 +1621,47 @@ function populateKeyConfigTab(playerId) {
     });
 }
 
-function populateAiSettingsTab() {
-    const list = document.getElementById('ai-settings-list');
-    list.innerHTML = ''; // 中身をクリア
-
-    // AIの思考時間設定
-    const thinkTimeItem = document.createElement('div');
-    thinkTimeItem.className = 'setting-item';
-    const thinkTimeLabel = document.createElement('span');
-    thinkTimeLabel.textContent = 'AIの思考時間 (ms)';
-    const thinkTimeInput = document.createElement('input');
-    thinkTimeInput.type = 'number';
-    thinkTimeInput.min = 50;
-    thinkTimeInput.max = 2000;
-    thinkTimeInput.step = 10;
-    thinkTimeInput.value = gameSettings.aiThinkTime;
-    thinkTimeInput.onchange = e => {
-        gameSettings.aiThinkTime = parseInt(e.target.value, 10);
-        // AIプレイヤーインスタンスが存在すれば、設定を即時反映
-        const aiPlayer = players.find(p => p instanceof AIPlayer);
-        if (aiPlayer) {
-            aiPlayer.THINK_TIME_MS = gameSettings.aiThinkTime;
-        }
-    };
-    thinkTimeItem.append(thinkTimeLabel, thinkTimeInput);
-    list.appendChild(thinkTimeItem);
-
-    // AIの種類 (将来的な拡張用)
-    const aiTypeItem = document.createElement('div');
-    aiTypeItem.className = 'setting-item';
-    const aiTypeLabel = document.createElement('span');
-    aiTypeLabel.textContent = 'AIの種類';
-    const aiTypeSelect = document.createElement('select');
-    aiTypeSelect.style.minWidth = '150px';
-    aiTypeSelect.style.textAlign = 'center';
-    aiTypeSelect.disabled = true; // 今は選択肢が1つなので無効化
-    const option = document.createElement('option');
-    option.value = 'default';
-    option.textContent = 'Default AI (T-Spin)';
-    aiTypeSelect.appendChild(option);
-    aiTypeItem.append(aiTypeLabel, aiTypeSelect);
-    list.appendChild(aiTypeItem);
-
-    const info = document.createElement('p');
-    info.textContent = '※思考時間はゲーム開始前に設定してください。';
-    info.style.marginTop = '20px';
-    info.style.fontSize = '14px';
-    list.appendChild(info);
-}
 
 function openUnifiedSettingsModal(initialTab = 'general') {
     const modal = document.getElementById('settings-modal');
-    
-    const p2KeysTab = document.getElementById('p2-keys-tab-btn');
-    const aiSettingsTab = document.getElementById('ai-settings-tab-btn');
 
-    p2KeysTab.style.display = 'none';
-    aiSettingsTab.style.display = 'none';
-
+    const p2TabBtn = document.getElementById('p2-keys-tab-btn');
     if (gameMode === '2P') {
-        p2KeysTab.style.display = 'block';
-        if (initialTab === 'ai-settings') initialTab = 'general';
-    } else if (gameMode === 'AI') {
-        aiSettingsTab.style.display = 'block';
-        if (initialTab === 'p2-keys') initialTab = 'general';
+        p2TabBtn.style.display = 'block';
     } else {
-        if (initialTab === 'p2-keys' || initialTab === 'ai-settings') initialTab = 'general';
+        p2TabBtn.style.display = 'none';
+        if (initialTab === 'p2-keys') initialTab = 'general';
     }
 
+    // populateGeneralSettingsTabの中でAIタブの初期化も行う
     populateGeneralSettingsTab();
     populateKeyConfigTab('p1');
     if (gameMode === '2P') {
         populateKeyConfigTab('p2');
     }
-    if (gameMode === 'AI') {
-        populateAiSettingsTab(); // AI設定タブを生成する関数を呼び出す
-    }
 
     const tabs = modal.querySelectorAll('.tab-button');
     const contents = modal.querySelectorAll('.tab-content');
-    
+
     function switchTab(tabName) {
         tabs.forEach(tab => tab.classList.toggle('active', tab.dataset.tab === tabName));
         contents.forEach(content => content.classList.toggle('active', content.id === `tab-content-${tabName}`));
     }
-    
+
     tabs.forEach(tab => {
-        tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+        // イベントリスナが重複しないように一度削除してから追加するのが安全
+        const newTab = tab.cloneNode(true);
+        tab.parentNode.replaceChild(newTab, tab);
+        newTab.addEventListener('click', () => switchTab(newTab.dataset.tab));
     });
 
     switchTab(initialTab);
     modal.style.display = 'flex';
 }
 
+
 function startScanProcess(file, playerId) { const reader = new FileReader(); reader.onload = e => { scanState.image = new Image(); scanState.image.onload = () => { scanState.targetPlayerId = playerId; scanState.bottomLeft = null; scanState.topRight = null; gameState = 'SCAN_BL'; document.getElementById('editor-container').style.display = 'none'; document.getElementById('game-container').style.display = 'block'; document.getElementById('scan-controls').style.display = 'flex'; 
-const ar = scanState.image.naturalWidth / scanState.image.naturalHeight; const displayMaxWidth = window.innerWidth * 0.9; const displayMaxHeight = window.innerHeight * 0.8; let displayWidth = displayMaxWidth; let displayHeight = displayWidth / ar; if (displayHeight > displayMaxHeight) { displayHeight = displayMaxHeight; displayWidth = displayHeight * ar; } const canvasWidth = Math.min(2048, scanState.image.naturalWidth); mainCanvas.width = canvasWidth; mainCanvas.height = canvasWidth / ar; mainCanvas.style.width = `${displayWidth}px`; mainCanvas.style.height = `${displayHeight}px`; updateScanUI(); }; scanState.image.src = e.target.result; }; reader.readAsDataURL(file); }
+const ar = scanState.image.naturalWidth / scanState.image.naturalHeight; const displayMaxWidth = window.innerWidth * 0.9; const displayMaxHeight = window.innerHeight * 0.8; let displayWidth = displayMaxWidth; let displayHeight = displayWidth / ar; if (displayHeight > displayMaxHeight) { displayHeight = displayMaxHeight; displayWidth = displayHeight * ar; } const canvasWidth = Math.min(2048, scanState.image.naturalWidth); mainCanvas.width = canvasWidth; mainCanvas.height = canvasWidth / ar; mainCanvas.style.width = `${displayWidth}px`; mainCanvas.style.height = `${displayHeight}px`; updateScanUI(); setTimeout(updateScale, 0);}; scanState.image.src = e.target.result; }; reader.readAsDataURL(file); }
 function endScanProcess() { gameState = 'EDITING'; scanState.image = null; mainCanvas.style.width = ''; mainCanvas.style.height = ''; document.getElementById('editor-container').style.display = 'flex'; document.getElementById('game-container').style.display = 'none'; document.getElementById('scan-controls').style.display = 'none'; ['p1', 'p2'].forEach(drawEditorField); setTimeout(updateScale, 0); }
 function updateScanUI() { const instructions = document.getElementById('scan-instructions'), confirmBtn = document.getElementById('scanConfirmBtn'); instructions.style.display = 'block'; mainCanvas.style.cursor = 'crosshair'; if (gameState === 'SCAN_BL') { instructions.textContent = '画像の盤面の「左下」をクリック'; confirmBtn.style.visibility = scanState.bottomLeft ? 'visible' : 'hidden'; } else if (gameState === 'SCAN_TR') { instructions.textContent = '「右上」をクリック →「読込開始」'; confirmBtn.style.visibility = scanState.topRight ? 'visible' : 'hidden'; if (scanState.topRight) confirmBtn.textContent = '読込開始'; else confirmBtn.textContent = '次へ'; } }
 function drawScanner() { if (!scanState.image) return; ctx.clearRect(0, 0, mainCanvas.width, mainCanvas.height); ctx.drawImage(scanState.image, 0, 0, mainCanvas.width, mainCanvas.height); if (scanState.bottomLeft) { ctx.fillStyle = 'lime'; ctx.beginPath(); ctx.arc(scanState.bottomLeft.x, scanState.bottomLeft.y, 10, 0, Math.PI * 2); ctx.fill(); } if (scanState.topRight) { const {x: blx, y: bly} = scanState.bottomLeft, {x: trx, y: try_} = scanState.topRight; ctx.strokeStyle = 'fuchsia'; ctx.lineWidth = 4; ctx.strokeRect(blx, try_, trx - blx, bly - try_); } }
@@ -2032,6 +1901,14 @@ document.addEventListener('DOMContentLoaded', () => {
     loadKeyBindings();
     loadGameSettings();
 
+    // AIチェックボックスのイベントリスナを追加
+    document.getElementById('p1-ai-toggle').addEventListener('change', (e) => {
+        editorData.p1.isAI = e.target.checked;
+    });
+    document.getElementById('p2-ai-toggle').addEventListener('change', (e) => {
+        editorData.p2.isAI = e.target.checked;
+    });
+
     document.getElementById('shareBtn').addEventListener('click', openShareModal);
     document.getElementById('share-close').addEventListener('click', () => {
         document.getElementById('share-modal').style.display = 'none';
@@ -2085,38 +1962,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 
-   document.getElementById('mode-1p').addEventListener('click', () => { 
+    document.getElementById('mode-1p').addEventListener('click', () => { 
         gameMode = '1P'; 
         document.getElementById('mode-1p').classList.add('active'); 
-        document.getElementById('mode-2p').classList.remove('active');
-        document.getElementById('mode-ai').classList.remove('active');
+        document.getElementById('mode-2p').classList.remove('active'); 
         document.getElementById('p2-editor-col').style.display = 'none'; 
         setTimeout(updateScale, 0);
     });
     document.getElementById('mode-2p').addEventListener('click', () => { 
         gameMode = '2P'; 
         document.getElementById('mode-2p').classList.add('active'); 
-        document.getElementById('mode-1p').classList.remove('active');
-        document.getElementById('mode-ai').classList.remove('active');
-        document.getElementById('p2-next-header').textContent = 'PLAYER 2 - NEXT';
-        document.getElementById('p2-field-header').textContent = 'PLAYER 2 - FIELD';
+        document.getElementById('mode-1p').classList.remove('active'); 
         document.getElementById('p2-editor-col').style.display = 'flex';
         setTimeout(updateScale, 0);
     });
-
-    document.getElementById('mode-ai').addEventListener('click', () => {
-        if (gameMode === 'AI') return;
-        gameMode = 'AI';
-        document.getElementById('mode-ai').classList.add('active');
-        document.getElementById('mode-1p').classList.remove('active');
-        document.getElementById('mode-2p').classList.remove('active');
-        // P2エディタを表示し、ヘッダーをAI用に変更
-        document.getElementById('p2-editor-col').style.display = 'flex';
-        document.getElementById('p2-next-header').textContent = 'AI - NEXT';
-        document.getElementById('p2-field-header').textContent = 'AI - FIELD';
-        setTimeout(updateScale, 0);
-    });
-
     
     document.getElementById('startGameBtn').addEventListener('click', () => {
         gameState = 'PLAYING'; 
@@ -2126,6 +1985,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('game-controls').style.display = 'flex';
         
         ctx.setTransform(1, 0, 0, 1, 0, 0);
+        isWasmReady.then(Module.resetAI); // AIの状態をリセット
 
         players = [];
         if (gameMode === '1P') {
@@ -2133,49 +1993,32 @@ document.addEventListener('DOMContentLoaded', () => {
             mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
             mainCanvas.style.width = PLAYER_CANVAS_WIDTH + 'px';
             mainCanvas.style.height = CANVAS_HEIGHT + 'px';
-            players.push(new Player('1', 0, keyBindings.p1, 0));
-        } else if (gameMode === '2P') {
-            const totalWidth = PLAYER_CANVAS_WIDTH * 2;
-            mainCanvas.width = totalWidth * RESOLUTION_SCALE;
-            mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
-            mainCanvas.style.width = totalWidth + 'px';
-            mainCanvas.style.height = CANVAS_HEIGHT + 'px';
-            const p1 = new Player('1', 0, keyBindings.p1, 0);
-            const p2 = new Player('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1);
-            p1.opponent = p2;
-            p2.opponent = p1;
-            players.push(p1, p2);
-        } else if (gameMode === 'AI') {
-            if (!aiReady) {
-                alert("AI module is not ready. Please wait a moment and try again.");
-                gameState = 'EDITING';
-                document.getElementById('editor-container').style.display = 'flex';
-                document.getElementById('game-container').style.display = 'none';
-                document.getElementById('game-controls').style.display = 'none';
-                return;
-            }
-            const totalWidth = PLAYER_CANVAS_WIDTH * 2;
-            mainCanvas.width = totalWidth * RESOLUTION_SCALE;
-            mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
-            mainCanvas.style.width = totalWidth + 'px';
-            mainCanvas.style.height = CANVAS_HEIGHT + 'px';
-            const p1 = new Player('1', 0, keyBindings.p1, 0);
-            const p2 = new AIPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, null); // AIはゲームパッドを使わない
-            p1.opponent = p2;
-            p2.opponent = p1;
-            players.push(p1, p2);
-            Module.resetAI();
+            // isAIフラグをコンストラクタに渡す
+            players.push(new Player('1', 0, keyBindings.p1, 0, editorData.p1.isAI));
         }
-
+        else {
+            const totalWidth = PLAYER_CANVAS_WIDTH * 2;
+            mainCanvas.width = totalWidth * RESOLUTION_SCALE; 
+            mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
+            mainCanvas.style.width = totalWidth + 'px';
+            mainCanvas.style.height = CANVAS_HEIGHT + 'px';
+            // isAIフラグをコンストラクタに渡す
+            const p1 = new Player('1', 0, keyBindings.p1, 0, editorData.p1.isAI);
+            const p2 = new Player('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1, editorData.p2.isAI);
+            p1.opponent = p2; 
+            p2.opponent = p1;
+            players.push(p1, p2);
+        }
+        
         ctx.scale(RESOLUTION_SCALE, RESOLUTION_SCALE);
 
-        if (gameSettings.touchControlsEnabled) {
+        // どちらかのプレイヤーがタッチ操作のAIでない場合のみバーチャルパッド表示
+        if (gameSettings.touchControlsEnabled && !editorData.p1.isAI) {
             virtualController.show();
         }
 
         setTimeout(updateScale, 0);
     });
-
 
 
     document.getElementById('backToEditorBtn').addEventListener('click', () => {
@@ -2194,7 +2037,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById(`imageLoader-${pId}`).addEventListener('change', e => { 
             if (e.target.files && e.target.files[0]) {
                 startScanProcess(e.target.files[0], e.target.dataset.player);
-                setTimeout(updateScale, 0);
+       
             }
         }); 
     });
@@ -2207,7 +2050,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (gameState==='SCAN_BL') scanState.bottomLeft=pos; else if (gameState==='SCAN_TR') scanState.topRight=pos; updateScanUI(); });
     
 
-document.getElementById('settingsBtn').addEventListener('click', () => openUnifiedSettingsModal('general'));
+    document.getElementById('settingsBtn').addEventListener('click', () => openUnifiedSettingsModal('general'));
     document.getElementById('p1-key-config-btn').addEventListener('click', () => openUnifiedSettingsModal('p1-keys'));
     document.getElementById('p2-key-config-btn').addEventListener('click', () => openUnifiedSettingsModal('p2-keys'));
 
@@ -2295,22 +2138,16 @@ document.getElementById('settingsBtn').addEventListener('click', () => openUnifi
    document.getElementById('retryBtn').addEventListener('click', () => {
         if (gameState !== 'PLAYING') return;
 
+        isWasmReady.then(Module.resetAI); // AIの状態をリセット
         players = [];
         if (gameMode === '1P') {
-            players.push(new Player('1', 0, keyBindings.p1, 0));
-        } else if (gameMode === '2P') {
-            const p1 = new Player('1', 0, keyBindings.p1, 0);
-            const p2 = new Player('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1);
+            players.push(new Player('1', 0, keyBindings.p1, 0, editorData.p1.isAI));
+        } else {
+            const p1 = new Player('1', 0, keyBindings.p1, 0, editorData.p1.isAI);
+            const p2 = new Player('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1, editorData.p2.isAI);
             p1.opponent = p2; 
             p2.opponent = p1;
             players.push(p1, p2);
-        } else if (gameMode === 'AI') {
-            const p1 = new Player('1', 0, keyBindings.p1, 0);
-            const p2 = new AIPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, null);
-            p1.opponent = p2;
-            p2.opponent = p1;
-            players.push(p1, p2);
-            Module.resetAI();
         }
     });
 
@@ -2324,7 +2161,7 @@ document.getElementById('settingsBtn').addEventListener('click', () => openUnifi
     window.addEventListener('resize', updateScale);
     setTimeout(updateScale, 100);
 });
+
 </script>
-<script src="tetris_ai.js"></script>
 </body>
 </html>
