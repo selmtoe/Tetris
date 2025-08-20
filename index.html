@@ -2479,6 +2479,8 @@ document.getElementById('retryBtn').addEventListener('click', () => {
     window.addEventListener('resize', updateScale);
     setTimeout(updateScale, 100);
 });
+<script>
+// この部分は既存の <script> タグの末尾に追加してください。
 
 // --- AI Worker Integration ---
 let aiWorker = null;
@@ -2487,7 +2489,7 @@ let lastAINodeId = null;
 function setupAIWorker() {
     // ai.worker.js を文字列としてここに埋め込む
     const aiWorkerCode = `
-// ai.worker.js
+    // ai.worker.js
 
 // --- 定数と設定 ---
 const WIDTH = 10;
@@ -3212,6 +3214,7 @@ self.onmessage = function(e) {
         });
     }
 };
+
     `;
 
     const blob = new Blob([aiWorkerCode], { type: 'application/javascript' });
@@ -3362,6 +3365,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(updateScale, 0);
     });
 });
+</script>
 </script>
 </body>
 </html>
