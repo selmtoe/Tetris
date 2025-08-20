@@ -2304,7 +2304,7 @@ document.getElementById('advanced-link-btn').addEventListener('click', () => {
             mainCanvas.style.height = CANVAS_HEIGHT + 'px';
             players.push(createAndSetupPlayer('1', 0, keyBindings.p1, 0));
         }
-        else {
+        else if (gameMode === '2P') { // `else` を `else if` に変更
             const totalWidth = PLAYER_CANVAS_WIDTH * 2;
             mainCanvas.width = totalWidth * RESOLUTION_SCALE; 
             mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
@@ -2315,6 +2315,21 @@ document.getElementById('advanced-link-btn').addEventListener('click', () => {
             p1.opponent = p2; 
             p2.opponent = p1;
             players.push(p1, p2);
+        }
+        else if (gameMode === 'AI') { // AIモードの分岐を追加
+            const totalWidth = PLAYER_CANVAS_WIDTH * 2;
+            mainCanvas.width = totalWidth * RESOLUTION_SCALE;
+            mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
+            mainCanvas.style.width = totalWidth + 'px';
+            mainCanvas.style.height = CANVAS_HEIGHT + 'px';
+
+            const p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0);
+            const p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, {}, null); // AIはキーバインド不要
+            p1.opponent = p2;
+            p2.opponent = p1;
+            players.push(p1, p2);
+            
+            startAI('2'); // P2をAIとして開始
         }
         
         autoStartParams = { ss: false, nh: false };
@@ -2445,8 +2460,7 @@ document.getElementById('settingsBtn').addEventListener('click', () => openUnifi
             .catch(err => console.error('Service Worker registration failed:', err));
     }
     
-
-document.getElementById('retryBtn').addEventListener('click', () => {
+    document.getElementById('retryBtn').addEventListener('click', () => {
         if (gameState !== 'PLAYING' || !players.length) return;
         
         const wasHoldDisabled = players[0].holdDisabled;
@@ -2456,21 +2470,30 @@ document.getElementById('retryBtn').addEventListener('click', () => {
             player.holdDisabled = wasHoldDisabled;
             return player;
         };
-
+        
+        stopAI(); // まずAIを停止（AIモードでなくても影響はない）
         players = [];
+
         if (gameMode === '1P') {
             players.push(createAndSetupPlayer('1', 0, keyBindings.p1, 0));
-        } else {
+        } else if (gameMode === '2P') { // `else` を `else if` に変更
             const p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0);
             const p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1);
             p1.opponent = p2; 
             p2.opponent = p1;
             players.push(p1, p2);
+        } else if (gameMode === 'AI') { // AIモードのリトライ処理を追加
+            const p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0);
+            const p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, {}, null);
+            p1.opponent = p2; 
+            p2.opponent = p1;
+            players.push(p1, p2);
+            // リトライ後に再度AIを開始
+            setTimeout(() => startAI('2'), 100);
         }
     });
 
     setupEditors();
-
     loadStateFromURL();
 
     lastTime = performance.now(); 
@@ -3133,69 +3156,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('mode-ai').classList.remove('active');
     });
 
-    const originalStartGameBtn = document.getElementById('startGameBtn');
-    originalStartGameBtn.addEventListener('click', () => {
-        // AIモードの処理を追加
-        if (gameMode === 'AI') {
-            const totalWidth = PLAYER_CANVAS_WIDTH * 2;
-            mainCanvas.width = totalWidth * RESOLUTION_SCALE;
-            mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
-            mainCanvas.style.width = totalWidth + 'px';
-            mainCanvas.style.height = CANVAS_HEIGHT + 'px';
-            
-            const createAndSetupPlayer = (id, offsetX, bindings, padIndex) => {
-                const player = new Player(id, offsetX, bindings, padIndex);
-                player.holdDisabled = autoStartParams.nh;
-                return player;
-            };
-
-            const p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0);
-            const p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, {}, null); // AIはキーバインド不要
-            p1.opponent = p2;
-            p2.opponent = p1;
-            players.push(p1, p2);
-            
-            startAI('2'); // P2をAIとして開始
-        }
-    });
-
     document.getElementById('backToEditorBtn').addEventListener('click', stopAI);
 
-    const originalRetryBtn = document.getElementById('retryBtn');
-    const newRetryBtn = originalRetryBtn.cloneNode(true);
-    originalRetryBtn.parentNode.replaceChild(newRetryBtn, originalRetryBtn);
-    newRetryBtn.addEventListener('click', () => {
-        if (gameState !== 'PLAYING' || !players.length) return;
-        
-        const wasHoldDisabled = players[0].holdDisabled;
-
-        const createAndSetupPlayer = (id, offsetX, bindings, padIndex) => {
-            const player = new Player(id, offsetX, bindings, padIndex);
-            player.holdDisabled = wasHoldDisabled;
-            return player;
-        };
-        
-        stopAI(); // まずAIを停止
-        players = [];
-
-        if (gameMode === '1P') {
-            players.push(createAndSetupPlayer('1', 0, keyBindings.p1, 0));
-        } else if (gameMode === '2P') {
-            const p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0);
-            const p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1);
-            p1.opponent = p2; 
-            p2.opponent = p1;
-            players.push(p1, p2);
-        } else if (gameMode === 'AI') {
-            const p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0);
-            const p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, {}, null);
-            p1.opponent = p2; 
-            p2.opponent = p1;
-            players.push(p1, p2);
-            // リトライ後に再度AIを開始
-            setTimeout(() => startAI('2'), 100);
-        }
-    });
 });
 //============== AI INTEGRATION END ==============//
 </script>
