@@ -1,6 +1,6 @@
 // AIのWASMモジュールをインポートします
 // C++をWASMにコンパイルした際に出力されるJSファイル名を指定してください
-importScripts('tetris_ai.js');
+importScripts('https://raw.githubusercontent.com/selmtoe/Tetris/main/tetris_ai.js');
 
 const THINK_TIME_MS = 150; // 1手あたりの思考時間 (ミリ秒)
 const THINK_STEPS_PER_INTERVAL = 100; // 1回の思考インターバルで実行する探索回数
