@@ -1076,96 +1076,106 @@ spawnNewPiece() {
         }
     }
 
+    // index.html <script>タグ内
+
     update(dt) {
-        if (this.gameOver || this.isAI) return;
+        if (this.gameOver) return; // isAI の条件を削除
+
+        // タイマーやゴミ処理など、AI・人間共通の処理
         if (this.specialMoveTextTimer > 0) {
             this.specialMoveTextTimer -= dt;
         }
-
         this.processGarbageQueue();
 
-        const left = this.isActionPressed('left');
-        const right = this.isActionPressed('right');
-        const horizDir = left ? -1 : (right ? 1 : 0);
-
-        if (horizDir !== 0) {
-            if (this.dasDirection !== horizDir) { 
-                this.dasTimer = 0;
-                this.arrTimer = 0;
-                if (!this.isClearingLine) this.move(horizDir, 0);
-            } else { 
-                this.dasTimer += dt;
-                if (this.dasTimer >= gameSettings.das) {
-                    if (gameSettings.arr === 0) {
-                        if (!this.isClearingLine) {
-                            let successfulMoves = 0;
-                            while (!this.checkCollision(this.player.x + horizDir, this.player.y, this.getShape(this.player.pieceType, this.player.rotation))) {
-                                this.player.x += horizDir;
-                                successfulMoves++;
-                            }
-                            if (successfulMoves > 0) {
-                               this.lockTimer = 0;
-                               this.lastMoveWasRotation = false;
-                            }
-                        }
-                    } else {
-                        this.arrTimer += dt;
-                        if (this.arrTimer >= gameSettings.arr) {
-                            if (!this.isClearingLine) this.move(horizDir, 0);
-                            this.arrTimer -= gameSettings.arr;
-                        }
-                    }
-                }
-            }
-        }
-        this.dasDirection = horizDir;
-
+        // ライン消去中の場合、タイマーを進める (AIでも必要)
         if (this.isClearingLine) {
             this.lineClearDelayTimer -= dt;
-            if (this.lineClearDelayTimer <= 0) { this.isClearingLine = false; this.riseGarbage(); this.spawnNewPiece(); }
-            return;
+            if (this.lineClearDelayTimer <= 0) {
+                this.isClearingLine = false;
+                this.riseGarbage();
+                this.spawnNewPiece();
+            }
+            return; // ライン消去中は他の処理をしない
         }
 
-        if (this.isActionPressed('softDrop')) {
-             if (gameSettings.sdf > 0) {
-                this.sdfTimer += dt;
-                if (this.sdfTimer >= gameSettings.sdf) {
-                    this.move(0, 1);
-                    this.sdfTimer -= gameSettings.sdf;
-                }
-             } else { 
-                const ghostY = this.getGhostY();
-                if (this.player.y < ghostY) {
-                    this.player.y = ghostY;
-                    this.lockTimer = 0;
-                }
-             }
-        } else {
-            this.sdfTimer = 0;
-        }
-        
-        this.isGrounded = this.checkCollision(this.player.x, this.player.y + 1, this.getShape(this.player.pieceType, this.player.rotation));
-        if (this.isGrounded) {
-            this.lockTimer += dt;
-            if (this.lockTimer >= gameSettings.lockDelay) {
-                this.lockPiece();
-            }
-        } else {
-            this.lockTimer = 0;
-            if (!this.isActionPressed('softDrop')) {
-                 if (gameSettings.gravity > 0) {
-                    this.gravityTimer -= dt;
-                    if (this.gravityTimer <= 0) {
-                        this.move(0, 1, false);
-                        this.gravityTimer += gameSettings.gravity;
+        // --- 以下、人間プレイヤー専用の処理 ---
+        if (!this.isAI) {
+            const left = this.isActionPressed('left');
+            const right = this.isActionPressed('right');
+            const horizDir = left ? -1 : (right ? 1 : 0);
+
+            if (horizDir !== 0) {
+                if (this.dasDirection !== horizDir) {
+                    this.dasTimer = 0;
+                    this.arrTimer = 0;
+                    if (!this.isClearingLine) this.move(horizDir, 0);
+                } else {
+                    this.dasTimer += dt;
+                    if (this.dasTimer >= gameSettings.das) {
+                        if (gameSettings.arr === 0) {
+                            if (!this.isClearingLine) {
+                                let successfulMoves = 0;
+                                while (!this.checkCollision(this.player.x + horizDir, this.player.y, this.getShape(this.player.pieceType, this.player.rotation))) {
+                                    this.player.x += horizDir;
+                                    successfulMoves++;
+                                }
+                                if (successfulMoves > 0) {
+                                   this.lockTimer = 0;
+                                   this.lastMoveWasRotation = false;
+                                }
+                            }
+                        } else {
+                            this.arrTimer += dt;
+                            if (this.arrTimer >= gameSettings.arr) {
+                                if (!this.isClearingLine) this.move(horizDir, 0);
+                                this.arrTimer -= gameSettings.arr;
+                            }
+                        }
                     }
-                 } else { 
-                    this.player.y = this.getGhostY();
+                }
+            }
+            this.dasDirection = horizDir;
+
+            if (this.isActionPressed('softDrop')) {
+                 if (gameSettings.sdf > 0) {
+                    this.sdfTimer += dt;
+                    if (this.sdfTimer >= gameSettings.sdf) {
+                        this.move(0, 1);
+                        this.sdfTimer -= gameSettings.sdf;
+                    }
+                 } else {
+                    const ghostY = this.getGhostY();
+                    if (this.player.y < ghostY) {
+                        this.player.y = ghostY;
+                        this.lockTimer = 0;
+                    }
                  }
+            } else {
+                this.sdfTimer = 0;
+            }
+
+            this.isGrounded = this.checkCollision(this.player.x, this.player.y + 1, this.getShape(this.player.pieceType, this.player.rotation));
+            if (this.isGrounded) {
+                this.lockTimer += dt;
+                if (this.lockTimer >= gameSettings.lockDelay) {
+                    this.lockPiece();
+                }
+            } else {
+                this.lockTimer = 0;
+                if (!this.isActionPressed('softDrop')) {
+                     if (gameSettings.gravity > 0) {
+                        this.gravityTimer -= dt;
+                        if (this.gravityTimer <= 0) {
+                            this.move(0, 1, false);
+                            this.gravityTimer += gameSettings.gravity;
+                        }
+                     } else {
+                        this.player.y = this.getGhostY();
+                     }
+                }
             }
         }
     }
-
     draw() {
         ctx.save(); ctx.translate(this.offsetX, 0);
         this.drawUI();
