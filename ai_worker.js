@@ -1,37 +1,42 @@
-// AIのWASMモジュールをインポートします
-// C++をWASMにコンパイルした際に出力されるJSファイル名を指定してください
-importScripts('tetris_ai.js');
-
-// --- ▼▼▼ 修正箇所1: Moduleオブジェクトを定義してWASMファイルの場所を教える ▼▼▼ ---
-// Emscriptenのモジュールオブジェクトを事前に設定します。
-// これにより、WASMファイルが見つからないというエラーを防ぎます。
+// 1. Moduleオブジェクトの定義を先に移動します
 var Module = {
+    // WASMファイルの場所を指定する設定は正しいので、そのまま使います
     locateFile: function(path, prefix) {
         if (path.endsWith('.wasm')) {
-            return 'tetris_ai.wasm'; // WASMファイルの名前を正確に指定
+            return 'tetris_ai.wasm'; 
         }
         return prefix + path;
+    },
+    // 2. 初期化完了時に呼ばれるコールバック関数を定義します
+    onRuntimeInitialized: function() {
+        // この時点でWASMモジュールの準備が完了しています
+        console.log("AI Module (WASM) is ready.");
+        // メインスレッドに準備完了を通知します
+        self.postMessage({ type: 'aiReady' });
     }
 };
-// --- ▲▲▲ 修正箇所1ここまで ▲▲▲ ---
 
-const THINK_TIME_MS = 150; // 1手あたりの思考時間 (ミリ秒)
-const THINK_STEPS_PER_INTERVAL = 100; // 1回の思考インターバルで実行する探索回数
-const INTERVALS = 10; // 思考時間内に何回に分けて思考を実行するか
+// 3. Moduleを定義した後に、スクリプトをインポートします
+importScripts('tetris_ai.js');
 
-// --- ▼▼▼ 修正箇所2: boardToUint16Array関数をこちらに移動 ▼▼▼ ---
+
+// 4. `createTetrisAiModule` の呼び出しは不要なので削除します
+//    Emscriptenのランタイムが自動で初期化を進め、
+//    完了したら上で定義した onRuntimeInitialized を呼び出してくれます。
+
+
+const THINK_TIME_MS = 150; 
+const THINK_STEPS_PER_INTERVAL = 100; 
+const INTERVALS = 10; 
 const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 40;
 
-// 盤面データをWASMが期待するビットボード形式 (Uint16Array) に変換
 function boardToUint16Array(board) {
-    // この関数はindex.htmlから移動させる必要があります。
-    // Workerはメインスレッドの関数にアクセスできないためです。
     const uint16Array = new Uint16Array(BOARD_HEIGHT);
     for (let y = 0; y < BOARD_HEIGHT; y++) {
         let row = 0;
         for (let x = 0; x < BOARD_WIDTH; x++) {
-            if (board[y] && board[y][x]) { // board[y]が存在するかチェック
+            if (board[y] && board[y][x]) { 
                 row |= (1 << x);
             }
         }
@@ -39,26 +44,14 @@ function boardToUint16Array(board) {
     }
     return uint16Array;
 }
-// --- ▲▲▲ 修正箇所2ここまで ▲▲▲ ---
 
-
-// WASMモジュールの非同期初期化を待ちます
-// 修正: `createTetrisAiModule`に設定済みのModuleオブジェクトを渡します
-createTetrisAiModule(Module).then(wasmModule => {
-    Module = wasmModule;
-    // メインスレッドに準備完了を通知します
-    self.postMessage({ type: 'aiReady' });
-});
-
-// メインスレッドからのメッセージを受信します
+// self.onmessage以降のコードは変更不要です
 self.onmessage = (e) => {
-    if (!Module || !Module.updateGameState) { // 修正: Module内の関数が使えるかもチェック
+    if (!Module || !Module.updateGameState) { 
         console.error("AI Module is not ready yet or functions are not available.");
         return;
     }
-
     const { type, payload } = e.data;
-
     switch (type) {
         case 'requestMove':
             handleRequestMove(payload);
@@ -72,28 +65,20 @@ self.onmessage = (e) => {
     }
 };
 
-// 手の思考をリクエストされた際の処理
 function handleRequestMove(payload) {
     const { playerId, board, currentMino, holdMino, nextMinos, b2b, ren } = payload;
-
-    // C++側にゲーム状態を渡します。文字は文字コード(数値)に変換します。
-    // 修正: `boardToUint16Array`はWorker内で呼び出す
+    // C++側のupdateGameStateがcharの代わりにintを受け取るように変更されているため、
+    // charCodeAt(0)で文字コードを渡します。
     Module.updateGameState(board, currentMino.charCodeAt(0), holdMino.charCodeAt(0), nextMinos, b2b, ren);
-
-    // 思考を開始します
     Module.startThinking();
-
-    // 指定された時間、小分けにして思考を続けます
     let intervalsDone = 0;
     const intervalTime = THINK_TIME_MS / INTERVALS;
-
     const think = () => {
         if (intervalsDone < INTERVALS) {
             Module.thinkSteps(THINK_STEPS_PER_INTERVAL);
             intervalsDone++;
             setTimeout(think, intervalTime);
         } else {
-            // 思考時間が終了したら、最善手を取得してメインスレッドに送ります
             const bestMove = Module.getBestMove();
             self.postMessage({
                 type: 'bestMove',
@@ -102,11 +87,9 @@ function handleRequestMove(payload) {
             });
         }
     };
-
     think();
 }
 
-// 実行した手をAIに通知し、探索木を更新する処理
 function handleCommitMove(payload) {
     const { move } = payload;
     Module.commitMoveAndPrune(move);
