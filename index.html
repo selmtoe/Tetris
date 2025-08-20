@@ -2490,7 +2490,842 @@ function initializeAiWorker() {
     // これにより、単一のHTMLファイルで完結し、別途JSファイルをホストする必要がなくなります。
     // ※ 上記の `ai_worker.js` の内容を `aiWorkerCode` 変数にペーストしてください。
     const aiWorkerCode = `
-    // ここに ai_worker.js の全内容をコピー＆ペーストしてください
+    /**
+ * Tetris AI Worker (ai_worker.js)
+ *
+ * C++のAIロジックを、指定されたJavaScriptシミュレータの仕様に
+ * 忠実に合わせて移植したものです。
+ * Web Worker上で動作し、メインスレッドのブロッキングを防ぎます。
+ */
+
+// --- グローバル定数と設定 ---
+
+// C++コードのStandardWeightsを移植
+const weights = {
+    // 盤面評価系
+    back_to_back: 52,
+    bumpiness: -24,
+    bumpiness_sq: -7,
+    row_transitions: -5,
+    height: -39,
+    top_half: -150,
+    top_quarter: -511,
+    jeopardy: -11,
+    cavity_cells: -173,
+    cavity_cells_sq: -3,
+    overhang_cells: -34,
+    overhang_cells_sq: -1,
+    covered_cells: -17,
+    covered_cells_sq: -1,
+    tslot: [8, 148, 192, 407],
+    well_depth: 57,
+    max_well_depth: 17,
+    well_column: [20, 23, 20, 50, 59, 21, 59, 10, -10, 24],
+
+    // 行動評価系
+    b2b_clear: 104,
+    clear1: -263,
+    clear2: -220,
+    clear3: -178,
+    clear4: 270,
+    tspin1: 1,
+    tspin2: 290,
+    tspin3: 482,
+    mini_tspin1: -158,
+    mini_tspin2: -93,
+    perfect_clear: 999999, // 元コードより大幅に強化
+    wasted_t: -152,
+
+    // REN (元コードのCOMBO_GARBAGEはRENによる攻撃力ボーナスなので、名前を変更)
+    // combo_garbageはRENボーナスによる加点として使用
+    combo_garbage_multiplier: 150,
+    REN_ATTACK_BONUS: [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 4, 5, 5]
+};
+
+
+// シミュレータの仕様に合わせた定数
+const BOARD_WIDTH = 10;
+const BOARD_HEIGHT = 40; // シミュレータの内部的な盤面高さ
+const VISIBLE_HEIGHT = 20;
+
+// AIの探索設定
+const MOVE_DIGITS = 5; // Node ID生成用
+const MAX_THINKING_MS = 500; // 1手あたりの最大思考時間
+const MAX_SEARCH_DEPTH = 15; // 最大探索深度
+
+// --- シミュレータから移植したミノ定義とSRS ---
+const TETROMINOS = {
+    'I': { shape: [[0, 0], [1, 0], [2, 0], [3, 0]], center: [1.5, 0.5] },
+    'O': { shape: [[0, 0], [1, 0], [0, -1], [1, -1]], center: [0.5, -0.5] },
+    'T': { shape: [[0, 0], [-1, 0], [0, -1], [1, 0]], center: [0, 0] },
+    'L': { shape: [[-1, 0], [0, 0], [1, 0], [1, -1]], center: [0, 0] },
+    'J': { shape: [[0, 0], [-1, 0], [1, 0], [-1, -1]], center: [0, 0] },
+    'S': { shape: [[1, -1], [-1, 0], [0, 0], [0, -1]], center: [0, 0] },
+    'Z': { shape: [[0, 0], [1, 0], [0, -1], [-1, -1]], center: [0, 0] }
+};
+
+const SRS_OFFSETS = {
+    "JLSTZ": { "0_1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], "1_0": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], "1_2": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], "2_1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], "2_3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], "3_2": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], "3_0": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], "0_3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], },
+    "I": { "0_1": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], "1_0": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], "1_2": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], "2_1": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], "2_3": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], "3_2": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], "3_0": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], "0_3": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], }
+};
+
+// --- グローバル状態変数 ---
+let nodeMap = new Map();
+let searchStartTime;
+let bestNodeIDAtDepth1 = "";
+let maxEvaluationAtDepth1 = -Infinity;
+
+// --- 盤面操作ヘルパー関数 ---
+
+// C++のgetMinoShapeをシミュレータの仕様に合わせて移植
+function getShape(pieceType, rotation) {
+    if (!pieceType) return [];
+    const originalShape = TETROMINOS[pieceType].shape;
+    if (rotation === 0 || pieceType === 'O') return originalShape;
+
+    const center = TETROMINOS[pieceType].center;
+    const r = rotation % 4;
+
+    return originalShape.map(block => {
+        let [x, y] = [block[0] - center[0], block[1] - center[1]];
+        for (let i = 0; i < r; i++) {
+            [x, y] = [-y, x];
+        }
+        return [x + center[0], y + center[1]];
+    });
+}
+
+function checkCollision(board, pieceType, rotation, x, y) {
+    const shape = getShape(pieceType, rotation);
+    for (const block of shape) {
+        const blockX = Math.floor(x + block[0]);
+        const blockY = Math.floor(y + block[1]);
+        if (blockX < 0 || blockX >= BOARD_WIDTH || blockY < 0 || blockY >= BOARD_HEIGHT || (board[blockY] && board[blockY][blockX])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function cloneBoard(board) {
+    return board.map(row => [...row]);
+}
+
+function placeMinoOnBoard(board, placement) {
+    const shape = getShape(placement.pieceType, placement.rotation);
+    for (const block of shape) {
+        const blockX = Math.floor(placement.x + block[0]);
+        const blockY = Math.floor(placement.y + block[1]);
+        if (blockY >= 0 && blockY < BOARD_HEIGHT) {
+            board[blockY][blockX] = placement.pieceType;
+        }
+    }
+}
+
+function clearFullLines(board) {
+    let cleared = 0;
+    for (let y = 0; y < BOARD_HEIGHT; y++) {
+        if (board[y] && board[y].every(cell => cell !== null)) {
+            board.splice(y, 1);
+            board.push(Array(BOARD_WIDTH).fill(null));
+            cleared++;
+            y--; // Check the new row at the same index
+        }
+    }
+    return cleared;
+}
+
+// --- 評価関数とヘルパー ---
+// C++コードの評価関数群を忠実に移植
+
+function getColumnHeights(board) {
+    const heights = Array(BOARD_WIDTH).fill(0);
+    for (let c = 0; c < BOARD_WIDTH; ++c) {
+        for (let r = BOARD_HEIGHT - 1; r >= 0; --r) {
+            if (board[r] && board[r][c]) {
+                heights[c] = r + 1;
+                break;
+            }
+        }
+    }
+    return heights;
+}
+
+function calculateBumpiness(board, wellColumn) {
+    const heights = getColumnHeights(board);
+    let bumpiness_val = 0;
+    let bumpiness_sq_val = 0;
+
+    let prev_col_idx = 0;
+    while(prev_col_idx < BOARD_WIDTH && prev_col_idx === wellColumn) {
+        prev_col_idx++;
+    }
+
+    if (prev_col_idx >= BOARD_WIDTH) {
+        return { bumpiness: 0, bumpiness_sq: 0 };
+    }
+    let current_height = heights[prev_col_idx];
+
+    for (let i = prev_col_idx + 1; i < BOARD_WIDTH; ++i) {
+        if (i === wellColumn) continue;
+        const dh = Math.abs(heights[i] - current_height);
+        bumpiness_val += dh;
+        bumpiness_sq_val += dh * dh;
+        current_height = heights[i];
+    }
+    return { bumpiness: bumpiness_val, bumpiness_sq: bumpiness_sq_val };
+}
+
+function calculateCavitiesAndOverhangs(board) {
+    const heights = getColumnHeights(board);
+    let cavities = 0;
+    let overhangs = 0;
+
+    const max_board_height = Math.max(...heights);
+    if (max_board_height === 0) return { cavities: 0, overhangs: 0 };
+
+    for (let y = 0; y < max_board_height; ++y) {
+        for (let x = 0; x < BOARD_WIDTH; ++x) {
+            if ((board[y] && board[y][x]) || y >= heights[x]) {
+                continue;
+            }
+            // 空のセルを見つけた
+            let counted_as_overhang = false;
+            // C++版のロジックを簡略化し、より一般的な「上にブロックがある空セル」を数える
+            if (y < heights[x] - 1) { // 自分の真上にブロックがある
+                overhangs++;
+                counted_as_overhang = true;
+            }
+            
+            if (counted_as_overhang) continue;
+            cavities++;
+        }
+    }
+    return { cavities, overhangs };
+}
+
+
+function calculateCoveredCells(board) {
+    const heights = getColumnHeights(board);
+    let covered = 0;
+    let covered_sq = 0;
+
+    for (let x = 0; x < BOARD_WIDTH; ++x) {
+        if (heights[x] <= 1) continue;
+        
+        for (let y = heights[x] - 2; y >= 0; --y) {
+            if (board[y] && !board[y][x]) { // 穴
+                let cells_above_hole = heights[x] - (y + 1);
+                // C++版のロジックを忠実に再現
+                let actual_cells_counted = Math.min(6, cells_above_hole);
+                covered += actual_cells_counted;
+                covered_sq += actual_cells_counted * actual_cells_counted;
+            }
+        }
+    }
+    return { covered, covered_sq };
+}
+
+
+function calculateRowTransitions(board) {
+    let transitions = 0;
+    for (let y = 0; y < BOARD_HEIGHT; ++y) {
+        let lastCell = true; // 壁は埋まっているとみなす
+        for (let x = 0; x < BOARD_WIDTH; ++x) {
+            const currentCell = (board[y] && board[y][x]) ? true : false;
+            if (currentCell !== lastCell) {
+                transitions++;
+            }
+            lastCell = currentCell;
+        }
+        if (!lastCell) { // 右の壁
+            transitions++;
+        }
+    }
+    return transitions;
+}
+
+
+function calculateWell(board) {
+    const heights = getColumnHeights(board);
+    let well_col = -1;
+    let min_h = BOARD_HEIGHT + 1;
+
+    for (let c = 0; c < BOARD_WIDTH; ++c) {
+        if (heights[c] < min_h) {
+            min_h = heights[c];
+            well_col = c;
+        }
+    }
+
+    let depth = 0;
+    if (well_col !== -1) {
+        // C++版と少し違うが、より一般的なウェルの深さを計算
+        const left_h = well_col > 0 ? heights[well_col - 1] : BOARD_HEIGHT;
+        const right_h = well_col < BOARD_WIDTH - 1 ? heights[well_col + 1] : BOARD_HEIGHT;
+        depth = Math.min(left_h, right_h) - heights[well_col];
+    }
+    depth = Math.min(depth, weights.max_well_depth);
+    return { depth, well_col };
+}
+
+// C++のtslotは非常に複雑で特定パターンに特化しているため、
+// シミュレータのT-Spin判定ロジックを流用した、より汎用的な評価に置き換えます。
+function checkForTSpin(board, placement) {
+    if (placement.pieceType !== 'T' || !placement.isKick) return null;
+
+    const centerX = placement.x + TETROMINOS['T'].center[0];
+    const centerY = placement.y + TETROMINOS['T'].center[1];
+
+    const corners = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
+    let occupiedCorners = 0;
+
+    corners.forEach(([cx, cy]) => {
+        const boardX = Math.round(centerX + cx);
+        const boardY = Math.round(centerY + cy);
+        if (boardX < 0 || boardX >= BOARD_WIDTH || boardY < 0 || boardY >= BOARD_HEIGHT || (board[boardY] && board[boardY][boardX])) {
+            occupiedCorners++;
+        }
+    });
+
+    if (occupiedCorners < 3) return null;
+
+    const frontCornerDefs = { 0: [[-1, -1], [1, -1]], 1: [[1, -1], [1, 1]], 2: [[-1, 1], [1, 1]], 3: [[-1, -1], [-1, 1]] };
+    const frontCorners = frontCornerDefs[placement.rotation];
+    let occupiedFrontCorners = 0;
+
+    frontCorners.forEach(([cx, cy]) => {
+        const boardX = Math.round(centerX + cx);
+        const boardY = Math.round(centerY + cy);
+        if (boardX < 0 || boardX >= BOARD_WIDTH || boardY < 0 || boardY >= BOARD_HEIGHT || (board[boardY] && board[boardY][boardX])) {
+            occupiedFrontCorners++;
+        }
+    });
+    
+    // シミュレータの`lastSrsKickIndex === 4`に相当する判定をキックインデックスで代替
+    if (occupiedFrontCorners === 2 || placement.kickIndex === 4) return 'TSPIN';
+    return 'MINI_TSPIN';
+}
+
+function isPerfectClear(board) {
+    for(let y = 0; y < BOARD_HEIGHT; y++) {
+        if (board[y] && board[y].some(cell => cell !== null)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function evaluate(boardAfterPlace, placement, linesCleared, tspinResult, currentCombo, currentB2BActive) {
+    let acc_eval = 0;
+    let transient_eval = 0;
+
+    if (isPerfectClear(boardAfterPlace)) {
+        acc_eval += weights.perfect_clear;
+    }
+
+    if (currentB2BActive && linesCleared > 0) {
+        acc_eval += weights.b2b_clear;
+    }
+    if (currentCombo > 0) {
+        const combo_idx = Math.min(currentCombo, weights.REN_ATTACK_BONUS.length - 1);
+        acc_eval += weights.combo_garbage_multiplier * weights.REN_ATTACK_BONUS[combo_idx];
+    }
+
+    if (tspinResult === 'TSPIN') {
+        if (linesCleared === 1) acc_eval += weights.tspin1;
+        else if (linesCleared === 2) acc_eval += weights.tspin2;
+        else if (linesCleared === 3) acc_eval += weights.tspin3;
+    } else if (tspinResult === 'MINI_TSPIN') {
+        if (linesCleared === 1) acc_eval += weights.mini_tspin1;
+        else if (linesCleared === 2) acc_eval += weights.mini_tspin2;
+    } else { // Normal clears
+        if (linesCleared === 1) acc_eval += weights.clear1;
+        else if (linesCleared === 2) acc_eval += weights.clear2;
+        else if (linesCleared === 3) acc_eval += weights.clear3;
+        else if (linesCleared === 4) acc_eval += weights.clear4;
+    }
+    
+    if (placement.pieceType === 'T' && linesCleared === 0) {
+        acc_eval += weights.wasted_t;
+    }
+
+    // --- Transient Evaluation ---
+    if (currentB2BActive) {
+        transient_eval += weights.back_to_back;
+    }
+
+    const heights = getColumnHeights(boardAfterPlace);
+    const highest_point = Math.max(...heights);
+
+    transient_eval += weights.top_quarter * Math.max(0, highest_point - 15);
+    transient_eval += weights.top_half * Math.max(0, highest_point - 10);
+    transient_eval += weights.height * highest_point;
+    transient_eval += weights.jeopardy * Math.max(0, highest_point - 18); // Jeopardyはより高くに設定
+
+    const { depth: well_d, well_col } = calculateWell(boardAfterPlace);
+    transient_eval += weights.well_depth * well_d;
+    if (well_d > 0 && well_col >= 0 && well_col < weights.well_column.length) {
+        transient_eval += weights.well_column[well_col];
+    }
+    
+    transient_eval += weights.row_transitions * calculateRowTransitions(boardAfterPlace);
+
+    const { bumpiness, bumpiness_sq } = calculateBumpiness(boardAfterPlace, well_col);
+    transient_eval += bumpiness * weights.bumpiness;
+    transient_eval += bumpiness_sq * weights.bumpiness_sq;
+
+    const { cavities, overhangs } = calculateCavitiesAndOverhangs(boardAfterPlace);
+    transient_eval += weights.cavity_cells * cavities;
+    transient_eval += weights.cavity_cells_sq * cavities * cavities;
+    transient_eval += weights.overhang_cells * overhangs;
+    transient_eval += weights.overhang_cells_sq * overhangs * overhangs;
+
+    const { covered, covered_sq } = calculateCoveredCells(boardAfterPlace);
+    transient_eval += weights.covered_cells * covered;
+    transient_eval += weights.covered_cells_sq * covered_sq;
+    
+    // T-Slot評価は汎用T-Spin判定に任せるため、ここでは加算しない
+    // transient_eval += calculateTslots(boardAfterPlace);
+
+    return { acc_eval, transient_eval };
+}
+
+// --- MCTSライクな探索ロジック ---
+
+function makeID(baseID, moveIndex) {
+    return `${baseID}${String(moveIndex).padStart(MOVE_DIGITS, '0')}`;
+}
+
+function isDepthLevel(id, depth) {
+    return id.length === depth * MOVE_DIGITS;
+}
+
+function isTimeExceeded() {
+    return (performance.now() - searchStartTime) > MAX_THINKING_MS;
+}
+
+function propagateEvaluation(nodeID) {
+    let currentPropagateTargetID = nodeID;
+
+    while (nodeMap.has(currentPropagateTargetID)) {
+        const S = nodeMap.get(currentPropagateTargetID);
+
+        if (isDepthLevel(currentPropagateTargetID, 1)) {
+            const totalEval = S.acc_eval + S.transient_eval;
+            if (totalEval > maxEvaluationAtDepth1) {
+                maxEvaluationAtDepth1 = totalEval;
+                bestNodeIDAtDepth1 = currentPropagateTargetID;
+            }
+        }
+
+        const parentID = S.parentID;
+        if (parentID === null || !nodeMap.has(parentID)) {
+            break;
+        }
+
+        const P = nodeMap.get(parentID);
+        let max_value_from_children = -Infinity;
+        let parent_has_valid_children = false;
+
+        if (P.childrenIDs.length > 0) {
+            for (const child_id_of_P of P.childrenIDs) {
+                if (nodeMap.has(child_id_of_P)) {
+                    const child_node = nodeMap.get(child_id_of_P);
+                    max_value_from_children = Math.max(max_value_from_children, child_node.acc_eval + child_node.transient_eval);
+                    parent_has_valid_children = true;
+                }
+            }
+        }
+
+        if (parent_has_valid_children) {
+            if (P.transient_eval < max_value_from_children) {
+                P.transient_eval = max_value_from_children;
+                currentPropagateTargetID = parentID;
+            } else {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+}
+
+function createAndAddChildNode(parentNodeID, placement) {
+    if (!nodeMap.has(parentNodeID)) return;
+    
+    const parentNode = nodeMap.get(parentNodeID);
+    const childID = makeID(parentNodeID, parentNode.childrenIDs.length);
+
+    const boardAfterPlace = cloneBoard(parentNode.board);
+    placeMinoOnBoard(boardAfterPlace, placement);
+    
+    const linesCleared = clearFullLines(boardAfterPlace);
+
+    const tspinResult = checkForTSpin(parentNode.board, placement);
+    
+    const comboCount = (linesCleared > 0) ? parentNode.combo + 1 : 0;
+    
+    const isSpecialMove = (tspinResult && linesCleared > 0) || (linesCleared >= 4);
+    const b2b = isSpecialMove ? true : ((linesCleared > 0) ? false : parentNode.b2b);
+
+    const { acc_eval, transient_eval } = evaluate(boardAfterPlace, placement, linesCleared, tspinResult, comboCount, b2b);
+
+    const childNode = {
+        board: boardAfterPlace,
+        acc_eval: parentNode.acc_eval + acc_eval,
+        transient_eval: transient_eval,
+        place: placement,
+        expanded: false,
+        childrenIDs: [],
+        parentID: parentNodeID,
+        combo: comboCount,
+        b2b: b2b,
+    };
+
+    nodeMap.set(childID, childNode);
+    parentNode.childrenIDs.push(childID);
+
+    propagateEvaluation(childID);
+}
+
+
+// C++の`expand`をシミュレータのSRSルールに基づいて再実装
+function expand(parentNodeID) {
+    if (!nodeMap.has(parentNodeID)) return;
+    const parentNode = nodeMap.get(parentNodeID);
+    if (parentNode.expanded) return;
+
+    const pieceType = parentNode.place.pieceType;
+    const board = parentNode.board;
+    const visited = new Set(); // 盤面状態を文字列化して訪問済みかを管理 `x,y,r`
+
+    const q = [];
+
+    // 初期状態 (スポーン)
+    const spawnX = Math.floor(BOARD_WIDTH / 2) - Math.floor(TETROMINOS[pieceType].center[0]) -1;
+    let spawnY = 19;
+    if (checkCollision(board, pieceType, 0, spawnX, spawnY)) {
+        spawnY = 18;
+    }
+    
+    // ゲームオーバーチェック
+    if (checkCollision(board, pieceType, 0, spawnX, spawnY)) {
+        parentNode.expanded = true;
+        return; // スポーン不可
+    }
+
+    q.push({ x: spawnX, y: spawnY, rotation: 0 });
+    visited.add(`${spawnX},${spawnY},0`);
+
+    const possiblePlacements = new Map(); // `x,r` -> placement
+
+    while (q.length > 0) {
+        const { x, y, rotation } = q.shift();
+
+        // Hard Drop
+        let dropY = y;
+        while (!checkCollision(board, pieceType, rotation, x, dropY - 1)) {
+            dropY--;
+        }
+        
+        const placementKey = `${x},${rotation}`;
+        if (!possiblePlacements.has(placementKey)) {
+             possiblePlacements.set(placementKey, {
+                x: x,
+                y: dropY,
+                rotation: rotation,
+                pieceType: pieceType,
+                isKick: false, // isKickは回転時に判定
+                kickIndex: 0
+            });
+        }
+
+
+        // 左右移動
+        [-1, 1].forEach(dx => {
+            const nextX = x + dx;
+            if (!checkCollision(board, pieceType, rotation, nextX, y)) {
+                const key = `${nextX},${y},${rotation}`;
+                if (!visited.has(key)) {
+                    q.push({ x: nextX, y, rotation });
+                    visited.add(key);
+                }
+            }
+        });
+
+        // 回転
+        [-1, 1].forEach(dr => {
+            const nextRotation = (rotation + dr + 4) % 4;
+            const srsKey = `${rotation}_${nextRotation}`;
+            const offsets = (pieceType === 'I' ? SRS_OFFSETS.I[srsKey] : SRS_OFFSETS.JLSTZ[srsKey]) || [[0, 0]];
+            
+            for (let i = 0; i < offsets.length; i++) {
+                const offset = offsets[i];
+                const nextX = x + offset[0];
+                const nextY = y - offset[1]; // SRSのYは下向きが正なので反転
+                
+                if (!checkCollision(board, pieceType, nextRotation, nextX, nextY)) {
+                    const key = `${nextX},${nextY},${nextRotation}`;
+                    if (!visited.has(key)) {
+                        q.push({ x: nextX, y: nextY, rotation: nextRotation });
+                        visited.add(key);
+                    }
+                    
+                    // 回転成功したので、この位置からのハードドロップも候補
+                    let dropY_rot = nextY;
+                    while (!checkCollision(board, pieceType, nextRotation, nextX, dropY_rot - 1)) {
+                        dropY_rot--;
+                    }
+                    const placementKey_rot = `${nextX},${nextRotation}`;
+                    // isKickとkickIndexを保存
+                    if (!possiblePlacements.has(placementKey_rot) || possiblePlacements.get(placementKey_rot).y < dropY_rot) {
+                         possiblePlacements.set(placementKey_rot, {
+                            x: nextX,
+                            y: dropY_rot,
+                            rotation: nextRotation,
+                            pieceType: pieceType,
+                            isKick: i > 0, // 0番目以外はキック
+                            kickIndex: i
+                        });
+                    }
+                    break; // SRSは最初の成功したオフセットを使う
+                }
+            }
+        });
+    }
+
+    possiblePlacements.forEach(p => {
+        createAndAddChildNode(parentNodeID, p);
+    });
+
+    parentNode.expanded = true;
+}
+
+
+function select(parentNodeID) {
+    if (isTimeExceeded() || !nodeMap.has(parentNodeID)) {
+        return null;
+    }
+    const parentNode = nodeMap.get(parentNodeID);
+    const children_ids = parentNode.childrenIDs;
+    if (children_ids.length === 0) {
+        return null;
+    }
+
+    const child_evals = [];
+    let Emin = Infinity;
+
+    for (const id of children_ids) {
+        if (nodeMap.has(id)) {
+            const child_node = nodeMap.get(id);
+            const current_eval = child_node.acc_eval + child_node.transient_eval;
+            child_evals.push({ id, eval: current_eval });
+            Emin = Math.min(Emin, current_eval);
+        }
+    }
+
+    if (child_evals.length === 0) {
+        return null;
+    }
+    
+    child_evals.sort((a, b) => b.eval - a.eval);
+
+    const weights_for_selection = [];
+    let totalWeight = 0;
+
+    for (let i = 0; i < child_evals.length; ++i) {
+        const E_I = child_evals[i].eval;
+        const rank_I = i + 1;
+        const numerator = Math.pow(E_I - Emin + 1.0, 2) + 10.0;
+        const denominator = Math.pow(rank_I - 1.0, 2) + 1.0;
+        const weight_val = numerator / denominator;
+        weights_for_selection.push(weight_val);
+        totalWeight += weight_val;
+    }
+
+    if (totalWeight === 0.0) {
+        return child_evals[0].id;
+    }
+    
+    const r = Math.random() * totalWeight;
+    let cumulativeWeight = 0.0;
+    for (let i = 0; i < child_evals.length; ++i) {
+        cumulativeWeight += weights_for_selection[i];
+        if (r <= cumulativeWeight) {
+            return child_evals[i].id;
+        }
+    }
+    
+    return child_evals[child_evals.length - 1].id;
+}
+
+
+// C++のmino-sequenceの扱いをシミュレータのNEXTキューに合わせて修正
+function getPiecesForDepth(currentMino, nextQueue, holdMino, usedHold) {
+    const pieces = [];
+    
+    if (!usedHold) {
+        // Holdを使わない場合
+        pieces.push(currentMino);
+        pieces.push(...nextQueue);
+    } else {
+        // Holdを使う場合
+        if (holdMino) {
+            pieces.push(holdMino);
+            pieces.push(...nextQueue);
+        } else { // Holdが空
+            pieces.push(nextQueue[0]);
+            pieces.push(...nextQueue.slice(1));
+        }
+    }
+    return pieces;
+}
+
+
+function runAI(initialBoard, currentMino, nextQueue, holdMino, combo, b2b) {
+    bestNodeIDAtDepth1 = "";
+    maxEvaluationAtDepth1 = -Infinity;
+    searchStartTime = performance.now();
+
+    const rootID = "";
+
+    // ルートノードの作成
+    nodeMap.set(rootID, {
+        board: cloneBoard(initialBoard),
+        acc_eval: 0,
+        transient_eval: -Infinity,
+        place: null, // ルートなのでなし
+        expanded: true, // 子の生成をすぐに行うため
+        childrenIDs: [],
+        parentID: null,
+        combo: combo,
+        b2b: b2b,
+    });
+
+    // 深度1のノードを展開 (CurrentMino と Hold)
+    // 1. CurrentMinoをそのまま使う
+    const currentMinoNodeID = makeID(rootID, 0);
+    nodeMap.set(currentMinoNodeID, {
+        ...nodeMap.get(rootID),
+        place: { pieceType: currentMino },
+        parentID: rootID,
+    });
+    nodeMap.get(rootID).childrenIDs.push(currentMinoNodeID);
+    expand(currentMinoNodeID);
+
+    // 2. Holdを使う
+    const pieceAfterHold = holdMino ? holdMino : nextQueue[0];
+    const holdNodeID = makeID(rootID, 1);
+    nodeMap.set(holdNodeID, {
+        ...nodeMap.get(rootID),
+        place: { pieceType: pieceAfterHold },
+        parentID: rootID,
+    });
+    nodeMap.get(rootID).childrenIDs.push(holdNodeID);
+    expand(holdNodeID);
+    
+    // 探索ループ
+    while (!isTimeExceeded()) {
+        let selectedNodeID = rootID;
+        let depth = 0;
+
+        // Selection
+        while (nodeMap.has(selectedNodeID) && nodeMap.get(selectedNodeID).expanded) {
+            if (depth >= MAX_SEARCH_DEPTH) break;
+            
+            const childNodeID = select(selectedNodeID);
+            if (!childNodeID) break;
+
+            selectedNodeID = childNodeID;
+            depth++;
+        }
+
+        // Expansion
+        if (nodeMap.has(selectedNodeID) && !nodeMap.get(selectedNodeID).expanded) {
+            if (depth < MAX_SEARCH_DEPTH) {
+                // selectedNodeIDの次のミノを展開
+                const currentPath = [];
+                let tempID = selectedNodeID;
+                while (tempID !== rootID) {
+                    currentPath.unshift(nodeMap.get(tempID).place.pieceType);
+                    tempID = nodeMap.get(tempID).parentID;
+                }
+                
+                // 次のミノを決定
+                const usedHold = currentPath[0] !== currentMino;
+                const nextPieces = getPiecesForDepth(currentMino, nextQueue, holdMino, usedHold);
+                const nextPieceForExpansion = nextPieces[depth];
+
+                if (nextPieceForExpansion) {
+                    const nodeForExpansion = nodeMap.get(selectedNodeID);
+                    
+                    const nextMinoNodeID = makeID(selectedNodeID, 0);
+                    nodeMap.set(nextMinoNodeID, {
+                       ...nodeForExpansion,
+                       acc_eval: nodeForExpansion.acc_eval,
+                       place: { pieceType: nextPieceForExpansion },
+                       parentID: selectedNodeID,
+                       childrenIDs: [],
+                       expanded: false
+                    });
+                    nodeForExpansion.childrenIDs.push(nextMinoNodeID);
+                    expand(nextMinoNodeID);
+                }
+            }
+        }
+    }
+
+    if (bestNodeIDAtDepth1 && nodeMap.has(bestNodeIDAtDepth1)) {
+        const bestNode = nodeMap.get(bestNodeIDAtDepth1);
+        const parentOfBest = nodeMap.get(bestNode.parentID);
+        // ホールドしたかどうかを判定
+        const useHold = parentOfBest.place.pieceType !== currentMino;
+        return { placement: bestNode.place, useHold: useHold };
+    }
+
+    // 時間切れで最善手が見つからなかった場合、評価値が最も高いものを探す
+    let fallbackBestID = null;
+    let fallbackMaxEval = -Infinity;
+    if (nodeMap.has(rootID)) {
+         for(const childContainerID of nodeMap.get(rootID).childrenIDs) {
+            const containerNode = nodeMap.get(childContainerID);
+            for(const childID of containerNode.childrenIDs) {
+                if (nodeMap.has(childID)) {
+                    const childNode = nodeMap.get(childID);
+                    const totalEval = childNode.acc_eval + childNode.transient_eval;
+                    if (totalEval > fallbackMaxEval) {
+                        fallbackMaxEval = totalEval;
+                        fallbackBestID = childID;
+                    }
+                }
+            }
+        }
+    }
+    
+    if (fallbackBestID) {
+        const bestNode = nodeMap.get(fallbackBestID);
+        const parentOfBest = nodeMap.get(bestNode.parentID);
+        const useHold = parentOfBest.place.pieceType !== currentMino;
+        return { placement: bestNode.place, useHold: useHold };
+    }
+
+    // 本当に手がない場合
+    return null;
+}
+
+// Web Workerのメッセージハンドラ
+self.onmessage = function(e) {
+    const { board, currentMino, nextQueue, holdMino, ren, isB2B } = e.data;
+    
+    // nodeMapをリセット（前回の探索木は使わないシンプルな実装）
+    nodeMap.clear();
+
+    const result = runAI(board, currentMino, nextQueue, holdMino, ren, isB2B);
+
+    // 結果をメインスレッドに返す
+    self.postMessage(result);
+};
     `;
     
     const blob = new Blob([aiWorkerCode], { type: 'application/javascript' });
