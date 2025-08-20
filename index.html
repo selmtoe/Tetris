@@ -935,6 +935,7 @@ function* createMinoGenerator(customQueue) {
     }
 }
 
+// ... Playerクラスのコンストラクタと、その外にメソッドを定義 ...
 class Player {
     constructor(id, offsetX, keyBindings, padIndex, isAI = false) { // isAI引数を追加
         this.id = id; this.offsetX = offsetX; this.keyBindings = keyBindings; this.padIndex = padIndex;
@@ -948,7 +949,8 @@ class Player {
         this.opponent = null;
         this.holdDisabled = false;
         this.reset();
-        // AIに次の手をリクエストするメソッド
+    }
+    // AIに次の手をリクエストするメソッド
     aiRequestMove() {
         if (this.aiThinking || this.gameOver) return;
         this.aiThinking = true;
@@ -998,10 +1000,8 @@ class Player {
         aiWorker.postMessage({ type: 'commitMove', payload: { playerId: this.id, move } });
         
         this.aiThinking = false;
-    
     }
-
-reset() {
+    reset() {
         this.player = { x: 0, y: 0, pieceType: null, rotation: 0 };
         this.nextQueue = [];
         for (let i = 0; i < gameSettings.maxNext; i++) {
