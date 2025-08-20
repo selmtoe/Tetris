@@ -2479,6 +2479,889 @@ document.getElementById('retryBtn').addEventListener('click', () => {
     window.addEventListener('resize', updateScale);
     setTimeout(updateScale, 100);
 });
+
+// --- AI Worker Integration ---
+let aiWorker = null;
+let lastAINodeId = null;
+
+function setupAIWorker() {
+    // ai.worker.js を文字列としてここに埋め込む
+    const aiWorkerCode = `
+// ai.worker.js
+
+// --- 定数と設定 ---
+const WIDTH = 10;
+const VISIBLE_HEIGHT = 20;
+const BOARD_HEIGHT = 40; // シミュレーターの仕様に合わせる
+const SPAWN_Y = 19;      // シミュレーターの出現Y座標
+
+// C++コードから移植した重み設定
+const weights = {
+    // 盤面評価系
+    back_to_back: 52,
+    bumpiness: -24,
+    bumpiness_sq: -7,
+    row_transitions: -5,
+    height: -39,
+    top_half: -150,
+    top_quarter: -511,
+    jeopardy: -11,
+    cavity_cells: -173,
+    cavity_cells_sq: -3,
+    overhang_cells: -34,
+    overhang_cells_sq: -1,
+    covered_cells: -17,
+    covered_cells_sq: -1,
+    tslot: [8, 148, 192, 407],
+    well_depth: 57,
+    max_well_depth: 17,
+    well_column: [20, 23, 20, 50, 59, 21, 59, 10, -10, 24],
+
+    // 行動評価系
+    b2b_clear: 104,
+    clear1: -263,
+    clear2: -220,
+    clear3: -178,
+    clear4: 270,
+    tspin1: 1,
+    tspin2: 290,
+    tspin3: 482,
+    mini_tspin1: -158,
+    mini_tspin2: -93,
+    perfect_clear: 99999, // PCの価値は非常に高く設定
+    combo_garbage: 150,
+    wasted_t: -152,
+
+    //REN
+    COMBO_GARBAGE: [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 4, 5]
+};
+
+// シミュレーターからミノの定義をコピー
+const TETROMINOS = {
+    'I': { shape: [[0, 0], [1, 0], [2, 0], [3, 0]], center: [1.5, 0.5] },
+    'O': { shape: [[0, 0], [1, 0], [0, -1], [1, -1]], center: [0.5, -0.5] },
+    'T': { shape: [[0, 0], [-1, 0], [0, -1], [1, 0]], center: [0, 0] },
+    'L': { shape: [[-1, 0], [0, 0], [1, 0], [1, -1]], center: [0, 0] },
+    'J': { shape: [[0, 0], [-1, 0], [1, 0], [-1, -1]], center: [0, 0] },
+    'S': { shape: [[1, -1], [-1, 0], [0, 0], [0, -1]], center: [0, 0] },
+    'Z': { shape: [[0, 0], [1, 0], [0, -1], [-1, -1]], center: [0, 0] }
+};
+const SRS_OFFSETS = { "JLSTZ": { "0_1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], "1_0": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], "1_2": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], "2_1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], "2_3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], "3_2": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], "3_0": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], "0_3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], }, "I": { "0_1": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], "1_0": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], "1_2": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], "2_1": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], "2_3": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], "3_2": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], "3_0": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], "0_3": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], } };
+
+// --- グローバル変数 (AIの状態管理) ---
+let nodeMap = new Map();
+let searchStartTime;
+let bestNodeIDAtDepth1 = null;
+let maxEvaluationAtDepth1 = -Infinity;
+let currentGameState = {};
+
+const MOVE_DIGITS = 3; // 1手あたりのIDの桁数
+const MAX_THINKING_MS = 500;
+const MAX_SEARCH_DEPTH = 10;
+
+// --- ユーティリティ関数 ---
+
+// シミュレーターの getShape と同じロジック
+function getShape(pieceType, rotation) {
+    if (!pieceType) return [];
+    const originalShape = TETROMINOS[pieceType].shape;
+    if (rotation === 0 || pieceType === 'O') return originalShape;
+    const center = TETROMINOS[pieceType].center;
+    return originalShape.map(block => {
+        let [x, y] = [block[0] - center[0], block[1] - center[1]];
+        for (let i = 0; i < rotation; i++) {
+            [x, y] = [-y, x];
+        }
+        return [x + center[0], y + center[1]];
+    });
+}
+
+// --- TetrisBoard Class (C++のビットボードを再現) ---
+class TetrisBoard {
+    constructor(initialRows = null) {
+        this.rows = new Uint16Array(BOARD_HEIGHT);
+        if (initialRows) {
+            for (let i = 0; i < BOARD_HEIGHT; ++i) {
+                this.rows[i] = initialRows[i];
+            }
+        }
+    }
+
+    clone() {
+        return new TetrisBoard(this.rows);
+    }
+
+    isFilled(row, col) {
+        if (row < 0 || row >= BOARD_HEIGHT || col < 0 || col >= WIDTH) return true;
+        return (this.rows[row] & (1 << col)) !== 0;
+    }
+
+    fill(row, col) {
+        if (row >= 0 && row < BOARD_HEIGHT && col >= 0 && col < WIDTH) {
+            this.rows[row] |= (1 << col);
+        }
+    }
+
+    checkCollision(x, y, shape) {
+        for (const block of shape) {
+            const blockX = Math.floor(x + block[0]);
+            const blockY = Math.floor(y + block[1]);
+            if (this.isFilled(blockY, blockX)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    placeMino(placement) {
+        const shape = getShape(placement.pieceType, placement.rotation);
+        for (const block of shape) {
+            const blockX = Math.floor(placement.x + block[0]);
+            const blockY = Math.floor(placement.y + block[1]);
+            this.fill(blockY, blockX);
+        }
+    }
+    
+    clearFullLines() {
+        let cleared = 0;
+        const FULL_LINE = (1 << WIDTH) - 1;
+        let newRows = [];
+        for (let r = 0; r < BOARD_HEIGHT; ++r) {
+            if (this.rows[r] !== FULL_LINE) {
+                 newRows.push(this.rows[r]);
+            } else {
+                cleared++;
+            }
+        }
+        const emptyRows = Array(cleared).fill(0);
+        this.rows = new Uint16Array([...emptyRows, ...newRows]);
+        return cleared;
+    }
+}
+
+// --- Node Class (探索木のノード) ---
+class Node {
+    constructor() {
+        this.board = null;
+        this.acc_eval = 0.0;
+        this.transient_eval = -Infinity;
+        this.place = null; // {x, y, rotation, pieceType, kickIndex}
+        this.expanded = false;
+        this.childrenIDs = [];
+        this.parentID = null;
+        this.comboCount = 0;
+        this.B2B = false;
+    }
+}
+
+
+// --- 評価関数 (C++から移植・調整) ---
+
+function getColumnHeights(board) {
+    const heights = new Int8Array(WIDTH).fill(0);
+    for (let c = 0; c < WIDTH; ++c) {
+        for (let r = 0; r < BOARD_HEIGHT; ++r) {
+            if (board.isFilled(r, c)) {
+                heights[c] = BOARD_HEIGHT - r;
+                break;
+            }
+        }
+    }
+    return heights;
+}
+
+function calculateBumpiness(board) {
+    const heights = getColumnHeights(board);
+    let bumpiness_val = 0;
+    let bumpiness_sq_val = 0;
+    for (let i = 0; i < WIDTH - 1; ++i) {
+        const dh = Math.abs(heights[i] - heights[i + 1]);
+        bumpiness_val += dh;
+        bumpiness_sq_val += dh * dh;
+    }
+    return { bumpiness: bumpiness_val, bumpiness_sq: bumpiness_sq_val };
+}
+
+function countSetBits(n) {
+    let count = 0;
+    while (n > 0) {
+        n &= (n - 1);
+        count++;
+    }
+    return count;
+}
+
+function calculateRowTransitions(board) {
+     let transitions = 0;
+     for (let y = 0; y < BOARD_HEIGHT; ++y) {
+         const r = board.rows[y];
+         // 外側を壁として扱う
+         const extendedRow = (1 << (WIDTH + 1)) | (r << 1) | 1;
+         transitions += countSetBits(extendedRow ^ (extendedRow >> 1));
+     }
+     return transitions;
+}
+
+function calculateWell(board) {
+    const heights = getColumnHeights(board);
+    let well_depth_sum = 0;
+
+    for (let c = 0; c < WIDTH; c++) {
+        const left_h = c > 0 ? heights[c - 1] : BOARD_HEIGHT;
+        const right_h = c < WIDTH - 1 ? heights[c + 1] : BOARD_HEIGHT;
+        const well_wall_h = Math.min(left_h, right_h);
+
+        if (heights[c] < well_wall_h) {
+            let depth = 0;
+            for (let r = BOARD_HEIGHT - heights[c] - 1; r >= BOARD_HEIGHT - well_wall_h; r--) {
+                 if (!board.isFilled(r, c)) {
+                    depth++;
+                 }
+            }
+            well_depth_sum += depth;
+        }
+    }
+    return well_depth_sum;
+}
+
+
+function calculateHolesAndCovered(board) {
+    const heights = getColumnHeights(board);
+    let holes = 0;
+    let covered = 0;
+
+    for (let c = 0; c < WIDTH; ++c) {
+        let covered_in_col = 0;
+        for (let r = BOARD_HEIGHT - 1; r >= BOARD_HEIGHT - heights[c]; --r) {
+            if (!board.isFilled(r, c)) {
+                holes++;
+                covered += covered_in_col;
+            } else {
+                covered_in_col++;
+            }
+        }
+    }
+    return { holes, covered };
+}
+
+function checkForTSpin(board, placement) {
+    if (placement.pieceType !== 'T' || placement.kickIndex < 0) return null;
+
+    const centerX = placement.x + TETROMINOS['T'].center[0];
+    const centerY = placement.y + TETROMINOS['T'].center[1];
+    
+    // Tミノの中心から見て4隅の座標を定義
+    const corners = [
+        [Math.floor(centerX - 1), Math.floor(centerY - 1)], // 左上
+        [Math.ceil(centerX + 1),  Math.floor(centerY - 1)], // 右上
+        [Math.floor(centerX - 1), Math.ceil(centerY + 1)],  // 左下
+        [Math.ceil(centerX + 1),  Math.ceil(centerY + 1)]   // 右下
+    ];
+
+    let occupiedCorners = 0;
+    for (const [cx, cy] of corners) {
+        if (board.isFilled(cy, cx)) {
+            occupiedCorners++;
+        }
+    }
+
+    if (occupiedCorners < 3) return null;
+
+    const frontCornerDefs = {
+        0: [corners[2], corners[3]], // 回転0: 左下、右下
+        1: [corners[1], corners[3]], // 回転1: 右上、右下
+        2: [corners[0], corners[1]], // 回転2: 左上、右上
+        3: [corners[0], corners[2]], // 回転3: 左上、左下
+    };
+    const frontCorners = frontCornerDefs[placement.rotation];
+    let occupiedFrontCorners = 0;
+    for (const [cx, cy] of frontCorners) {
+        if (board.isFilled(cy, cx)) {
+            occupiedFrontCorners++;
+        }
+    }
+
+    if (occupiedFrontCorners === 2 || placement.kickIndex === 4) return 'TSPIN';
+    return 'MINI_TSPIN';
+}
+
+function evaluate(board, placement, linesCleared, currentCombo, currentB2BActive) {
+    let acc_eval = 0.0;
+    let transient_eval = 0.0;
+
+    const heights = getColumnHeights(board);
+    const highest_point = Math.max(...heights);
+
+    if (highest_point === 0 && linesCleared > 0) {
+        acc_eval += weights.perfect_clear;
+    }
+    
+    // アクション評価
+    if (currentB2BActive && linesCleared > 0) {
+        acc_eval += weights.b2b_clear;
+    }
+    if (currentCombo > 0) {
+        const combo_idx = Math.min(currentCombo, weights.COMBO_GARBAGE.length - 1);
+        acc_eval += weights.combo_garbage * weights.COMBO_GARBAGE[combo_idx];
+    }
+
+    const tspinResult = checkForTSpin(board, placement);
+    if (tspinResult === 'TSPIN') {
+        if (linesCleared === 1) acc_eval += weights.tspin1;
+        else if (linesCleared === 2) acc_eval += weights.tspin2;
+        else if (linesCleared === 3) acc_eval += weights.tspin3;
+    } else if (tspinResult === 'MINI_TSPIN') {
+         if (linesCleared === 1) acc_eval += weights.mini_tspin1;
+         else if (linesCleared === 2) acc_eval += weights.mini_tspin2;
+    } else {
+        if (linesCleared === 1) acc_eval += weights.clear1;
+        else if (linesCleared === 2) acc_eval += weights.clear2;
+        else if (linesCleared === 3) acc_eval += weights.clear3;
+        else if (linesCleared === 4) acc_eval += weights.clear4;
+    }
+
+    if (placement.pieceType === 'T' && !tspinResult && linesCleared === 0) {
+        acc_eval += weights.wasted_t;
+    }
+
+    // 盤面評価
+    if (currentB2BActive) {
+        transient_eval += weights.back_to_back;
+    }
+    
+    transient_eval += weights.height * highest_point;
+    transient_eval += weights.top_quarter * Math.max(0, highest_point - 15);
+    transient_eval += weights.top_half * Math.max(0, highest_point - 10);
+    
+    transient_eval += weights.row_transitions * calculateRowTransitions(board);
+
+    const { bumpiness, bumpiness_sq } = calculateBumpiness(board);
+    transient_eval += bumpiness * weights.bumpiness;
+    transient_eval += bumpiness_sq * weights.bumpiness_sq;
+    
+    const { holes, covered } = calculateHolesAndCovered(board);
+    transient_eval += weights.cavity_cells * holes;
+    transient_eval += weights.covered_cells * covered;
+
+    transient_eval += weights.well_depth * calculateWell(board);
+
+    return { acc_eval, transient_eval };
+}
+
+
+// --- MCTSライクな探索アルゴリズム ---
+
+function makeID(baseID, moveIndex) {
+    return `${baseID}${String(moveIndex).padStart(MOVE_DIGITS, '0')}`;
+}
+
+function isDepthLevel(id, depth) {
+    return id.length === depth * MOVE_DIGITS;
+}
+
+function isTimeExceeded() {
+    return (performance.now() - searchStartTime) > MAX_THINKING_MS;
+}
+
+function propagateEvaluation(nodeID) {
+    let currentID = nodeID;
+    while (nodeMap.has(currentID)) {
+        const S = nodeMap.get(currentID);
+        const parentID = S.parentID;
+
+        if (parentID === null || !nodeMap.has(parentID)) {
+            break;
+        }
+
+        const P = nodeMap.get(parentID);
+        let max_child_value = -Infinity;
+        
+        for (const child_id of P.childrenIDs) {
+            if (nodeMap.has(child_id)) {
+                const child_node = nodeMap.get(child_id);
+                max_child_value = Math.max(max_child_value, child_node.acc_eval + child_node.transient_eval);
+            }
+        }
+        
+        const new_transient_eval = P.acc_eval + max_child_value;
+        if (P.transient_eval < new_transient_eval) {
+            P.transient_eval = new_transient_eval;
+            currentID = parentID;
+        } else {
+            break;
+        }
+    }
+}
+
+function createAndAddChildNode(parentNodeID, parentNode, placement) {
+    if (!parentNode) return;
+
+    const childID = makeID(parentNodeID, parentNode.childrenIDs.length);
+
+    const childNode = new Node();
+    childNode.parentID = parentNodeID;
+    childNode.place = placement;
+
+    const boardAfterPlace = parentNode.board.clone();
+    boardAfterPlace.placeMino(placement);
+    const linesCleared = boardAfterPlace.clearFullLines();
+    childNode.board = boardAfterPlace;
+
+    childNode.comboCount = linesCleared > 0 ? parentNode.comboCount + 1 : 0;
+    
+    const tspinResult = checkForTSpin(boardAfterPlace, placement);
+    const isSpecialMove = (tspinResult && linesCleared > 0) || (linesCleared >= 4);
+    if (isSpecialMove) {
+        childNode.B2B = true;
+    } else {
+        childNode.B2B = (linesCleared > 0) ? false : parentNode.B2B;
+    }
+
+    const { acc_eval, transient_eval } = evaluate(
+        boardAfterPlace, placement, linesCleared, childNode.comboCount, childNode.B2B
+    );
+
+    childNode.acc_eval = parentNode.acc_eval + acc_eval;
+    childNode.transient_eval = childNode.acc_eval + transient_eval;
+
+    nodeMap.set(childID, childNode);
+    parentNode.childrenIDs.push(childID);
+    
+    propagateEvaluation(childID);
+}
+
+function expand(nodeID) {
+    const node = nodeMap.get(nodeID);
+    if (!node || node.expanded) return;
+
+    const currentMino = currentGameState.minoSequence[nodeID.length / MOVE_DIGITS];
+    if (!currentMino) return;
+
+    const visited = new Set(); // [x, y, r]
+    
+    // 全ての回転とX座標について試行
+    for (let r = 0; r < 4; r++) {
+        if (currentMino === 'O' && r > 0) continue;
+        if ((currentMino === 'I' || currentMino === 'S' || currentMino === 'Z') && r > 1) continue;
+
+        for (let x = -3; x < WIDTH + 3; x++) {
+            const shape = getShape(currentMino, r);
+            let tempY = SPAWN_Y;
+            
+            // 落下先のY座標を見つける
+            while (!node.board.checkCollision(x, tempY + 1, shape)) {
+                tempY++;
+            }
+            const finalY = tempY;
+
+            const placementKey = `${x},${finalY},${r}`;
+            if (visited.has(placementKey)) continue;
+            visited.add(placementKey);
+
+            // 通常の設置
+            createAndAddChildNode(nodeID, node, { x: x, y: finalY, rotation: r, pieceType: currentMino, kickIndex: -1 });
+
+            // SRSキックを試行
+            const srsKey = currentMino === 'I' ? 'I' : 'JLSTZ';
+            const offsets = SRS_OFFSETS[srsKey][`${r}_${(r + 1) % 4}`];
+            if (offsets) {
+                for(let i=1; i < offsets.length; i++) {
+                    const kick = offsets[i];
+                    const newX = x + kick[0];
+                    const newY = finalY - kick[1]; // SRSのYは逆
+                    const newShape = getShape(currentMino, (r + 1) % 4);
+                    if (!node.board.checkCollision(newX, newY, newShape)) {
+                        const pk = `${newX},${newY},${(r+1)%4}`;
+                        if (visited.has(pk)) continue;
+                        visited.add(pk);
+                        createAndAddChildNode(nodeID, node, { x: newX, y: newY, rotation: (r + 1) % 4, pieceType: currentMino, kickIndex: i });
+                        break;
+                    }
+                }
+            }
+            const offsetsCCW = SRS_OFFSETS[srsKey][`${r}_${(r + 3) % 4}`];
+            if (offsetsCCW) {
+                 for(let i=1; i < offsetsCCW.length; i++) {
+                    const kick = offsetsCCW[i];
+                    const newX = x + kick[0];
+                    const newY = finalY - kick[1]; // SRSのYは逆
+                    const newShape = getShape(currentMino, (r + 3) % 4);
+                    if (!node.board.checkCollision(newX, newY, newShape)) {
+                        const pk = `${newX},${newY},${(r+3)%4}`;
+                        if (visited.has(pk)) continue;
+                        visited.add(pk);
+                        createAndAddChildNode(nodeID, node, { x: newX, y: newY, rotation: (r + 3) % 4, pieceType: currentMino, kickIndex: i });
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    node.expanded = true;
+}
+
+
+function select(parentNodeID) {
+    if (isTimeExceeded() || !nodeMap.has(parentNodeID)) {
+        return null;
+    }
+    
+    const parentNode = nodeMap.get(parentNodeID);
+    if (!parentNode.childrenIDs.length) {
+        return null;
+    }
+    
+    let bestChildId = null;
+    let maxEval = -Infinity;
+
+    for (const childId of parentNode.childrenIDs) {
+        if (nodeMap.has(childId)) {
+            const childNode = nodeMap.get(childId);
+            if (childNode.transient_eval > maxEval) {
+                maxEval = childNode.transient_eval;
+                bestChildId = childId;
+            }
+        }
+    }
+    return bestChildId;
+}
+
+function runAI() {
+    searchStartTime = performance.now();
+    bestNodeIDAtDepth1 = null;
+    maxEvaluationAtDepth1 = -Infinity;
+
+    const rootID = "";
+    if (!nodeMap.has(rootID)) {
+        const rootNode = new Node();
+        rootNode.board = new TetrisBoard();
+        nodeMap.set(rootID, rootNode);
+    }
+    
+    const rootNode = nodeMap.get(rootID);
+    rootNode.board = currentGameState.board.clone();
+    rootNode.comboCount = currentGameState.combo;
+    rootNode.B2B = currentGameState.b2b;
+    rootNode.acc_eval = 0;
+    rootNode.transient_eval = 0;
+
+    // Depth 1 (初手)の探索
+    const availableMinos = [];
+    if(currentGameState.minoSequence[0]) availableMinos.push(currentGameState.minoSequence[0]);
+    if(currentGameState.hold) availableMinos.push(currentGameState.hold);
+    
+    const tempRoot = new Node();
+    tempRoot.board = rootNode.board;
+    tempRoot.comboCount = rootNode.comboCount;
+    tempRoot.B2B = rootNode.B2B;
+    tempRoot.acc_eval = rootNode.acc_eval;
+    
+    let firstDepthNodes = [];
+
+    for (const mino of availableMinos) {
+        const oldSequence = currentGameState.minoSequence;
+        if(mino === currentGameState.hold){
+            currentGameState.minoSequence = [currentGameState.hold, ...oldSequence];
+        } else {
+             currentGameState.minoSequence = oldSequence;
+        }
+
+        expand(""); // expandはグローバルなcurrentGameStateを読む
+        
+        currentGameState.minoSequence = oldSequence; // 元に戻す
+    }
+    
+    // 探索ループ
+    while (!isTimeExceeded()) {
+        let selectedNodeID = "";
+        
+        while (nodeMap.has(selectedNodeID) && nodeMap.get(selectedNodeID).expanded) {
+            const depth = selectedNodeID.length / MOVE_DIGITS;
+            if (depth >= MAX_SEARCH_DEPTH) {
+                break;
+            }
+            const nextNodeID = select(selectedNodeID);
+            if (!nextNodeID) {
+                break;
+            }
+            selectedNodeID = nextNodeID;
+        }
+
+        if (nodeMap.has(selectedNodeID) && !nodeMap.get(selectedNodeID).expanded) {
+            const depth = selectedNodeID.length / MOVE_DIGITS;
+            if (depth < MAX_SEARCH_DEPTH) {
+                expand(selectedNodeID);
+            }
+        }
+    }
+    
+    let bestMove = null;
+    let bestEval = -Infinity;
+    
+    const root = nodeMap.get("");
+    for (const childId of root.childrenIDs) {
+        const childNode = nodeMap.get(childId);
+        if (childNode && childNode.transient_eval > bestEval) {
+            bestEval = childNode.transient_eval;
+            bestMove = childNode.place;
+            bestNodeIDAtDepth1 = childId;
+        }
+    }
+
+    if (!bestMove) {
+        // 万が一見つからなかった場合、評価値が一番高いものを適当に返す
+        let fallbackMove = null, fallbackEval = -Infinity;
+        for (const [id, node] of nodeMap.entries()) {
+            if (id.length === MOVE_DIGITS) { // depth 1
+                if (node.transient_eval > fallbackEval) {
+                    fallbackEval = node.transient_eval;
+                    fallbackMove = node.place;
+                    bestNodeIDAtDepth1 = id;
+                }
+            }
+        }
+         return fallbackMove || { pieceType: currentGameState.minoSequence[0], x: 4, y: 20, rotation: 0 };
+    }
+    
+    return bestMove;
+}
+
+
+function pruneAndReroot(chosenNodeID) {
+    if (!chosenNodeID || !nodeMap.has(chosenNodeID)) {
+        nodeMap.clear();
+        return;
+    }
+
+    const new_nodeMap = new Map();
+    const q = [chosenNodeID];
+
+    const newRootNode = nodeMap.get(chosenNodeID);
+    const newRootID = "";
+    newRootNode.parentID = null;
+
+    const id_prefix_len = chosenNodeID.length;
+    
+    // 子供のIDを新しいルートからの相対IDに更新
+    newRootNode.childrenIDs = newRootNode.childrenIDs.map(id => id.substring(id_prefix_len));
+    new_nodeMap.set(newRootID, newRootNode);
+    
+    const visited = new Set([chosenNodeID]);
+
+    while (q.length > 0) {
+        const oldParentID = q.shift();
+
+        for (const oldChildID of nodeMap.get(oldParentID).childrenIDs) {
+            if (nodeMap.has(oldChildID) && !visited.has(oldChildID)) {
+                
+                const newChildID = oldChildID.substring(id_prefix_len);
+                const newParentID = oldParentID.substring(id_prefix_len);
+
+                const newNode = nodeMap.get(oldChildID);
+                newNode.parentID = newParentID;
+                newNode.childrenIDs = newNode.childrenIDs.map(id => id.substring(id_prefix_len));
+                
+                new_nodeMap.set(newChildID, newNode);
+                
+                q.push(oldChildID);
+                visited.add(oldChildID);
+            }
+        }
+    }
+    
+    nodeMap = new_nodeMap;
+}
+
+
+// Web Workerのメッセージハンドラ
+self.onmessage = function(e) {
+    const { command, data } = e.data;
+
+    if (command === 'start') {
+        // シミュレーターの盤面 (2D array) をビットボードに変換
+        const board = new TetrisBoard();
+        for (let y = 0; y < BOARD_HEIGHT; y++) {
+            for (let x = 0; x < WIDTH; x++) {
+                if (data.board[y][x]) {
+                    board.fill(y, x);
+                }
+            }
+        }
+        
+        currentGameState = {
+            board: board,
+            minoSequence: data.nextQueue,
+            hold: data.hold,
+            combo: data.combo,
+            b2b: data.b2b,
+        };
+        
+        // 前回の探索木をルート変更
+        if (data.lastMoveNodeId) {
+            pruneAndReroot(data.lastMoveNodeId);
+        } else {
+            nodeMap.clear(); // 新規ゲーム or 不明な場合はクリア
+        }
+
+        const bestMove = runAI();
+        
+        self.postMessage({
+            type: 'result',
+            move: bestMove,
+            nodeId: bestNodeIDAtDepth1
+        });
+    }
+};
+    `;
+
+    const blob = new Blob([aiWorkerCode], { type: 'application/javascript' });
+    const workerUrl = URL.createObjectURL(blob);
+    aiWorker = new Worker(workerUrl);
+
+    aiWorker.onmessage = (e) => {
+        const { type, move, nodeId } = e.data;
+        if (type === 'result' && move && players.length > 0 && players[0].id === 'AI') {
+            const aiPlayer = players[0];
+            lastAINodeId = nodeId; // 次の思考のためにノードIDを保存
+            
+            // AIから返された手を実行する
+            executeAIMove(aiPlayer, move);
+        }
+    };
+}
+
+function executeAIMove(aiPlayer, move) {
+    if (aiPlayer.gameOver) return;
+
+    // ホールドを使用するかどうか
+    if (move.pieceType === aiPlayer.holdPiece) {
+        aiPlayer.hold();
+    }
+    
+    // 目的の形に回転
+    aiPlayer.player.rotation = move.rotation;
+
+    // 左右移動
+    aiPlayer.player.x = move.x;
+
+    // ハードドロップ
+    aiPlayer.hardDrop();
+}
+
+
+function requestAIMove(aiPlayer) {
+     if (aiWorker && !aiPlayer.gameOver) {
+        // AIに渡すためのゲーム状態
+        const gameState = {
+            board: aiPlayer.board,
+            nextQueue: [aiPlayer.player.pieceType, ...aiPlayer.nextQueue],
+            hold: aiPlayer.holdPiece,
+            combo: aiPlayer.ren,
+            b2b: aiPlayer.isB2B,
+            lastMoveNodeId: lastAINodeId, // 前回の探索木のルートを伝える
+        };
+        aiWorker.postMessage({ command: 'start', data: gameState });
+    }
+}
+
+// 既存の Playerクラスの spawnNewPiece メソッドをAI用に上書きする
+const originalSpawnNewPiece = Player.prototype.spawnNewPiece;
+Player.prototype.spawnNewPiece = function() {
+    originalSpawnNewPiece.apply(this, arguments);
+    if (this.id === 'AI' && gameState === 'PLAYING') {
+        // 新しいピースが出現したら、AIに次の手を考えさせる
+        setTimeout(() => requestAIMove(this), 100); // 少し遅延させて安定させる
+    }
+};
+
+// --- UIの有効化とゲームモードの追加 ---
+document.addEventListener('DOMContentLoaded', () => {
+    setupAIWorker();
+
+    const modeAIButton = document.getElementById('mode-ai');
+    modeAIButton.style.opacity = '1';
+    modeAIButton.style.cursor = 'pointer';
+    modeAIButton.title = 'AI vs Player';
+
+    modeAIButton.addEventListener('click', () => {
+        gameMode = 'AI';
+        document.getElementById('mode-1p').classList.remove('active');
+        document.getElementById('mode-2p').classList.remove('active');
+        document.getElementById('mode-ai').classList.add('active');
+        
+        // P1がAI、P2がプレイヤーになるので、P2エディタを表示
+        document.getElementById('p2-editor-col').style.display = 'flex';
+        // P1エディタは非表示
+        document.getElementById('p1-editor-col').style.display = 'none';
+
+        setTimeout(updateScale, 0);
+    });
+
+    // START GAMEボタンの処理を上書きしてAIモードに対応
+    const originalStartGameBtn = document.getElementById('startGameBtn');
+    const newStartGameBtn = originalStartGameBtn.cloneNode(true);
+    originalStartGameBtn.parentNode.replaceChild(newStartGameBtn, originalStartGameBtn);
+
+    newStartGameBtn.addEventListener('click', () => {
+        gameState = 'PLAYING';
+        document.getElementById('editor-container').style.display = 'none';
+        document.getElementById('game-container').style.display = 'block';
+        document.getElementById('scan-controls').style.display = 'none';
+        document.getElementById('game-controls').style.display = 'flex';
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        players = [];
+        lastAINodeId = null; // ゲーム開始時にリセット
+
+        const createAndSetupPlayer = (id, offsetX, bindings, padIndex) => {
+            const player = new Player(id, offsetX, bindings, padIndex);
+            player.holdDisabled = autoStartParams.nh;
+            return player;
+        };
+
+        if (gameMode === '1P') {
+            mainCanvas.width = PLAYER_CANVAS_WIDTH * RESOLUTION_SCALE;
+            mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
+            mainCanvas.style.width = PLAYER_CANVAS_WIDTH + 'px';
+            mainCanvas.style.height = CANVAS_HEIGHT + 'px';
+            players.push(createAndSetupPlayer('1', 0, keyBindings.p1, 0));
+        } else if (gameMode === '2P' || gameMode === 'AI') {
+            const totalWidth = PLAYER_CANVAS_WIDTH * 2;
+            mainCanvas.width = totalWidth * RESOLUTION_SCALE;
+            mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
+            mainCanvas.style.width = totalWidth + 'px';
+            mainCanvas.style.height = CANVAS_HEIGHT + 'px';
+
+            let p1, p2;
+            if (gameMode === 'AI') {
+                // P1がAI, P2が人間プレイヤー
+                p1 = createAndSetupPlayer('AI', 0, {}, null); // AIはキーバインド不要
+                p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1);
+            } else { // 2P
+                p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0);
+                p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1);
+            }
+            
+            p1.opponent = p2;
+            p2.opponent = p1;
+            players.push(p1, p2);
+            
+            if (gameMode === 'AI') {
+                 // AIの最初の思考を開始
+                requestAIMove(p1);
+            }
+
+        }
+
+        autoStartParams = { ss: false, nh: false };
+        ctx.scale(RESOLUTION_SCALE, RESOLUTION_SCALE);
+
+        if (gameSettings.touchControlsEnabled) {
+            virtualController.show();
+        }
+
+        setTimeout(updateScale, 0);
+    });
+});
 </script>
 </body>
 </html>
