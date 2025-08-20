@@ -6,10 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#1a1a2e">
 <link rel="manifest" id="manifest-link">
-
 <title>Tetris Simulator</title>
-<script async src="tetris_ai.js"></script>
-
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
@@ -231,51 +228,65 @@
             <button id="startGameBtn" class="button">START GAME</button>
         </div>
 
-        <div class="player-editors">
+<div class="player-editors">
             <div class="editor-column" id="p1-editor-col">
                 <div class="edit-section next-editor">
                     <h2>PLAYER 1 - NEXT</h2>
                     <div class="mino-icons" id="p1-next-icons"></div>
                     <div class="next-queue-display" id="p1-next-queue"></div>
-                    <div class="button-group"> <button class="button" id="p1-next-clear">Clear</button> </div>
+                    <div class="button-group">
+                        <button class="button" id="p1-next-delete-left">Delete</button>
+                        <button class="button" id="p1-next-clear">Clear</button>
+                    </div>
                 </div>
                 <div class="edit-section field-editor">
                     <h2>PLAYER 1 - FIELD</h2>
                     <div class="color-palette" id="p1-palette"></div>
-                    <canvas id="field-editor-canvas-p1"></canvas>
+
+<canvas id="field-editor-canvas-p1"></canvas>
                     <div class="field-controls">
                         <button class="button" id="p1-field-shift-up">↑ Up</button>
                         <button class="button" id="p1-field-shift-down">↓ Down</button>
                         <button class="button" id="p1-field-clear">Clear</button>
                         <label for="imageLoader-p1" class="button">Load Img</label>
                         <input type="file" id="imageLoader-p1" data-player="p1" accept="image/*">
+                        <label for="pptLoader-p1" class="button">Load PPT</label>
+                        <input type="file" id="pptLoader-p1" data-player="p1" accept="image/*">
                     </div>
+                    <div class="key-config-controls" style="margin-top: 15px; text-align: center;">
 
-<div class="key-config-controls" style="margin-top: 15px; text-align: center; display: flex; justify-content: center; align-items: center; gap: 10px;"> <button class="button" id="p1-key-config-btn">操作設定</button> <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-family: var(--font-ui);"> <input type="checkbox" id="p1-ai-toggle" style="width: 18px; height: 18px;"> AI </label> </div>
-
+                        <button class="button" id="p1-key-config-btn">操作設定</button>
+                    </div>
                 </div>
             </div>
-            <div class="editor-column" id="p2-editor-col" style="display: none;">
+<div class="editor-column" id="p2-editor-col" style="display: none;">
                 <div class="edit-section next-editor">
                     <h2>PLAYER 2 - NEXT</h2>
                     <div class="mino-icons" id="p2-next-icons"></div>
                     <div class="next-queue-display" id="p2-next-queue"></div>
-                    <div class="button-group"> <button class="button" id="p2-next-clear">Clear</button> </div>
+                    <div class="button-group">
+                        <button class="button" id="p2-next-delete-left">Delete</button>
+                        <button class="button" id="p2-next-clear">Clear</button>
+                    </div>
                 </div>
                 <div class="edit-section field-editor">
                     <h2>PLAYER 2 - FIELD</h2>
                     <div class="color-palette" id="p2-palette"></div>
-                    <canvas id="field-editor-canvas-p2"></canvas>
+
+<canvas id="field-editor-canvas-p2"></canvas>
                     <div class="field-controls">
                         <button class="button" id="p2-field-shift-up">↑ Up</button>
                         <button class="button" id="p2-field-shift-down">↓ Down</button>
                         <button class="button" id="p2-field-clear">Clear</button>
                         <label for="imageLoader-p2" class="button">Load Img</label>
                         <input type="file" id="imageLoader-p2" data-player="p2" accept="image/*">
+                        <label for="pptLoader-p2" class="button">Load PPT</label>
+                        <input type="file" id="pptLoader-p2" data-player="p2" accept="image/*">
                     </div>
+                    <div class="key-config-controls" style="margin-top: 15px; text-align: center;">
 
-<div class="key-config-controls" style="margin-top: 15px; text-align: center; display: flex; justify-content: center; align-items: center; gap: 10px;"> <button class="button" id="p2-key-config-btn">操作設定</button> <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-family: var(--font-ui);"> <input type="checkbox" id="p2-ai-toggle" style="width: 18px; height: 18px;"> AI </label> </div>
-
+                        <button class="button" id="p2-key-config-btn">操作設定</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -309,7 +320,6 @@
             <button class="tab-button active" data-tab="general">諸設定</button>
             <button class="tab-button" data-tab="p1-keys">1P操作設定</button>
             <button class="tab-button" data-tab="p2-keys" id="p2-keys-tab-btn" style="display: none;">2P操作設定</button>
-<button class="tab-button" data-tab="ai-settings">AI設定</button>
         </div>
 
         <div class="tab-content active" id="tab-content-general">
@@ -338,9 +348,6 @@
             <div id="p2-key-config-list" class="key-config-list-container"></div>
         </div>
         
-
-<div class="tab-content" id="tab-content-ai-settings">     <h2 style="margin-top: 20px;">AI 設定</h2>     <p></p>     <div id="ai-settings-list" class="key-config-list-container"></div> </div>
-
         <div class="modal-controls" style="border-top: 1px solid var(--primary-color); padding-top: 15px; margin-top: 20px;">
             <button id="settings-close" class="button">保存して閉じる</button>
         </div>
@@ -357,7 +364,25 @@
             <div class="share-item">
                 <span>共有リンク</span>
                 <input type="text" id="share-link-input" readonly style="width: 100%; margin-top: 5px; margin-bottom: 5px; box-sizing: border-box;">
-                <button id="copy-link-btn" class="button">リンクをコピー</button>
+                <div style="display: flex; gap: 10px; margin-top: 5px;">
+                    <button id="copy-link-btn" class="button">リンクをコピー</button>
+                    <button id="advanced-link-btn" class="button">詳細なリンク生成</button>
+                </div>
+            </div>
+            <div id="advanced-link-options" style="display: none; margin-top: 15px; padding: 10px; background-color: rgba(255,255,255,0.05); border-radius: 5px;">
+                <div class="setting-item">
+                    <label>
+                        <input type="checkbox" id="start-sim-checkbox" checked>
+                        <span>シミュレーションを即スタート</span>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <label>
+                        <input type="checkbox" id="no-hold-checkbox">
+                        <span>ホールドを禁止</span>
+                    </label>
+                </div>
+                 <button id="generate-advanced-link-btn" class="button" style="margin-top: 10px;">リンクを再生成</button>
             </div>
              <div class="share-item" style="margin-top: 15px;">
                 <span>生データ (JSON)</span>
@@ -740,21 +765,6 @@ const virtualController = (() => {
     };
 })();
 
-let Module = {};
-const isWasmReady = new Promise(resolve => {
-    Module.onRuntimeInitialized = () => {
-        console.log('WASM AI module initialized.');
-        resolve(true);
-    };
-});
-
-let aiSettings = {
-    thinkInterval: 200, // AIが次の手を考える間隔(ms)
-    // 今後、AIの種類などを追加可能
-};
-
-const AXIS_THRESHOLD = 0.8; // この行は既存のコードから移動
-
 const RESOLUTION_SCALE = 2;
 const BLOCK_SIZE = 28;
 const EDITOR_BLOCK_SIZE = 50;
@@ -768,6 +778,7 @@ const PADDING = 20;
 const PLAYER_CANVAS_WIDTH = HOLD_AREA_WIDTH + PLAYFIELD_WIDTH + NEXT_AREA_WIDTH + PADDING * 2;
 const CANVAS_HEIGHT = (BOARD_VISIBLE_HEIGHT + 0.5) * BLOCK_SIZE;
 const PLAYFIELD_X_OFFSET = HOLD_AREA_WIDTH + PADDING;
+const AXIS_THRESHOLD = 0.8;
 
 let gameSettings = {
     das: 140,
@@ -853,10 +864,9 @@ const keyActionLabels = {
 let isBindingKey = false, bindingPlayer = null, bindingAction = null;
 let gamepads = {}, prevGamepads = {};
 
-
 const editorData = {
-    p1: { board: null, nextQueue: [], viewY: BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT, activeColor: 'I', isAI: false },
-    p2: { board: null, nextQueue: [], viewY: BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT, activeColor: 'I', isAI: false }
+    p1: { board: null, nextQueue: [], hold: null, viewY: BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT, activeColor: 'I', nextInsertionIndex: -1 },
+    p2: { board: null, nextQueue: [], hold: null, viewY: BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT, activeColor: 'I', nextInsertionIndex: -1 }
 };
 
 let scanState = { image: null, bottomLeft: null, topRight: null, currentMousePos: {x: 0, y: 0}, targetPlayerId: null, parsedColors: null };
@@ -881,31 +891,28 @@ function* createMinoGenerator(customQueue) {
 }
 
 class Player {
-    constructor(id, offsetX, keyBindings, padIndex, isAI) {
+    constructor(id, offsetX, keyBindings, padIndex) {
         this.id = id; this.offsetX = offsetX; this.keyBindings = keyBindings; this.padIndex = padIndex;
-        this.isAI = isAI;
-
-        // AI関連のプロパティを初期化
-        this.aiThinkTimer = 0;
-        this.isThinking = false;
-        this.nextMove = null;
-
         this.keys = {};
-        this.board = editorData[`p${id}`].board.map(row => [...row]);
-        this.minoGenerator = createMinoGenerator(editorData[`p${id}`].nextQueue);
+        const pData = editorData[`p${id}`];
+        this.initialHold = pData.hold;
+        this.board = pData.board.map(row => [...row]);
+        this.minoGenerator = createMinoGenerator(pData.nextQueue);
         this.opponent = null;
+        this.holdDisabled = false;
         this.reset();
     }
 
-    reset() {
+reset() {
         this.player = { x: 0, y: 0, pieceType: null, rotation: 0 };
         this.nextQueue = [];
         for (let i = 0; i < gameSettings.maxNext; i++) {
             this.nextQueue.push(this.minoGenerator.next().value);
         }
-        this.holdPiece = null; this.canHold = true; this.gravityTimer = gameSettings.gravity; this.lockTimer = 0;
+        this.holdPiece = this.initialHold; this.canHold = true; this.gravityTimer = gameSettings.gravity; this.lockTimer = 0;
         this.dasTimer = 0; this.arrTimer = 0; this.sdfTimer = 0; this.dasDirection = 0;
         this.isGrounded = false; this.gameOver = false; this.isClearingLine = false; this.lineClearDelayTimer = 0;
+
         this.viewY = BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT;
         this.pendingGarbage = 0; this.garbageQueue = []; this.ren = -1; this.isB2B = false;
         this.lastMoveWasRotation = false; this.lastSrsKickIndex = -1;
@@ -973,8 +980,6 @@ class Player {
         }
 
         this.processGarbageQueue();
-
-if (this.isAI) { if (this.isClearingLine) return; // ライン消去中は思考しない if (this.nextMove) { this.applyAIMove();return; // AIの操作を適用したらそのフレームは終了 } this.aiThinkTimer += dt; if (this.aiThinkTimer >= aiSettings.thinkInterval && !this.isThinking) { this.runAIThinking(); this.aiThinkTimer = 0; } return; // AIプレイヤーは以降のキー入力処理をスキップ }
 
         const left = this.isActionPressed('left');
         const right = this.isActionPressed('right');
@@ -1081,8 +1086,7 @@ if (this.isAI) { if (this.isClearingLine) return; // ライン消去中は思考
         ctx.restore(); ctx.restore();
     }
     
-
-getShape(p, r) { if(!p) return []; const o=TETROMINOS[p].shape; if(r===0||p==='O')return o; const c=TETROMINOS[p].center; return o.map(b=>{let [x,y]=[b[0]-c[0],b[1]-c[1]]; for(let i=0;i<r;i++){[x,y]=[-y,x];} return [x+c[0]+(p==='O'?0.5:0),y+c[1]+(p==='O'?0.5:0)];});}
+    getShape(p, r) { if(!p) return []; const o=TETROMINOS[p].shape; if(r===0||p==='O')return o; const c=TETROMINOS[p].center; return o.map(b=>{let [x,y]=[b[0]-c[0],b[1]-c[1]]; for(let i=0;i<r;i++){[x,y]=[-y,x];} return [x+c[0]+(p==='O'?0.5:0),y+c[1]+(p==='O'?0.5:0)];});}
     checkCollision(x,y,s) { for(const b of s) { const bx=Math.floor(x+b[0]), by=Math.floor(y+b[1]); if(bx<0||bx>=BOARD_WIDTH||by>=BOARD_HEIGHT||(by>=0&&this.board[by]?.[bx])) return true; } return false; }
     rotate(d) { if(this.gameOver||!this.player.pieceType||this.player.pieceType==='O')return; const oR=this.player.rotation, nR=(oR+d+4)%4; const oD=(this.player.pieceType==='I'?SRS_OFFSETS.I:SRS_OFFSETS.JLSTZ)[`${oR}_${nR}`]; const nS=this.getShape(this.player.pieceType,nR); for(let i=0;i<oD.length;i++){const t=oD[i];const oX=t[0],oY=-t[1]; if(!this.checkCollision(this.player.x+oX,this.player.y+oY,nS)){this.player.x+=oX;this.player.y+=oY;this.player.rotation=nR;this.lockTimer=0;this.lastMoveWasRotation=true;this.lastSrsKickIndex=i;return;}}}
     move(dx,dy,isPlayer=true) { if(this.gameOver||!this.player.pieceType)return; const s=this.getShape(this.player.pieceType,this.player.rotation); if(!this.checkCollision(this.player.x+dx,this.player.y+dy,s)){this.player.x+=dx;this.player.y+=dy;if(isPlayer){this.lockTimer=0;this.lastMoveWasRotation=false;}}}
@@ -1098,8 +1102,8 @@ getShape(p, r) { if(!p) return []; const o=TETROMINOS[p].shape; if(r===0||p==='O
         this.lockPiece();
     }
     
-    hold() {
-        if (this.gameOver || !this.canHold) return;
+hold() {
+        if (this.gameOver || !this.canHold || this.holdDisabled) return;
         this.canHold = false;
         this.lastMoveWasRotation = false;
         if (this.holdPiece) {
@@ -1270,10 +1274,12 @@ getShape(p, r) { if(!p) return []; const o=TETROMINOS[p].shape; if(r===0||p==='O
 
     drawPiece(s,x,y,p,g) {s.forEach(b=>{const px=Math.floor(x+b[0])*BLOCK_SIZE, py=(Math.floor(y+b[1])-this.viewY)*BLOCK_SIZE; this.drawBlock(p,px,py,g);});}
     
-    drawUI() {
+drawUI() {
         ctx.textAlign = 'center'; ctx.fillStyle = '#FFF'; ctx.font = `bold ${BLOCK_SIZE * 0.8}px "Orbitron"`;
-        ctx.fillText('HOLD', HOLD_AREA_WIDTH / 2, 40);
-        if (this.holdPiece) { const s = this.getShape(this.holdPiece, 0); s.forEach(b => { const px = (HOLD_AREA_WIDTH / 2) - (TETROMINOS[this.holdPiece].center[0] * BLOCK_SIZE) + (b[0] * BLOCK_SIZE), py = 70 - (TETROMINOS[this.holdPiece].center[1] * BLOCK_SIZE) + (b[1] * BLOCK_SIZE); this.drawBlock(this.holdPiece, px, py); }); }
+        if (!this.holdDisabled) {
+            ctx.fillText('HOLD', HOLD_AREA_WIDTH / 2, 40);
+            if (this.holdPiece) { const s = this.getShape(this.holdPiece, 0); s.forEach(b => { const px = (HOLD_AREA_WIDTH / 2) - (TETROMINOS[this.holdPiece].center[0] * BLOCK_SIZE) + (b[0] * BLOCK_SIZE), py = 70 - (TETROMINOS[this.holdPiece].center[1] * BLOCK_SIZE) + (b[1] * BLOCK_SIZE); this.drawBlock(this.holdPiece, px, py); }); }
+        }
         
         if (this.opponent) {
             const meterX = PLAYFIELD_X_OFFSET - 12; const meterWidth = 8; const meterMaxHeight = BOARD_VISIBLE_HEIGHT * BLOCK_SIZE;
@@ -1321,101 +1327,58 @@ getShape(p, r) { if(!p) return []; const o=TETROMINOS[p].shape; if(r===0||p==='O
     }
 
     drawMessage(t) { const cX = PLAYFIELD_WIDTH / 2; const cY = CANVAS_HEIGHT / 2; ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(0, -0.5*BLOCK_SIZE, PLAYFIELD_WIDTH, CANVAS_HEIGHT); ctx.fillStyle = '#FFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `bold ${BLOCK_SIZE * 1.5}px "Orbitron"`; ctx.fillText(t, cX, cY); ctx.textBaseline = 'alphabetic'; }
-
-    async runAIThinking() {
-        this.isThinking = true;
-        await isWasmReady; // WASMの準備が完了するまで待つ
-
-        // 1. WASMに渡すゲーム状態を作成
-        const wasmBoard = this.convertBoardToWASMFormat(this.board);
-
-        let minoSequenceStr = '';
-        if (this.player.pieceType) minoSequenceStr += this.player.pieceType;
-        if (this.holdPiece) minoSequenceStr += this.holdPiece;
-        else if (this.nextQueue.length > 0) minoSequenceStr += this.nextQueue[0];
-        this.nextQueue.forEach(p => minoSequenceStr += p);
-
-        // 2. WASMのAIに状態を渡して思考を開始
-        try {
-            const b2bStatus = this.isB2B;
-            const renCount = this.ren < 0 ? 0 : this.ren;
-            Module.updateGameState(wasmBoard, this.player.pieceType, this.holdPiece || ' ', this.nextQueue.join(''), b2bStatus, renCount);
-            
-            Module.startThinking();
-            
-            // 思考ステップを少しずつ進める (ここでは単純化のため一括実行)
-            // Web Workerで実行するのが理想だが、まずはメインスレッドで短時間実行
-            Module.thinkSteps(1500); // 思考ステップ数 (調整が必要)
-            
-            const move = Module.getBestMove();
-            if (move && move.pieceType !== ' ') {
-                this.nextMove = move;
-                Module.commitMoveAndPrune(move);
-            } else {
-                 console.warn(`AI on player ${this.id} could not decide a move.`);
-                 this.nextMove = null;
-            }
-        } catch(e) {
-            console.error("AI execution error:", e);
-            this.nextMove = null;
-        } finally {
-            this.isThinking = false;
-        }
-    }
-
-    applyAIMove() {
-        if (!this.nextMove || this.isClearingLine) return;
-        const move = this.nextMove;
-
-        // ホールドが必要か判断
-        if (move.pieceType !== this.player.pieceType) {
-            this.hold();
-        }
-        
-        // 回転と位置を直接設定
-        this.player.rotation = move.rotation;
-        this.player.x = move.x;
-        // AIが返すY座標は直接落下後の位置なので、一旦仮のY座標から再計算
-        this.player.y = 18; 
-        const ghostY = this.getGhostY();
-        
-        if (Math.abs(ghostY - move.y) <= 2) { // AIの計算結果とゴーストの位置が近ければ採用
-            this.player.y = ghostY;
-            this.lockPiece();
-        } else {
-             // 稀にAIのY座標計算がずれることがあるため、ハードドロップで代用
-             this.hardDrop();
-        }
-
-        this.nextMove = null;
-    }
-
-    convertBoardToWASMFormat(jsBoard) {
-        // Uint16ArrayはJavaScriptの型付き配列
-        const wasmRows = new Uint16Array(BOARD_HEIGHT); 
-        for (let y = 0; y < BOARD_HEIGHT; y++) {
-            let rowBits = 0;
-            for (let x = 0; x < BOARD_WIDTH; x++) {
-                if (jsBoard[y][x] !== null) {
-                    rowBits |= (1 << x);
-                }
-            }
-            // 座標系を変換: JSのy=0(上)をC++のrow=39(上)に対応させる
-            wasmRows[(BOARD_HEIGHT - 1) - y] = rowBits;
-        }
-        return wasmRows;
-    }
-
 }
 
-
 function setupEditors() { ['p1', 'p2'].forEach(setupPlayerEditor); }
+
 function setupPlayerEditor(playerId) {
     editorData[playerId].board = Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill(null));
     const nextIcons = document.getElementById(`${playerId}-next-icons`);
-    Object.keys(TETROMINOS).forEach(key => { const icon = document.createElement('div'); icon.className = 'mino-icon'; icon.style.backgroundColor = activeSkin[key]; icon.addEventListener('click', () => { editorData[playerId].nextQueue.push(key); updateNextQueueDisplay(playerId); }); nextIcons.appendChild(icon); });
-    document.getElementById(`${playerId}-next-clear`).addEventListener('click', () => { editorData[playerId].nextQueue = []; updateNextQueueDisplay(playerId); });
+    Object.keys(TETROMINOS).forEach(key => {
+        const icon = document.createElement('div');
+        icon.className = 'mino-icon';
+        icon.style.backgroundColor = activeSkin[key];
+        icon.addEventListener('click', () => {
+            const data = editorData[playerId];
+            if (data.nextInsertionIndex === 'hold') {
+                data.hold = key;
+                data.nextInsertionIndex = 0;
+            } else if (data.nextInsertionIndex === -1) {
+                data.nextQueue.push(key);
+                data.nextInsertionIndex = data.nextQueue.length;
+            } else {
+                data.nextQueue.splice(data.nextInsertionIndex, 0, key);
+                data.nextInsertionIndex++;
+            }
+            updateNextQueueDisplay(playerId);
+        });
+        nextIcons.appendChild(icon);
+    });
+     document.getElementById(`${playerId}-next-delete-left`).addEventListener('click', () => {
+        const data = editorData[playerId];
+        const index = data.nextInsertionIndex;
+        if (index === 'hold' || (index === -1 && data.nextQueue.length === 0)) {
+            return;
+        }
+        if (index === 0) {
+            data.hold = null;
+        } else if (index > 0) {
+            data.nextQueue.splice(index - 1, 1);
+            data.nextInsertionIndex--;
+        } else { // index is -1 (end of queue)
+            data.nextQueue.pop();
+            data.nextInsertionIndex = data.nextQueue.length;
+        }
+        updateNextQueueDisplay(playerId);
+    });
+    document.getElementById(`${playerId}-next-clear`).addEventListener('click', () => {
+        editorData[playerId].nextQueue = [];
+        editorData[playerId].hold = null;
+        editorData[playerId].nextInsertionIndex = 0;
+        updateNextQueueDisplay(playerId);
+    });
     const palette = document.getElementById(`${playerId}-palette`);
+
     Object.keys(EDITOR_COLORS).forEach(key => { const swatch = document.createElement('div'); swatch.className = 'color-swatch'; swatch.style.backgroundColor = key === 'EMPTY' ? '#333' : EDITOR_COLORS[key]; if (key === 'EMPTY') { swatch.style.border = '1px dashed #fff'; swatch.title = 'Eraser'; } if (key === editorData[playerId].activeColor) swatch.classList.add('active'); swatch.addEventListener('click', () => { editorData[playerId].activeColor = key; palette.querySelector('.active')?.classList.remove('active'); swatch.classList.add('active'); }); palette.appendChild(swatch); });
 
    const canvas = document.getElementById(`field-editor-canvas-${playerId}`);
@@ -1500,7 +1463,95 @@ function shiftField(playerId, direction) {
     drawEditorField(playerId);
 }
 
-function updateNextQueueDisplay(playerId) { const qd = document.getElementById(`${playerId}-next-queue`); qd.innerHTML = ''; editorData[playerId].nextQueue.forEach(key => { const icon = document.createElement('div'); icon.className = 'mino-icon'; icon.style.backgroundColor = activeSkin[key]; qd.appendChild(icon); }); }
+function updateNextQueueDisplay(playerId) {
+    const qd = document.getElementById(`${playerId}-next-queue`);
+    qd.innerHTML = '';
+    const data = editorData[playerId];
+
+    const createGap = (index) => {
+        const gap = document.createElement('div');
+        gap.style.width = '8px';
+        gap.style.height = '38px';
+        gap.style.cursor = 'pointer';
+        gap.style.display = 'flex';
+        gap.style.alignItems = 'center';
+        gap.style.justifyContent = 'center';
+        gap.style.userSelect = 'none';
+        gap.addEventListener('click', (e) => {
+            e.stopPropagation();
+            data.nextInsertionIndex = index;
+            updateNextQueueDisplay(playerId);
+        });
+        if (data.nextInsertionIndex === index) {
+            gap.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
+            gap.style.borderRadius = '2px';
+            gap.innerHTML = '<span style="color: white; font-weight: bold; line-height: 1;">|</span>';
+        }
+        return gap;
+    };
+
+    const holdContainer = document.createElement('div');
+    holdContainer.style.display = 'flex';
+    holdContainer.style.alignItems = 'center';
+    holdContainer.style.gap = '5px';
+    holdContainer.style.padding = '0 8px';
+    holdContainer.style.borderRight = '2px solid var(--primary-color)';
+
+    const holdSlot = document.createElement('div');
+    holdSlot.className = 'mino-icon';
+    holdSlot.style.width = '38px';
+    holdSlot.style.height = '38px';
+    holdSlot.style.cursor = 'pointer';
+    holdSlot.style.boxSizing = 'border-box';
+    if (data.hold) {
+        holdSlot.style.backgroundColor = activeSkin[data.hold];
+    } else {
+        holdSlot.style.backgroundColor = 'transparent';
+        holdSlot.style.border = '2px dashed #555';
+    }
+    if (data.nextInsertionIndex === 'hold') {
+        holdSlot.style.borderColor = '#FFF';
+        holdSlot.style.boxShadow = '0 0 8px #FFF';
+    }
+    holdSlot.addEventListener('click', (e) => {
+        e.stopPropagation();
+        data.nextInsertionIndex = 'hold';
+        updateNextQueueDisplay(playerId);
+    });
+    const holdLabel = document.createElement('span');
+    holdLabel.textContent = "H";
+    holdLabel.style.fontFamily = 'var(--font-display)';
+    holdContainer.appendChild(holdLabel);
+    holdContainer.appendChild(holdSlot);
+    qd.appendChild(holdContainer);
+    
+    const nextContainer = document.createElement('div');
+    nextContainer.style.display = 'flex';
+    nextContainer.style.alignItems = 'center';
+    nextContainer.style.gap = '5px';
+    nextContainer.style.paddingLeft = '8px';
+    nextContainer.style.flexWrap = 'wrap';
+
+    nextContainer.appendChild(createGap(0));
+    data.nextQueue.forEach((key, i) => {
+        const icon = document.createElement('div');
+        icon.className = 'mino-icon';
+        icon.style.backgroundColor = activeSkin[key];
+        icon.style.width = '38px';
+        icon.style.height = '38px';
+        nextContainer.appendChild(icon);
+        nextContainer.appendChild(createGap(i + 1));
+    });
+    qd.appendChild(nextContainer);
+
+    qd.onclick = (e) => {
+        if (e.target === qd || e.target === nextContainer) {
+            data.nextInsertionIndex = data.nextQueue.length;
+            updateNextQueueDisplay(playerId);
+        }
+    };
+}
+
 function drawEditorField(playerId) {
     const canvas = document.getElementById(`field-editor-canvas-${playerId}`),
         ctx = canvas.getContext('2d'),
@@ -1597,12 +1648,7 @@ function populateGeneralSettingsTab() {
         const span = document.createElement('span'); span.textContent = text;
         label.append(checkbox, span); item.appendChild(label); list.appendChild(item);
     });
-
-populateAISettingsTab();
-
 }
-
-function populateAISettingsTab() { const list = document.getElementById('ai-settings-list'); list.innerHTML = ''; constsettings = { thinkInterval: { label: '思考間隔 (ms)', min: 50, max: 2000, step: 50 } }; Object.keys(settings).forEach(key=> { const item = document.createElement('div'); item.className = 'setting-item'; const label = document.createElement('span'); label.textContent = settings[key].label; const input = document.createElement('input'); input.type = 'number'; Object.assign(input, settings[key]); input.value = aiSettings[key]; input.onchange = e => { aiSettings[key] = Math.max(settings[key].min, Math.min(settings[key].max, parseInt(e.target.value, 10))); }; item.append(label, input); list.appendChild(item); }); }
 
 function populateKeyConfigTab(playerId) {
     const list = document.getElementById(`${playerId}-key-config-list`);
@@ -1622,9 +1668,10 @@ function populateKeyConfigTab(playerId) {
 }
 
 
+
 function openUnifiedSettingsModal(initialTab = 'general') {
     const modal = document.getElementById('settings-modal');
-
+    
     const p2TabBtn = document.getElementById('p2-keys-tab-btn');
     if (gameMode === '2P') {
         p2TabBtn.style.display = 'block';
@@ -1633,7 +1680,6 @@ function openUnifiedSettingsModal(initialTab = 'general') {
         if (initialTab === 'p2-keys') initialTab = 'general';
     }
 
-    // populateGeneralSettingsTabの中でAIタブの初期化も行う
     populateGeneralSettingsTab();
     populateKeyConfigTab('p1');
     if (gameMode === '2P') {
@@ -1642,23 +1688,19 @@ function openUnifiedSettingsModal(initialTab = 'general') {
 
     const tabs = modal.querySelectorAll('.tab-button');
     const contents = modal.querySelectorAll('.tab-content');
-
+    
     function switchTab(tabName) {
         tabs.forEach(tab => tab.classList.toggle('active', tab.dataset.tab === tabName));
         contents.forEach(content => content.classList.toggle('active', content.id === `tab-content-${tabName}`));
     }
-
+    
     tabs.forEach(tab => {
-        // イベントリスナが重複しないように一度削除してから追加するのが安全
-        const newTab = tab.cloneNode(true);
-        tab.parentNode.replaceChild(newTab, tab);
-        newTab.addEventListener('click', () => switchTab(newTab.dataset.tab));
+        tab.addEventListener('click', () => switchTab(tab.dataset.tab));
     });
 
     switchTab(initialTab);
     modal.style.display = 'flex';
 }
-
 
 function startScanProcess(file, playerId) { const reader = new FileReader(); reader.onload = e => { scanState.image = new Image(); scanState.image.onload = () => { scanState.targetPlayerId = playerId; scanState.bottomLeft = null; scanState.topRight = null; gameState = 'SCAN_BL'; document.getElementById('editor-container').style.display = 'none'; document.getElementById('game-container').style.display = 'block'; document.getElementById('scan-controls').style.display = 'flex'; 
 const ar = scanState.image.naturalWidth / scanState.image.naturalHeight; const displayMaxWidth = window.innerWidth * 0.9; const displayMaxHeight = window.innerHeight * 0.8; let displayWidth = displayMaxWidth; let displayHeight = displayWidth / ar; if (displayHeight > displayMaxHeight) { displayHeight = displayMaxHeight; displayWidth = displayHeight * ar; } const canvasWidth = Math.min(2048, scanState.image.naturalWidth); mainCanvas.width = canvasWidth; mainCanvas.height = canvasWidth / ar; mainCanvas.style.width = `${displayWidth}px`; mainCanvas.style.height = `${displayHeight}px`; updateScanUI(); setTimeout(updateScale, 0);}; scanState.image.src = e.target.result; }; reader.readAsDataURL(file); }
@@ -1697,6 +1739,251 @@ function findClosestColor(r, g, b) {
     return (minDistance > 25000) ? null : closestKey;
 }
 
+function getAverageColorNonBlack(ctx, cx, cy, radius) {
+    const startX = Math.floor(cx - radius);
+    const startY = Math.floor(cy - radius);
+    const diameter = Math.ceil(radius * 2);
+    if (startX < 0 || startY < 0 || startX + diameter > ctx.canvas.width || startY + diameter > ctx.canvas.height) {
+        return { r: 0, g: 0, b: 0 };
+    }
+    const imageData = ctx.getImageData(startX, startY, diameter, diameter).data;
+    
+    let totalR = 0, totalG = 0, totalB = 0, count = 0;
+    const radiusSq = radius * radius;
+    const blackThreshold = 50; 
+
+    for (let y = 0; y < diameter; y++) {
+        for (let x = 0; x < diameter; x++) {
+            const dx = x - radius;
+            const dy = y - radius;
+            
+            if (dx * dx + dy * dy <= radiusSq) {
+                const i = (y * diameter + x) * 4;
+                const r = imageData[i];
+                const g = imageData[i + 1];
+                const b = imageData[i + 2];
+                
+                if (r > blackThreshold || g > blackThreshold || b > blackThreshold) {
+                    totalR += r;
+                    totalG += g;
+                    totalB += b;
+                    count++;
+                }
+            }
+        }
+    }
+    
+    if (count === 0) {
+        return { r: 0, g: 0, b: 0 };
+    }
+    
+    return {
+        r: totalR / count,
+        g: totalG / count,
+        b: totalB / count
+    };
+}
+
+function findClosestMinoOnly(r, g, b) {
+    const inputColor = { r, g, b };
+    const colorDistanceSq = (c1, c2) => {
+        return Math.pow(c1.r - c2.r, 2) + Math.pow(c1.g - c2.g, 2) + Math.pow(c1.b - c2.b, 2);
+    };
+
+    let minDistance = Infinity;
+    let closestKey = 'I'; 
+    
+    const minoKeys = Object.keys(PARSED_SCAN_COLORS).filter(k => k !== 'NULL' && k !== 'G');
+    
+    for (const key of minoKeys) {
+        for (const targetColor of PARSED_SCAN_COLORS[key]) {
+            const distance = colorDistanceSq(inputColor, targetColor);
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestKey = key;
+            }
+        }
+    }
+    return closestKey;
+}
+
+function processPptImage(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+            let sx = 0, sy = 0, sWidth = img.naturalWidth, sHeight = img.naturalHeight;
+            const originalAspectRatio = sWidth / sHeight;
+            const targetAspectRatio = 16 / 9;
+
+            if (originalAspectRatio > targetAspectRatio) {
+                const newWidth = sHeight * targetAspectRatio;
+                sx = (sWidth - newWidth) / 2;
+                sWidth = newWidth;
+            } else if (originalAspectRatio < targetAspectRatio) {
+                const newHeight = sWidth / targetAspectRatio;
+                sy = (sHeight - newHeight) / 2;
+                sHeight = newHeight;
+            }
+            
+            canvas.width = sWidth;
+            canvas.height = sHeight;
+            ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, sWidth, sHeight);
+
+            loadBoardFromPptCanvas(canvas, 'p1');
+            if (gameMode === '2P') {
+                loadBoardFromPptCanvas(canvas, 'p2');
+            }
+            
+            drawEditorField('p1');
+            if (gameMode === '2P') {
+                drawEditorField('p2');
+            }
+            updateNextQueueDisplay('p1');
+            if (gameMode === '2P') {
+                updateNextQueueDisplay('p2');
+            }
+            //alert('ぷよテト画像から盤面とネクストを読み込みました。');
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function loadBoardFromPptCanvas(sourceCanvas, playerId) {
+    const ctx = sourceCanvas.getContext('2d', { willReadFrequently: true });
+    const width = sourceCanvas.width;
+    const scale = width / 1280;
+
+    // --- Board Recognition ---
+    const baseBoardCoords = {
+        p1: { x1: 205, y1: 106, x2: 445, y2: 596 },
+        p2: { x1: 835, y1: 106, x2: 1075, y2: 596 }
+    };
+    const boardCoords = baseBoardCoords[playerId];
+    const boardTopLeft = { x: boardCoords.x1 * scale, y: boardCoords.y1 * scale };
+    const boardWidthPx = (boardCoords.x2 - boardCoords.x1) * scale;
+    const boardHeightPx = (boardCoords.y2 - boardCoords.y1) * scale;
+    const blockWidthPx = boardWidthPx / BOARD_WIDTH;
+    const blockHeightPx = boardHeightPx / BOARD_VISIBLE_HEIGHT;
+    
+    const targetBoard = editorData[playerId].board;
+    targetBoard.forEach(row => row.fill(null));
+
+    for (let r = 0; r < BOARD_VISIBLE_HEIGHT; r++) {
+        for (let c = 0; c < BOARD_WIDTH; c++) {
+            const sampleX = boardTopLeft.x + (c + 0.5) * blockWidthPx;
+            const sampleY = boardTopLeft.y + (r + 0.5) * blockHeightPx;
+            const sampleSize = Math.max(1, Math.floor(blockWidthPx * 0.25));
+            const imageData = ctx.getImageData(sampleX - sampleSize / 2, sampleY - sampleSize / 2, sampleSize, sampleSize).data;
+            
+            let avgR = 0, avgG = 0, avgB = 0;
+            for (let i = 0; i < imageData.length; i += 4) {
+                avgR += imageData[i];
+                avgG += imageData[i+1];
+                avgB += imageData[i+2];
+            }
+            const pixelCount = imageData.length / 4;
+            avgR /= pixelCount;
+            avgG /= pixelCount;
+            avgB /= pixelCount;
+            
+            targetBoard[BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT + r][c] = findClosestColor(avgR, avgG, avgB);
+        }
+    }
+
+    // --- Post-processing: Clean up misidentified garbage ---
+    let firstNonGarbageRowFromBottom = -1;
+    for (let y = BOARD_HEIGHT - 1; y >= 0; y--) {
+        if (!targetBoard[y].includes('G')) {
+            firstNonGarbageRowFromBottom = y;
+            break;
+        }
+    }
+    if (firstNonGarbageRowFromBottom !== -1) {
+        for (let y = firstNonGarbageRowFromBottom - 1; y >= 0; y--) {
+            for (let x = 0; x < BOARD_WIDTH; x++) {
+                if (targetBoard[y][x] === 'G') {
+                    targetBoard[y][x] = null;
+                }
+            }
+        }
+    }
+
+// --- Post-processing: Clean up floating blocks ---
+    let firstEmptyRowFromBottom = -1;
+    for (let y = BOARD_HEIGHT - 1; y >= 0; y--) {
+        if (targetBoard[y].every(cell => cell === null)) {
+            firstEmptyRowFromBottom = y;
+            break;
+        }
+    }
+    
+    const deletedMinoColors = []; // 削除されたミノの色を記録する配列を追加
+
+    if (firstEmptyRowFromBottom !== -1) {
+        const seventeenthRowFromBottomIndex = BOARD_HEIGHT - 18;
+        for (let y = firstEmptyRowFromBottom - 1; y >= 0; y--) {
+            if (y <= seventeenthRowFromBottomIndex) {
+                 // 行を単にnullで埋めるのではなく、各セルをチェックする
+                 for (let x = 0; x < BOARD_WIDTH; x++) {
+                    const piece = targetBoard[y][x];
+                    if (piece && piece !== 'G') {
+                        deletedMinoColors.push(piece); // おじゃま以外なら色を記録
+                    }
+                    targetBoard[y][x] = null; // セルを空にする
+                 }
+            }
+        }
+    }
+
+    // --- Next Queue Recognition ---
+    const nextCoordsP1 = [ { x: 160, y: 155 }, { x: 500, y: 122 }, { x: 500, y: 175 }, { x: 500, y: 225 }, { x: 500, y: 275 }, { x: 500, y: 325 } ];
+    const nextCoordsP2 = [ { x: 790, y: 155 }, { x: 1130, y: 122 }, { x: 1130, y: 175 }, { x: 1130, y: 225 }, { x: 1130, y: 275 }, { x: 1130, y: 325 } ];
+    const nextCoords = (playerId === 'p1') ? nextCoordsP1 : nextCoordsP2;
+    const radius = 5 * scale;
+    const newNextQueue = [];
+    editorData[playerId].hold = null; // 最初にホールドをリセット
+
+    for (let i = 0; i < nextCoords.length; i++) {
+        const coord = nextCoords[i];
+        const sampleX = coord.x * scale;
+        const sampleY = coord.y * scale;
+        
+        const avgColor = getAverageColorNonBlack(ctx, sampleX, sampleY, radius);
+
+        // 0番目の座標はホールド
+        if (i === 0) {
+            const foundHoldMino = findClosestColor(avgColor.r, avgColor.g, avgColor.b);
+            editorData[playerId].hold = foundHoldMino;
+        // 1番目以降の座標はネクスト
+        } else {
+            // 最初のネクストミノの場所が黒ければ、キューは空と判断して中断
+            const isBlack = avgColor.r < 50 && avgColor.g < 50 && avgColor.b < 50;
+            if (i === 1 && isBlack) {
+                break;
+            }
+            
+            const foundMino = findClosestMinoOnly(avgColor.r, avgColor.g, avgColor.b);
+            if (foundMino) {
+                newNextQueue.push(foundMino);
+            }
+        }
+    }
+    
+    // 削除されたミノの色をチェックし、条件を満たせばNEXTキューに追加
+    if (deletedMinoColors.length > 0 && deletedMinoColors.every(color => color === deletedMinoColors[0])) {
+        const singleMinoType = deletedMinoColors[0];
+        // ホールドは分離されたので、このミノはネクストキューの先頭に追加する
+        newNextQueue.unshift(singleMinoType);
+    }
+
+    editorData[playerId].nextQueue = newNextQueue;
+}
+
 function boardToString(board) {
     return board.map(row => 
         row.map(cell => cell === null ? '_' : cell).join('')
@@ -1717,29 +2004,34 @@ function stringToBoard(str) {
     return board;
 }
 
-function getGameStateForExport() {
+let autoStartParams = { ss: false, nh: false };
+
+function getGameStateForExport(options = {}) {
+    const p1Data = { ...editorData.p1, nextQueue: [...editorData.p1.nextQueue] };
+    const p2Data = gameMode === '2P' ? { ...editorData.p2, nextQueue: [...editorData.p2.nextQueue] } : null;
+
+    if (options.noHold) {
+        if (p1Data.hold) { p1Data.nextQueue.unshift(p1Data.hold); p1Data.hold = null; }
+        if (p2Data && p2Data.hold) { p2Data.nextQueue.unshift(p2Data.hold); p2Data.hold = null; }
+    }
+
     const data = {
-        v: 1, 
-        m: gameMode,
-        p1: {
-            b: boardToString(editorData.p1.board),
-            n: editorData.p1.nextQueue.join('')
-        }
+        v: 2, m: gameMode,
+        p1: { b: boardToString(p1Data.board), n: p1Data.nextQueue.join(''), h: p1Data.hold || '' }
     };
     if (gameMode === '2P') {
-        data.p2 = {
-            b: boardToString(editorData.p2.board),
-            n: editorData.p2.nextQueue.join('')
-        };
+        data.p2 = { b: boardToString(p2Data.board), n: p2Data.nextQueue.join(''), h: p2Data.hold || '' };
     }
+    if (options.startSim) data.ss = 1;
+    if (options.noHold) data.nh = 1;
+
     return data;
 }
 
 function applyGameState(data) {
     try {
-        if (!data || data.v !== 1) {
-            alert('無効または非対応のデータです。');
-            return false;
+        if (!data || (data.v !== 1 && data.v !== 2)) {
+            alert('無効または非対応のデータです。'); return false;
         }
         gameMode = data.m || '1P';
         document.getElementById('mode-1p').classList.toggle('active', gameMode === '1P');
@@ -1748,21 +2040,18 @@ function applyGameState(data) {
         if (data.p1) {
             editorData.p1.board = stringToBoard(data.p1.b);
             editorData.p1.nextQueue = data.p1.n ? data.p1.n.split('') : [];
-            drawEditorField('p1');
-            updateNextQueueDisplay('p1');
+            editorData.p1.hold = data.p1.h || null;
+            drawEditorField('p1'); updateNextQueueDisplay('p1');
         }
         if (gameMode === '2P' && data.p2) {
             editorData.p2.board = stringToBoard(data.p2.b);
             editorData.p2.nextQueue = data.p2.n ? data.p2.n.split('') : [];
-            drawEditorField('p2');
-            updateNextQueueDisplay('p2');
+            editorData.p2.hold = data.p2.h || null;
+            drawEditorField('p2'); updateNextQueueDisplay('p2');
         }
-        updateScale();
-        return true;
+        updateScale(); return true;
     } catch (e) {
-        console.error('Failed to apply game state:', e);
-        alert('データの読み込みに失敗しました。');
-        return false;
+        console.error('Failed to apply game state:', e); alert('データの読み込みに失敗しました。'); return false;
     }
 }
 
@@ -1774,21 +2063,28 @@ function loadStateFromURL() {
             const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
             const jsonString = new TextDecoder().decode(bytes);
             const data = JSON.parse(jsonString);
-            if(applyGameState(data)) {
+
+            autoStartParams.ss = !!data.ss;
+            autoStartParams.nh = !!data.nh;
+
+            if (applyGameState(data)) {
                 alert('URLから盤面を読み込みました。');
+                if (autoStartParams.ss) {
+                    setTimeout(() => document.getElementById('startGameBtn').click(), 100);
+                }
             }
             history.pushState("", document.title, window.location.pathname + window.location.search);
         } catch (e) {
             console.error('Failed to load state from URL hash:', e);
             alert('URLからのデータ読み込みに失敗しました。');
-             history.pushState("", document.title, window.location.pathname + window.location.search);
+            history.pushState("", document.title, window.location.pathname + window.location.search);
         }
     }
 }
 
 
-function openShareModal() {
-    const stateData = getGameStateForExport();
+function generateAndDisplayLink(options = {}) {
+    const stateData = getGameStateForExport(options);
     const jsonString = JSON.stringify(stateData);
     const uint8Array = new TextEncoder().encode(jsonString);
     const base64Data = btoa(String.fromCharCode.apply(null, uint8Array));
@@ -1796,6 +2092,11 @@ function openShareModal() {
     url.hash = base64Data;
     document.getElementById('share-link-input').value = url.href;
     document.getElementById('share-raw-data-textarea').value = jsonString;
+}
+
+function openShareModal() {
+    generateAndDisplayLink();
+    document.getElementById('advanced-link-options').style.display = 'none';
     document.getElementById('share-modal').style.display = 'flex';
 }
 function pollGamepads() {
@@ -1901,14 +2202,6 @@ document.addEventListener('DOMContentLoaded', () => {
     loadKeyBindings();
     loadGameSettings();
 
-    // AIチェックボックスのイベントリスナを追加
-    document.getElementById('p1-ai-toggle').addEventListener('change', (e) => {
-        editorData.p1.isAI = e.target.checked;
-    });
-    document.getElementById('p2-ai-toggle').addEventListener('change', (e) => {
-        editorData.p2.isAI = e.target.checked;
-    });
-
     document.getElementById('shareBtn').addEventListener('click', openShareModal);
     document.getElementById('share-close').addEventListener('click', () => {
         document.getElementById('share-modal').style.display = 'none';
@@ -1977,6 +2270,17 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(updateScale, 0);
     });
     
+document.getElementById('advanced-link-btn').addEventListener('click', () => {
+        document.getElementById('advanced-link-options').style.display = 'block';
+    });
+
+    document.getElementById('generate-advanced-link-btn').addEventListener('click', () => {
+        generateAndDisplayLink({
+            startSim: document.getElementById('start-sim-checkbox').checked,
+            noHold: document.getElementById('no-hold-checkbox').checked,
+        });
+    });
+
     document.getElementById('startGameBtn').addEventListener('click', () => {
         gameState = 'PLAYING'; 
         document.getElementById('editor-container').style.display = 'none'; 
@@ -1985,16 +2289,20 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('game-controls').style.display = 'flex';
         
         ctx.setTransform(1, 0, 0, 1, 0, 0);
-        isWasmReady.then(Module.resetAI); // AIの状態をリセット
 
         players = [];
+        const createAndSetupPlayer = (id, offsetX, bindings, padIndex) => {
+            const player = new Player(id, offsetX, bindings, padIndex);
+            player.holdDisabled = autoStartParams.nh;
+            return player;
+        };
+
         if (gameMode === '1P') {
             mainCanvas.width = PLAYER_CANVAS_WIDTH * RESOLUTION_SCALE; 
             mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
             mainCanvas.style.width = PLAYER_CANVAS_WIDTH + 'px';
             mainCanvas.style.height = CANVAS_HEIGHT + 'px';
-            // isAIフラグをコンストラクタに渡す
-            players.push(new Player('1', 0, keyBindings.p1, 0, editorData.p1.isAI));
+            players.push(createAndSetupPlayer('1', 0, keyBindings.p1, 0));
         }
         else {
             const totalWidth = PLAYER_CANVAS_WIDTH * 2;
@@ -2002,18 +2310,17 @@ document.addEventListener('DOMContentLoaded', () => {
             mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
             mainCanvas.style.width = totalWidth + 'px';
             mainCanvas.style.height = CANVAS_HEIGHT + 'px';
-            // isAIフラグをコンストラクタに渡す
-            const p1 = new Player('1', 0, keyBindings.p1, 0, editorData.p1.isAI);
-            const p2 = new Player('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1, editorData.p2.isAI);
+            const p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0);
+            const p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1);
             p1.opponent = p2; 
             p2.opponent = p1;
             players.push(p1, p2);
         }
         
+        autoStartParams = { ss: false, nh: false };
         ctx.scale(RESOLUTION_SCALE, RESOLUTION_SCALE);
 
-        // どちらかのプレイヤーがタッチ操作のAIでない場合のみバーチャルパッド表示
-        if (gameSettings.touchControlsEnabled && !editorData.p1.isAI) {
+        if (gameSettings.touchControlsEnabled) {
             virtualController.show();
         }
 
@@ -2037,9 +2344,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById(`imageLoader-${pId}`).addEventListener('change', e => { 
             if (e.target.files && e.target.files[0]) {
                 startScanProcess(e.target.files[0], e.target.dataset.player);
-       
             }
         }); 
+        document.getElementById(`pptLoader-${pId}`).addEventListener('change', e => { 
+            if (e.target.files && e.target.files[0]) {
+                processPptImage(e.target.files[0]);
+            }
+        });
     });
     document.getElementById('scanCancelBtn').addEventListener('click', endScanProcess);
     document.getElementById('scanConfirmBtn').addEventListener('click', () => { if (gameState === 'SCAN_BL' && scanState.bottomLeft) gameState = 'SCAN_TR'; else if (gameState === 'SCAN_TR' && scanState.topRight) processAndLoadBoard(); updateScanUI(); });
@@ -2050,7 +2361,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (gameState==='SCAN_BL') scanState.bottomLeft=pos; else if (gameState==='SCAN_TR') scanState.topRight=pos; updateScanUI(); });
     
 
-    document.getElementById('settingsBtn').addEventListener('click', () => openUnifiedSettingsModal('general'));
+document.getElementById('settingsBtn').addEventListener('click', () => openUnifiedSettingsModal('general'));
     document.getElementById('p1-key-config-btn').addEventListener('click', () => openUnifiedSettingsModal('p1-keys'));
     document.getElementById('p2-key-config-btn').addEventListener('click', () => openUnifiedSettingsModal('p2-keys'));
 
@@ -2135,23 +2446,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
 
-   document.getElementById('retryBtn').addEventListener('click', () => {
-        if (gameState !== 'PLAYING') return;
+document.getElementById('retryBtn').addEventListener('click', () => {
+        if (gameState !== 'PLAYING' || !players.length) return;
+        
+        const wasHoldDisabled = players[0].holdDisabled;
 
-        isWasmReady.then(Module.resetAI); // AIの状態をリセット
+        const createAndSetupPlayer = (id, offsetX, bindings, padIndex) => {
+            const player = new Player(id, offsetX, bindings, padIndex);
+            player.holdDisabled = wasHoldDisabled;
+            return player;
+        };
+
         players = [];
         if (gameMode === '1P') {
-            players.push(new Player('1', 0, keyBindings.p1, 0, editorData.p1.isAI));
+            players.push(createAndSetupPlayer('1', 0, keyBindings.p1, 0));
         } else {
-            const p1 = new Player('1', 0, keyBindings.p1, 0, editorData.p1.isAI);
-            const p2 = new Player('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1, editorData.p2.isAI);
+            const p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0);
+            const p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1);
             p1.opponent = p2; 
             p2.opponent = p1;
             players.push(p1, p2);
         }
     });
 
-    setupEditors(); 
+    setupEditors();
 
     loadStateFromURL();
 
@@ -2161,7 +2479,6 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', updateScale);
     setTimeout(updateScale, 100);
 });
-
 </script>
 </body>
 </html>
