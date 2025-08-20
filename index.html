@@ -973,7 +973,7 @@ class Player {
             this.aiThinking = false;
             return;
         }
-        aiWorker.postMessage({ type: 'commitMove', payload: { playerId: this.id, move } });
+        //aiWorker.postMessage({ type: 'commitMove', payload: { playerId: this.id, move } });
         this.aiThinking = false;
         if (this.player.pieceType !== move.pieceType) {
             if (this.canHold && !this.holdDisabled) {
