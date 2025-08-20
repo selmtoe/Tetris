@@ -968,38 +968,25 @@ class Player {
         aiWorker.postMessage({ type: 'requestMove', payload });
     }
 
-    // AIが決定した手を実行するメソッド
     aiPerformMove(move) {
         if (!this.isAI || this.gameOver || !move || move.pieceType === ' ') {
             this.aiThinking = false;
             return;
         }
-
-        // 決定したミノが現在操作中のミノと異なる場合、ホールドを実行
+        aiWorker.postMessage({ type: 'commitMove', payload: { playerId: this.id, move } });
+        this.aiThinking = false;
         if (this.player.pieceType !== move.pieceType) {
             if (this.canHold && !this.holdDisabled) {
                 this.hold();
             } else {
-                // ホールドできないのにAIがホールドを要求した場合のフォールバック
                 console.warn(`AI for P${this.id} wanted to hold, but cannot.`);
-                this.aiThinking = false;
-                // 次のフレームで再思考を促す
                 setTimeout(() => this.aiRequestMove(), 100);
                 return;
             }
         }
-
-        // AIの指示通りに回転とX座標を設定
         this.player.rotation = move.rotation;
         this.player.x = move.x;
-        
-        // AIの指示した位置と回転でハードドロップ
         this.hardDrop();
-
-        // 実行した手をAIに通知し、探索木を剪定(prune)させる
-        aiWorker.postMessage({ type: 'commitMove', payload: { playerId: this.id, move } });
-        
-        this.aiThinking = false;
     }
     reset() {
         this.player = { x: 0, y: 0, pieceType: null, rotation: 0 };
