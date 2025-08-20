@@ -771,6 +771,45 @@ const virtualController = (() => {
     };
 })();
 
+let aiWorker;
+
+function initAIWorker() {
+    // 上で作成したWeb Workerファイルを指定
+    aiWorker = new Worker('ai_worker.js'); 
+    aiWorker.onmessage = (e) => {
+        const { type, payload, playerId } = e.data;
+        if (type === 'aiReady') {
+            console.log('AI Worker is ready.');
+            document.getElementById('startGameBtn').disabled = false; // 準備ができたらボタン有効化
+        } else if (type === 'bestMove') {
+            // AIから最善手を受け取り、対応するプレイヤーに実行させる
+            const player = players.find(p => p.id === playerId);
+            if (player && player.isAI) {
+                player.aiPerformMove(payload);
+            }
+        }
+    };
+    aiWorker.onerror = (e) => {
+        console.error('Error in AI Worker:', e);
+        alert('AIの起動に失敗しました。');
+    };
+}
+
+// 盤面データをWASMが期待するビットボード形式 (Uint16Array) に変換
+function boardToUint16Array(board) {
+    const uint16Array = new Uint16Array(BOARD_HEIGHT);
+    for (let y = 0; y < BOARD_HEIGHT; y++) {
+        let row = 0;
+        for (let x = 0; x < BOARD_WIDTH; x++) {
+            if (board[y][x]) {
+                row |= (1 << x);
+            }
+        }
+        uint16Array[y] = row;
+    }
+    return uint16Array;
+}
+
 const RESOLUTION_SCALE = 2;
 const BLOCK_SIZE = 28;
 const EDITOR_BLOCK_SIZE = 50;
@@ -897,8 +936,10 @@ function* createMinoGenerator(customQueue) {
 }
 
 class Player {
-    constructor(id, offsetX, keyBindings, padIndex) {
+    constructor(id, offsetX, keyBindings, padIndex, isAI = false) { // isAI引数を追加
         this.id = id; this.offsetX = offsetX; this.keyBindings = keyBindings; this.padIndex = padIndex;
+        this.isAI = isAI; // AIかどうかを保持するフラグ
+        this.aiThinking = false; // AIが思考中かどうかを管理するフラグ
         this.keys = {};
         const pData = editorData[`p${id}`];
         this.initialHold = pData.hold;
@@ -907,6 +948,57 @@ class Player {
         this.opponent = null;
         this.holdDisabled = false;
         this.reset();
+        // AIに次の手をリクエストするメソッド
+    aiRequestMove() {
+        if (this.aiThinking || this.gameOver) return;
+        this.aiThinking = true;
+
+        const payload = {
+            playerId: this.id,
+            board: boardToUint16Array(this.board),
+            currentMino: this.player.pieceType,
+            holdMino: this.holdPiece || ' ', // C++側が空文字の代わりにスペースを期待
+            nextMinos: this.nextQueue.slice(0, 12).join(''), // AIに渡すネクストの数
+            b2b: this.isB2B,
+            ren: this.ren > 0 ? this.ren : 0, // AIは0以上のRENを期待
+        };
+
+        aiWorker.postMessage({ type: 'requestMove', payload });
+    }
+
+    // AIが決定した手を実行するメソッド
+    aiPerformMove(move) {
+        if (!this.isAI || this.gameOver || !move || move.pieceType === ' ') {
+            this.aiThinking = false;
+            return;
+        }
+
+        // 決定したミノが現在操作中のミノと異なる場合、ホールドを実行
+        if (this.player.pieceType !== move.pieceType) {
+            if (this.canHold && !this.holdDisabled) {
+                this.hold();
+            } else {
+                // ホールドできないのにAIがホールドを要求した場合のフォールバック
+                console.warn(`AI for P${this.id} wanted to hold, but cannot.`);
+                this.aiThinking = false;
+                // 次のフレームで再思考を促す
+                setTimeout(() => this.aiRequestMove(), 100);
+                return;
+            }
+        }
+
+        // AIの指示通りに回転とX座標を設定
+        this.player.rotation = move.rotation;
+        this.player.x = move.x;
+        
+        // AIの指示した位置と回転でハードドロップ
+        this.hardDrop();
+
+        // 実行した手をAIに通知し、探索木を剪定(prune)させる
+        aiWorker.postMessage({ type: 'commitMove', payload: { playerId: this.id, move } });
+        
+        this.aiThinking = false;
+    }
     }
 
 reset() {
@@ -928,7 +1020,7 @@ reset() {
         this.spawnNewPiece();
     }
     
-    spawnNewPiece() {
+spawnNewPiece() {
         this.player.pieceType = this.nextQueue.shift();
         this.nextQueue.push(this.minoGenerator.next().value);
         
@@ -945,6 +1037,11 @@ reset() {
 
                  this.gameOver = true;
             }
+        }
+        
+        // AIプレイヤーの場合、新しいミノが来たら思考を開始する
+        if (this.isAI && !this.gameOver) {
+            this.aiRequestMove();
         }
     }
 
@@ -980,7 +1077,7 @@ reset() {
     }
 
     update(dt) {
-        if (this.gameOver) return;
+        if (this.gameOver || this.isAI) return;
         if (this.specialMoveTextTimer > 0) {
             this.specialMoveTextTimer -= dt;
         }
@@ -2203,6 +2300,10 @@ function updateScale() {
 document.addEventListener('DOMContentLoaded', () => {
     mainCanvas = document.getElementById('mainCanvas'); ctx = mainCanvas.getContext('2d');
     
+    // ゲーム開始前にAI Workerを初期化
+    document.getElementById('startGameBtn').disabled = true; // AI準備中はボタン無効化
+    initAIWorker();
+    
     virtualController.init();
 
     loadKeyBindings();
@@ -2287,9 +2388,9 @@ document.getElementById('advanced-link-btn').addEventListener('click', () => {
         });
     });
 
-    document.getElementById('startGameBtn').addEventListener('click', () => {
-        gameState = 'PLAYING'; 
-        document.getElementById('editor-container').style.display = 'none'; 
+document.getElementById('startGameBtn').addEventListener('click', () => {
+        gameState = 'PLAYING';
+        document.getElementById('editor-container').style.display = 'none';
         document.getElementById('game-container').style.display = 'block';
         document.getElementById('scan-controls').style.display = 'none';
         document.getElementById('game-controls').style.display = 'flex';
@@ -2297,28 +2398,38 @@ document.getElementById('advanced-link-btn').addEventListener('click', () => {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
 
         players = [];
-        const createAndSetupPlayer = (id, offsetX, bindings, padIndex) => {
-            const player = new Player(id, offsetX, bindings, padIndex);
+        // HTMLのチェックボックスからAI設定を読み込む
+        const isP1AI = document.getElementById('p1-ai-toggle').checked;
+        const isP2AI = document.getElementById('p2-ai-toggle').checked;
+
+        // AIプレイヤーがいる場合、AIの状態をリセットするようWorkerに指示
+        if (isP1AI || isP2AI) {
+            aiWorker.postMessage({ type: 'reset' });
+        }
+
+        const createAndSetupPlayer = (id, offsetX, bindings, padIndex, isAI) => {
+            // isAIフラグをコンストラクタに渡す
+            const player = new Player(id, offsetX, bindings, padIndex, isAI);
             player.holdDisabled = autoStartParams.nh;
             return player;
         };
 
         if (gameMode === '1P') {
-            mainCanvas.width = PLAYER_CANVAS_WIDTH * RESOLUTION_SCALE; 
+            mainCanvas.width = PLAYER_CANVAS_WIDTH * RESOLUTION_SCALE;
             mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
             mainCanvas.style.width = PLAYER_CANVAS_WIDTH + 'px';
             mainCanvas.style.height = CANVAS_HEIGHT + 'px';
-            players.push(createAndSetupPlayer('1', 0, keyBindings.p1, 0));
+            players.push(createAndSetupPlayer('1', 0, keyBindings.p1, 0, isP1AI));
         }
         else {
             const totalWidth = PLAYER_CANVAS_WIDTH * 2;
-            mainCanvas.width = totalWidth * RESOLUTION_SCALE; 
+            mainCanvas.width = totalWidth * RESOLUTION_SCALE;
             mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
             mainCanvas.style.width = totalWidth + 'px';
             mainCanvas.style.height = CANVAS_HEIGHT + 'px';
-            const p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0);
-            const p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1);
-            p1.opponent = p2; 
+            const p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0, isP1AI);
+            const p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1, isP2AI);
+            p1.opponent = p2;
             p2.opponent = p1;
             players.push(p1, p2);
         }
