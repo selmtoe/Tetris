@@ -253,12 +253,9 @@
                         <label for="pptLoader-p1" class="button">Load PPT</label>
                         <input type="file" id="pptLoader-p1" data-player="p1" accept="image/*">
                     </div>
-<div class="key-config-controls" style="margin-top: 15px; text-align: center; display: flex; justify-content: center; align-items: center; gap: 15px;">
+                    <div class="key-config-controls" style="margin-top: 15px; text-align: center;">
+
                         <button class="button" id="p1-key-config-btn">操作設定</button>
-                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-family: var(--font-ui);">
-                            <input type="checkbox" id="p1-ai-toggle" style="width: 18px; height: 18px;">
-                            <span>AI操作</span>
-                        </label>
                     </div>
                 </div>
             </div>
@@ -286,12 +283,9 @@
                         <label for="pptLoader-p2" class="button">Load PPT</label>
                         <input type="file" id="pptLoader-p2" data-player="p2" accept="image/*">
                     </div>
-<div class="key-config-controls" style="margin-top: 15px; text-align: center; display: flex; justify-content: center; align-items: center; gap: 15px;">
+                    <div class="key-config-controls" style="margin-top: 15px; text-align: center;">
+
                         <button class="button" id="p2-key-config-btn">操作設定</button>
-                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-family: var(--font-ui);">
-                            <input type="checkbox" id="p2-ai-toggle" style="width: 18px; height: 18px;">
-                            <span>AI操作</span>
-                        </label>
                     </div>
                 </div>
             </div>
@@ -382,10 +376,16 @@
                         <span>シミュレーションを即スタート</span>
                     </label>
                 </div>
-                <div class="setting-item">
+<div class="setting-item">
                     <label>
                         <input type="checkbox" id="no-hold-checkbox">
                         <span>ホールドを禁止</span>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <label>
+                        <input type="checkbox" id="hide-back-btn-checkbox" disabled>
+                        <span>戻るボタンを非表示</span>
                     </label>
                 </div>
                  <button id="generate-advanced-link-btn" class="button" style="margin-top: 10px;">リンクを再生成</button>
@@ -771,47 +771,6 @@ const virtualController = (() => {
     };
 })();
 
-let aiWorker;
-
-function initAIWorker() {
-    // 上で作成したWeb Workerファイルを指定
-    aiWorker = new Worker('ai_worker.js'); 
-    aiWorker.onmessage = (e) => {
-        const { type, payload, playerId } = e.data;
-        if (type === 'aiReady') {
-            console.log('AI Worker is ready.');
-            document.getElementById('startGameBtn').disabled = false; // 準備ができたらボタン有効化
-        } else if (type === 'bestMove') {
-            // AIから最善手を受け取り、対応するプレイヤーに実行させる
-            const player = players.find(p => p.id === playerId);
-            if (player && player.isAI) {
-                player.aiPerformMove(payload);
-            }
-        }
-    };
-    aiWorker.onerror = (e) => {
-        console.error('Error in AI Worker:', e);
-        alert('AIの起動に失敗しました。');
-    };
-}
-
-// 盤面データをWASMが期待するビットボード形式 (Uint16Array) に変換
-function boardToUint16Array(board) {
-    const uint16Array = new Uint16Array(BOARD_HEIGHT);
-    for (let y = 0; y < BOARD_HEIGHT; y++) {
-        let row = 0;
-        // y座標を反転（AIはy=0が底面、シミュレータはy=0が天井）
-        const aiY = BOARD_HEIGHT - 1 - y;
-        for (let x = 0; x < BOARD_WIDTH; x++) {
-            if (board[aiY][x]) {
-                row |= (1 << x);
-            }
-        }
-        uint16Array[y] = row;
-    }
-    return uint16Array;
-}
-
 const RESOLUTION_SCALE = 2;
 const BLOCK_SIZE = 28;
 const EDITOR_BLOCK_SIZE = 50;
@@ -937,13 +896,9 @@ function* createMinoGenerator(customQueue) {
     }
 }
 
-// ... Playerクラスのコンストラクタと、その外にメソッドを定義 ...
 class Player {
-    constructor(id, offsetX, keyBindings, padIndex, isAI = false) { // isAI引数を追加
+    constructor(id, offsetX, keyBindings, padIndex) {
         this.id = id; this.offsetX = offsetX; this.keyBindings = keyBindings; this.padIndex = padIndex;
-        this.isAI = isAI; // AIかどうかを保持するフラグ
-        this.aiThinking = false; // AIが思考中かどうかを管理するフラグ
-        this.aiBestMoveInfo = null; // AIの思考結果を保持
         this.keys = {};
         const pData = editorData[`p${id}`];
         this.initialHold = pData.hold;
@@ -953,48 +908,8 @@ class Player {
         this.holdDisabled = false;
         this.reset();
     }
-    // AIに次の手をリクエストするメソッド
-    aiRequestMove() {
-        if (this.aiThinking || this.gameOver) return;
-        this.aiThinking = true;
 
-        const payload = {
-            playerId: this.id,
-            board: boardToUint16Array(this.board),
-            currentMino: this.player.pieceType,
-            holdMino: this.holdPiece || ' ', // C++側が空文字の代わりにスペースを期待
-            nextMinos: this.nextQueue.slice(0, 12).join(''), // AIに渡すネクストの数
-            b2b: this.isB2B,
-            ren: this.ren > 0 ? this.ren : 0, // AIは0以上のRENを期待
-        };
-
-        aiWorker.postMessage({ type: 'requestMove', payload });
-    }
-
-aiPerformMove(move) {
-        if (!this.isAI || this.gameOver || !move || move.pieceType === ' ') {
-            this.aiThinking = false;
-            return;
-        }
-        this.aiBestMoveInfo = move; // AIの思考結果を保存
-        //aiWorker.postMessage({ type: 'commitMove', payload: { playerId: this.id, move } });
-        this.aiThinking = false;
-
-        if (this.player.pieceType !== move.pieceType) {
-            if (this.canHold && !this.holdDisabled) {
-                this.hold();
-            } else {
-                console.warn(`AI for P${this.id} wanted to hold, but cannot.`);
-                setTimeout(() => this.aiRequestMove(), 100);
-                return;
-            }
-        }
-
-        this.player.rotation = move.rotation;
-        this.player.x = move.x;
-        this.hardDrop();
-    }
-    reset() {
+reset() {
         this.player = { x: 0, y: 0, pieceType: null, rotation: 0 };
         this.nextQueue = [];
         for (let i = 0; i < gameSettings.maxNext; i++) {
@@ -1013,7 +928,7 @@ aiPerformMove(move) {
         this.spawnNewPiece();
     }
     
-spawnNewPiece() {
+    spawnNewPiece() {
         this.player.pieceType = this.nextQueue.shift();
         this.nextQueue.push(this.minoGenerator.next().value);
         
@@ -1030,11 +945,6 @@ spawnNewPiece() {
 
                  this.gameOver = true;
             }
-        }
-        
-        // AIプレイヤーの場合、新しいミノが来たら思考を開始する
-        if (this.isAI && !this.gameOver) {
-            this.aiRequestMove();
         }
     }
 
@@ -1069,107 +979,97 @@ spawnNewPiece() {
         }
     }
 
-    // index.html <script>タグ内
-
     update(dt) {
-        if (this.gameOver) return; // isAI の条件を削除
-
-        // タイマーやゴミ処理など、AI・人間共通の処理
+        if (this.gameOver) return;
         if (this.specialMoveTextTimer > 0) {
             this.specialMoveTextTimer -= dt;
         }
+
         this.processGarbageQueue();
 
-        // ライン消去中の場合、タイマーを進める (AIでも必要)
+        const left = this.isActionPressed('left');
+        const right = this.isActionPressed('right');
+        const horizDir = left ? -1 : (right ? 1 : 0);
+
+        if (horizDir !== 0) {
+            if (this.dasDirection !== horizDir) { 
+                this.dasTimer = 0;
+                this.arrTimer = 0;
+                if (!this.isClearingLine) this.move(horizDir, 0);
+            } else { 
+                this.dasTimer += dt;
+                if (this.dasTimer >= gameSettings.das) {
+                    if (gameSettings.arr === 0) {
+                        if (!this.isClearingLine) {
+                            let successfulMoves = 0;
+                            while (!this.checkCollision(this.player.x + horizDir, this.player.y, this.getShape(this.player.pieceType, this.player.rotation))) {
+                                this.player.x += horizDir;
+                                successfulMoves++;
+                            }
+                            if (successfulMoves > 0) {
+                               this.lockTimer = 0;
+                               this.lastMoveWasRotation = false;
+                            }
+                        }
+                    } else {
+                        this.arrTimer += dt;
+                        if (this.arrTimer >= gameSettings.arr) {
+                            if (!this.isClearingLine) this.move(horizDir, 0);
+                            this.arrTimer -= gameSettings.arr;
+                        }
+                    }
+                }
+            }
+        }
+        this.dasDirection = horizDir;
+
         if (this.isClearingLine) {
             this.lineClearDelayTimer -= dt;
-            if (this.lineClearDelayTimer <= 0) {
-                this.isClearingLine = false;
-                this.riseGarbage();
-                this.spawnNewPiece();
-            }
-            return; // ライン消去中は他の処理をしない
+            if (this.lineClearDelayTimer <= 0) { this.isClearingLine = false; this.riseGarbage(); this.spawnNewPiece(); }
+            return;
         }
 
-        // --- 以下、人間プレイヤー専用の処理 ---
-        if (!this.isAI) {
-            const left = this.isActionPressed('left');
-            const right = this.isActionPressed('right');
-            const horizDir = left ? -1 : (right ? 1 : 0);
-
-            if (horizDir !== 0) {
-                if (this.dasDirection !== horizDir) {
-                    this.dasTimer = 0;
-                    this.arrTimer = 0;
-                    if (!this.isClearingLine) this.move(horizDir, 0);
-                } else {
-                    this.dasTimer += dt;
-                    if (this.dasTimer >= gameSettings.das) {
-                        if (gameSettings.arr === 0) {
-                            if (!this.isClearingLine) {
-                                let successfulMoves = 0;
-                                while (!this.checkCollision(this.player.x + horizDir, this.player.y, this.getShape(this.player.pieceType, this.player.rotation))) {
-                                    this.player.x += horizDir;
-                                    successfulMoves++;
-                                }
-                                if (successfulMoves > 0) {
-                                   this.lockTimer = 0;
-                                   this.lastMoveWasRotation = false;
-                                }
-                            }
-                        } else {
-                            this.arrTimer += dt;
-                            if (this.arrTimer >= gameSettings.arr) {
-                                if (!this.isClearingLine) this.move(horizDir, 0);
-                                this.arrTimer -= gameSettings.arr;
-                            }
-                        }
-                    }
+        if (this.isActionPressed('softDrop')) {
+             if (gameSettings.sdf > 0) {
+                this.sdfTimer += dt;
+                if (this.sdfTimer >= gameSettings.sdf) {
+                    this.move(0, 1);
+                    this.sdfTimer -= gameSettings.sdf;
                 }
+             } else { 
+                const ghostY = this.getGhostY();
+                if (this.player.y < ghostY) {
+                    this.player.y = ghostY;
+                    this.lockTimer = 0;
+                }
+             }
+        } else {
+            this.sdfTimer = 0;
+        }
+        
+        this.isGrounded = this.checkCollision(this.player.x, this.player.y + 1, this.getShape(this.player.pieceType, this.player.rotation));
+        if (this.isGrounded) {
+            this.lockTimer += dt;
+            if (this.lockTimer >= gameSettings.lockDelay) {
+                this.lockPiece();
             }
-            this.dasDirection = horizDir;
-
-            if (this.isActionPressed('softDrop')) {
-                 if (gameSettings.sdf > 0) {
-                    this.sdfTimer += dt;
-                    if (this.sdfTimer >= gameSettings.sdf) {
-                        this.move(0, 1);
-                        this.sdfTimer -= gameSettings.sdf;
+        } else {
+            this.lockTimer = 0;
+            if (!this.isActionPressed('softDrop')) {
+                 if (gameSettings.gravity > 0) {
+                    this.gravityTimer -= dt;
+                    if (this.gravityTimer <= 0) {
+                        this.move(0, 1, false);
+                        this.gravityTimer += gameSettings.gravity;
                     }
-                 } else {
-                    const ghostY = this.getGhostY();
-                    if (this.player.y < ghostY) {
-                        this.player.y = ghostY;
-                        this.lockTimer = 0;
-                    }
+                 } else { 
+                    this.player.y = this.getGhostY();
                  }
-            } else {
-                this.sdfTimer = 0;
-            }
-
-            this.isGrounded = this.checkCollision(this.player.x, this.player.y + 1, this.getShape(this.player.pieceType, this.player.rotation));
-            if (this.isGrounded) {
-                this.lockTimer += dt;
-                if (this.lockTimer >= gameSettings.lockDelay) {
-                    this.lockPiece();
-                }
-            } else {
-                this.lockTimer = 0;
-                if (!this.isActionPressed('softDrop')) {
-                     if (gameSettings.gravity > 0) {
-                        this.gravityTimer -= dt;
-                        if (this.gravityTimer <= 0) {
-                            this.move(0, 1, false);
-                            this.gravityTimer += gameSettings.gravity;
-                        }
-                     } else {
-                        this.player.y = this.getGhostY();
-                     }
-                }
             }
         }
     }
-draw() {
+
+    draw() {
         ctx.save(); ctx.translate(this.offsetX, 0);
         this.drawUI();
 
@@ -1188,43 +1088,6 @@ draw() {
 
         if (!this.gameOver && !this.isClearingLine && this.player.pieceType) { const shape = this.getShape(this.player.pieceType, this.player.rotation); const ghostY = this.getGhostY(); if (ghostY > this.player.y) this.drawPiece(shape, this.player.x, ghostY, this.player.pieceType, true); this.drawPiece(shape, this.player.x, this.player.y, this.player.pieceType, false); }
         this.drawSpecialMoveText();
-
-        // デバッグ情報表示を追加
-        const debugLines = [];
-        if (this.player && this.player.pieceType) {
-            debugLines.push(`Pos: X=${this.player.x}, Y=${this.player.y.toFixed(1)}, R=${this.player.rotation}`);
-        }
-        if (this.isAI && this.aiBestMoveInfo) {
-            const { pieceType, x, rotation } = this.aiBestMoveInfo;
-            if (pieceType && pieceType.trim()) {
-                const useHold = (this.player.pieceType !== pieceType);
-                debugLines.push(`AI: ${useHold ? '(H) ' : ''}${pieceType}, X=${x}, R=${rotation}`);
-            }
-        }
-
-        if (debugLines.length > 0) {
-            ctx.save();
-            const fontSize = 14;
-            const padding = 5;
-            const lineHeight = fontSize + 4;
-            const boxWidth = 220;
-            const boxHeight = debugLines.length * lineHeight + padding;
-            const boxX = PLAYFIELD_WIDTH - boxWidth - padding;
-            const boxY = BOARD_VISIBLE_HEIGHT * BLOCK_SIZE - boxHeight - padding;
-
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-            ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
-            
-            ctx.textAlign = 'left';
-            ctx.fillStyle = 'white';
-            ctx.font = `${fontSize}px "Consolas", "Courier New", monospace`;
-            
-            debugLines.forEach((line, i) => {
-                ctx.fillText(line, boxX + padding, boxY + padding + (i * lineHeight));
-            });
-            ctx.restore();
-        }
-
         if (this.gameOver) this.drawMessage("GAME OVER");
         ctx.restore(); ctx.restore();
     }
@@ -2147,12 +2010,11 @@ function stringToBoard(str) {
     return board;
 }
 
-let autoStartParams = { ss: false, nh: false };
+let autoStartParams = { ss: false, nh: false, hb: false };
 
 function getGameStateForExport(options = {}) {
     const p1Data = { ...editorData.p1, nextQueue: [...editorData.p1.nextQueue] };
     const p2Data = gameMode === '2P' ? { ...editorData.p2, nextQueue: [...editorData.p2.nextQueue] } : null;
-
     if (options.noHold) {
         if (p1Data.hold) { p1Data.nextQueue.unshift(p1Data.hold); p1Data.hold = null; }
         if (p2Data && p2Data.hold) { p2Data.nextQueue.unshift(p2Data.hold); p2Data.hold = null; }
@@ -2162,15 +2024,15 @@ function getGameStateForExport(options = {}) {
         v: 2, m: gameMode,
         p1: { b: boardToString(p1Data.board), n: p1Data.nextQueue.join(''), h: p1Data.hold || '' }
     };
-    if (gameMode === '2P') {
+if (gameMode === '2P') {
         data.p2 = { b: boardToString(p2Data.board), n: p2Data.nextQueue.join(''), h: p2Data.hold || '' };
     }
     if (options.startSim) data.ss = 1;
     if (options.noHold) data.nh = 1;
+    if (options.hideBack) data.hb = 1;
 
     return data;
 }
-
 function applyGameState(data) {
     try {
         if (!data || (data.v !== 1 && data.v !== 2)) {
@@ -2209,6 +2071,7 @@ function loadStateFromURL() {
 
             autoStartParams.ss = !!data.ss;
             autoStartParams.nh = !!data.nh;
+            autoStartParams.hb = !!data.hb;
 
             if (applyGameState(data)) {
                 alert('URLから盤面を読み込みました。');
@@ -2340,10 +2203,6 @@ function updateScale() {
 document.addEventListener('DOMContentLoaded', () => {
     mainCanvas = document.getElementById('mainCanvas'); ctx = mainCanvas.getContext('2d');
     
-    // ゲーム開始前にAI Workerを初期化
-    document.getElementById('startGameBtn').disabled = true; // AI準備中はボタン無効化
-    initAIWorker();
-    
     virtualController.init();
 
     loadKeyBindings();
@@ -2416,65 +2275,72 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('p2-editor-col').style.display = 'flex';
         setTimeout(updateScale, 0);
     });
-    
-document.getElementById('advanced-link-btn').addEventListener('click', () => {
+    document.getElementById('advanced-link-btn').addEventListener('click', () => {
         document.getElementById('advanced-link-options').style.display = 'block';
+    });
+    
+    const startSimCheckbox = document.getElementById('start-sim-checkbox');
+    const hideBackCheckbox = document.getElementById('hide-back-btn-checkbox');
+    startSimCheckbox.addEventListener('change', () => {
+        if (startSimCheckbox.checked) {
+            hideBackCheckbox.disabled = false;
+        } else {
+            hideBackCheckbox.disabled = true;
+            hideBackCheckbox.checked = false;
+        }
     });
 
     document.getElementById('generate-advanced-link-btn').addEventListener('click', () => {
         generateAndDisplayLink({
             startSim: document.getElementById('start-sim-checkbox').checked,
             noHold: document.getElementById('no-hold-checkbox').checked,
+            hideBack: document.getElementById('hide-back-btn-checkbox').checked
         });
     });
 
-document.getElementById('startGameBtn').addEventListener('click', () => {
-        gameState = 'PLAYING';
-        document.getElementById('editor-container').style.display = 'none';
+    document.getElementById('startGameBtn').addEventListener('click', () => {
+        gameState = 'PLAYING'; 
+        document.getElementById('editor-container').style.display = 'none'; 
         document.getElementById('game-container').style.display = 'block';
         document.getElementById('scan-controls').style.display = 'none';
         document.getElementById('game-controls').style.display = 'flex';
         
+        if (autoStartParams.hb) {
+            document.getElementById('backToEditorBtn').style.display = 'none';
+        } else {
+            document.getElementById('backToEditorBtn').style.display = '';
+        }
+
         ctx.setTransform(1, 0, 0, 1, 0, 0);
 
         players = [];
-        // HTMLのチェックボックスからAI設定を読み込む
-        const isP1AI = document.getElementById('p1-ai-toggle').checked;
-        const isP2AI = document.getElementById('p2-ai-toggle').checked;
-
-        // AIプレイヤーがいる場合、AIの状態をリセットするようWorkerに指示
-        if (isP1AI || isP2AI) {
-            aiWorker.postMessage({ type: 'reset' });
-        }
-
-        const createAndSetupPlayer = (id, offsetX, bindings, padIndex, isAI) => {
-            // isAIフラグをコンストラクタに渡す
-            const player = new Player(id, offsetX, bindings, padIndex, isAI);
+        const createAndSetupPlayer = (id, offsetX, bindings, padIndex) => {
+            const player = new Player(id, offsetX, bindings, padIndex);
             player.holdDisabled = autoStartParams.nh;
             return player;
         };
 
         if (gameMode === '1P') {
-            mainCanvas.width = PLAYER_CANVAS_WIDTH * RESOLUTION_SCALE;
+            mainCanvas.width = PLAYER_CANVAS_WIDTH * RESOLUTION_SCALE; 
             mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
             mainCanvas.style.width = PLAYER_CANVAS_WIDTH + 'px';
             mainCanvas.style.height = CANVAS_HEIGHT + 'px';
-            players.push(createAndSetupPlayer('1', 0, keyBindings.p1, 0, isP1AI));
+            players.push(createAndSetupPlayer('1', 0, keyBindings.p1, 0));
         }
         else {
             const totalWidth = PLAYER_CANVAS_WIDTH * 2;
-            mainCanvas.width = totalWidth * RESOLUTION_SCALE;
+            mainCanvas.width = totalWidth * RESOLUTION_SCALE; 
             mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
             mainCanvas.style.width = totalWidth + 'px';
             mainCanvas.style.height = CANVAS_HEIGHT + 'px';
-            const p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0, isP1AI);
-            const p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1, isP2AI);
-            p1.opponent = p2;
+            const p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0);
+            const p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1);
+            p1.opponent = p2; 
             p2.opponent = p1;
             players.push(p1, p2);
         }
         
-        autoStartParams = { ss: false, nh: false };
+        autoStartParams = { ss: false, nh: false, hb: false };
         ctx.scale(RESOLUTION_SCALE, RESOLUTION_SCALE);
 
         if (gameSettings.touchControlsEnabled) {
