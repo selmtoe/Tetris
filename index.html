@@ -943,6 +943,7 @@ class Player {
         this.id = id; this.offsetX = offsetX; this.keyBindings = keyBindings; this.padIndex = padIndex;
         this.isAI = isAI; // AIかどうかを保持するフラグ
         this.aiThinking = false; // AIが思考中かどうかを管理するフラグ
+        this.aiBestMoveInfo = null; // AIの思考結果を保持
         this.keys = {};
         const pData = editorData[`p${id}`];
         this.initialHold = pData.hold;
@@ -970,14 +971,14 @@ class Player {
         aiWorker.postMessage({ type: 'requestMove', payload });
     }
 
-    aiPerformMove(move) {
+aiPerformMove(move) {
         if (!this.isAI || this.gameOver || !move || move.pieceType === ' ') {
             this.aiThinking = false;
             return;
         }
+        this.aiBestMoveInfo = move; // AIの思考結果を保存
         //aiWorker.postMessage({ type: 'commitMove', payload: { playerId: this.id, move } });
         this.aiThinking = false;
-            // Iミノの回転を入れ替える処理
 
         if (this.player.pieceType !== move.pieceType) {
             if (this.canHold && !this.holdDisabled) {
@@ -1168,7 +1169,7 @@ spawnNewPiece() {
             }
         }
     }
-    draw() {
+draw() {
         ctx.save(); ctx.translate(this.offsetX, 0);
         this.drawUI();
 
@@ -1187,6 +1188,43 @@ spawnNewPiece() {
 
         if (!this.gameOver && !this.isClearingLine && this.player.pieceType) { const shape = this.getShape(this.player.pieceType, this.player.rotation); const ghostY = this.getGhostY(); if (ghostY > this.player.y) this.drawPiece(shape, this.player.x, ghostY, this.player.pieceType, true); this.drawPiece(shape, this.player.x, this.player.y, this.player.pieceType, false); }
         this.drawSpecialMoveText();
+
+        // デバッグ情報表示を追加
+        const debugLines = [];
+        if (this.player && this.player.pieceType) {
+            debugLines.push(`Pos: X=${this.player.x}, Y=${this.player.y.toFixed(1)}, R=${this.player.rotation}`);
+        }
+        if (this.isAI && this.aiBestMoveInfo) {
+            const { pieceType, x, rotation } = this.aiBestMoveInfo;
+            if (pieceType && pieceType.trim()) {
+                const useHold = (this.player.pieceType !== pieceType);
+                debugLines.push(`AI: ${useHold ? '(H) ' : ''}${pieceType}, X=${x}, R=${rotation}`);
+            }
+        }
+
+        if (debugLines.length > 0) {
+            ctx.save();
+            const fontSize = 14;
+            const padding = 5;
+            const lineHeight = fontSize + 4;
+            const boxWidth = 220;
+            const boxHeight = debugLines.length * lineHeight + padding;
+            const boxX = PLAYFIELD_WIDTH - boxWidth - padding;
+            const boxY = BOARD_VISIBLE_HEIGHT * BLOCK_SIZE - boxHeight - padding;
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+            
+            ctx.textAlign = 'left';
+            ctx.fillStyle = 'white';
+            ctx.font = `${fontSize}px "Consolas", "Courier New", monospace`;
+            
+            debugLines.forEach((line, i) => {
+                ctx.fillText(line, boxX + padding, boxY + padding + (i * lineHeight));
+            });
+            ctx.restore();
+        }
+
         if (this.gameOver) this.drawMessage("GAME OVER");
         ctx.restore(); ctx.restore();
     }
