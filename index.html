@@ -800,8 +800,10 @@ function boardToUint16Array(board) {
     const uint16Array = new Uint16Array(BOARD_HEIGHT);
     for (let y = 0; y < BOARD_HEIGHT; y++) {
         let row = 0;
+        // y座標を反転（AIはy=0が底面、シミュレータはy=0が天井）
+        const aiY = BOARD_HEIGHT - 1 - y;
         for (let x = 0; x < BOARD_WIDTH; x++) {
-            if (board[y][x]) {
+            if (board[aiY][x]) {
                 row |= (1 << x);
             }
         }
