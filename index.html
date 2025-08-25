@@ -2586,7 +2586,7 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
             players.push(p1, p2);
         }
 
-        const createPlayerProxy = (player) => {
+　　　　　const createPlayerProxy = (player) => {
             if (!player) return null;
             return {
                 get stats() { return player.stats; },
@@ -2601,16 +2601,25 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
                         }
                     },
                 },
-                sendAttack: (lines) => { if(player.opponent) player.opponent.addGarbage(lines); }
             };
         };
+
+        const p1Proxy = createPlayerProxy(players[0]);
+        const p2Proxy = createPlayerProxy(players[1]);
 
         const gameApi = {
             win: (player) => { if (player instanceof Player) player.gameClear = true; },
             lose: (player) => { if (player instanceof Player) player.gameOver = true; },
             getTime: () => performance.now() - startTime,
-            p1: createPlayerProxy(players[0]),
-            p2: createPlayerProxy(players[1])
+            sendAttack: (player, lines) => {
+                const targetPlayer = (player === p1Proxy && players[0]) ? players[0] :
+                                     (player === p2Proxy && players[1]) ? players[1] : null;
+                if (targetPlayer) {
+                    targetPlayer.addGarbage(lines);
+                }
+            },
+            p1: p1Proxy,
+            p2: p2Proxy
         };
         
         players.forEach(p => p.gameApi = gameApi);
