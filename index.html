@@ -1133,6 +1133,11 @@ if (this.isClearingLine) {
     
 hold() {
         if (this.gameOver || !this.canHold || this.holdDisabled) return;
+
+        if (!this.holdPiece && this.nextQueue[0] === 'E') {
+            return;
+        }
+
         this.canHold = false;
         this.lastMoveWasRotation = false;
         if (this.holdPiece) {
