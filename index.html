@@ -1018,14 +1018,34 @@ update(dt) {
         }
         this.dasDirection = horizDir;
 
-        if (this.isClearingLine) {
+if (this.isClearingLine) {
             this.lineClearDelayTimer -= dt;
             if (this.lineClearDelayTimer <= 0) { 
                 this.isClearingLine = false; 
                 this.riseGarbage(); 
                 if (this.nextQueue[0] === 'E') {
-                    this.gameOver = true;
-                    return;
+                    if (this.holdPiece) {
+                        this.player.pieceType = this.holdPiece;
+                        this.holdPiece = null;
+                        this.canHold = false;
+                        
+                        this.player.rotation = 0;
+                        this.lockTimer = 0;
+                        this.lastMoveWasRotation = false;
+                        this.player.x = Math.floor(BOARD_WIDTH / 2) - Math.floor(TETROMINOS[this.player.pieceType].center[0]) -1;
+                        const shape = this.getShape(this.player.pieceType, this.player.rotation);
+                        this.player.y = 19;
+                        if (this.checkCollision(this.player.x, this.player.y, shape)) {
+                            this.player.y = 18;
+                            if (this.checkCollision(this.player.x, this.player.y, shape)) {
+                                 this.gameOver = true;
+                            }
+                        }
+                        return;
+                    } else {
+                        this.gameFrozen = true;
+                        return;
+                    }
                 }
                 this.spawnNewPiece(); 
             }
@@ -1209,13 +1229,33 @@ lockPiece() {
             }
         }
 
-        if (this.specialMoveText.length > 0) {
+if (this.specialMoveText.length > 0) {
             this.specialMoveTextTimer = 1500;
         }
 
         if (this.nextQueue[0] === 'E') {
-            this.gameOver = true;
-            return;
+            if (this.holdPiece) {
+                this.player.pieceType = this.holdPiece;
+                this.holdPiece = null;
+                this.canHold = false;
+                
+                this.player.rotation = 0;
+                this.lockTimer = 0;
+                this.lastMoveWasRotation = false;
+                this.player.x = Math.floor(BOARD_WIDTH / 2) - Math.floor(TETROMINOS[this.player.pieceType].center[0]) -1;
+                const shape = this.getShape(this.player.pieceType, this.player.rotation);
+                this.player.y = 19;
+                if (this.checkCollision(this.player.x, this.player.y, shape)) {
+                    this.player.y = 18;
+                    if (this.checkCollision(this.player.x, this.player.y, shape)) {
+                         this.gameOver = true;
+                    }
+                }
+                return;
+            } else {
+                this.gameFrozen = true;
+                return;
+            }
         }
 
         this.lockTimer = 0;
