@@ -1159,7 +1159,7 @@ draw() {
         if (!this.gameOver && !this.gameClear && !this.isClearingLine && this.player.pieceType) { const shape = this.getShape(this.player.pieceType, this.player.rotation); const ghostY = this.getGhostY(); if (ghostY > this.player.y) this.drawPiece(shape, this.player.x, ghostY, this.player.pieceType, true); this.drawPiece(shape, this.player.x, this.player.y, this.player.pieceType, false); }
         this.drawSpecialMoveText();
         if (this.gameOver) this.drawMessage("GAME OVER");
-        else if (this.gameClear) this.drawMessage("GAME CLEAR");
+        else if (this.gameClear) this.drawMessage("CLEAR!");
         ctx.restore(); ctx.restore();
     }
     
