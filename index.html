@@ -292,8 +292,8 @@
             </div>
         </div>
     </div>
-    <div id="game-container">
-        <div id="rule-description-display" style="display: none; position: absolute; z-index: 155; color: white; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 5px; font-family: var(--font-ui); font-size: 14px; max-width: 200px; max-height: 400px; overflow-y: auto; box-sizing: border-box; word-wrap: break-word;"></div>
+<div id="game-container">
+        <div id="rule-description-display" style="display: none; position: absolute; z-index: 155; color: var(--font-color); background: rgba(26, 26, 46, 0.9); padding: 15px; border-radius: 10px; border: 2px solid var(--primary-hover-color); font-family: var(--font-ui); font-size: 14px; max-width: 200px; max-height: 400px; overflow-y: auto; box-sizing: border-box; word-wrap: break-word; backdrop-filter: blur(4px);"></div>
         <canvas id="mainCanvas"></canvas>
         <div id="scan-instructions" style="display: none;"></div>
         <div id="scan-controls" style="display: none; margin-top: 15px; gap: 10px; justify-content:center;">
@@ -1542,9 +1542,10 @@ endIcon.textContent = 'END';
     });
     const palette = document.getElementById(`${playerId}-palette`);
 
-    Object.keys(EDITOR_COLORS).forEach(key => { const swatch = document.createElement('div'); swatch.className = 'color-swatch'; swatch.style.backgroundColor = key === 'EMPTY' ? '#333' : EDITOR_COLORS[key]; if (key === 'EMPTY') { swatch.style.border = '1px dashed #fff'; swatch.title = 'Eraser'; } if (key === editorData[playerId].activeColor) swatch.classList.add('active'); swatch.addEventListener('click', () => { editorData[playerId].activeColor = key; palette.querySelector('.active')?.classList.remove('active'); swatch.classList.add('active'); }); palette.appendChild(swatch); });
+    Object.keys(EDITOR_COLORS).filter(key => key !== 'E').forEach(key => { const swatch = document.createElement('div'); swatch.className = 'color-swatch'; swatch.style.backgroundColor = key === 'EMPTY' ? '#333' : EDITOR_COLORS[key]; if (key === 'EMPTY') { swatch.style.border = '1px dashed #fff'; swatch.title = 'Eraser'; } if (key === editorData[playerId].activeColor) swatch.classList.add('active'); swatch.addEventListener('click', () => { editorData[playerId].activeColor = key; palette.querySelector('.active')?.classList.remove('active'); swatch.classList.add('active'); }); palette.appendChild(swatch); });
 
-   const canvas = document.getElementById(`field-editor-canvas-${playerId}`);
+    const canvas = document.getElementById(`field-editor-canvas-${playerId}`);
+    
     canvas.width = BOARD_WIDTH * EDITOR_BLOCK_SIZE; canvas.height = BOARD_VISIBLE_HEIGHT * EDITOR_BLOCK_SIZE;
     let isDrawing = false;
     let isEraserMode = false;
