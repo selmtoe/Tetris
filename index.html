@@ -1380,14 +1380,14 @@ icon.className = 'mino-icon';
     endIcon.style.fontFamily = 'var(--font-display)';
     endIcon.style.fontSize = '14px';
     endIcon.style.fontWeight = 'bold';
-    endIcon.textContent = 'END';
+endIcon.textContent = 'END';
     endIcon.addEventListener('click', () => {
         const data = editorData[playerId];
+        if (data.nextInsertionIndex === 'hold' || data.nextQueue.length === 0) {
+            return;
+        }
         const key = 'E';
-        if (data.nextInsertionIndex === 'hold') {
-            data.hold = key;
-            data.nextInsertionIndex = 0;
-        } else if (data.nextInsertionIndex === -1) {
+        if (data.nextInsertionIndex === -1) {
             data.nextQueue.push(key);
             data.nextInsertionIndex = data.nextQueue.length;
         } else {
