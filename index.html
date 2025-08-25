@@ -2629,7 +2629,6 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
             virtualController.show();
         }
 
-        Object.assign(gameSettings, originalSettingsBeforeRun);
         setTimeout(updateScale, 0);
     });
 
@@ -2756,12 +2755,15 @@ document.getElementById('settingsBtn').addEventListener('click', () => openUnifi
 
 document.getElementById('retryBtn').addEventListener('click', () => {
         if (gameState !== 'PLAYING' || !players.length) return;
-        
+
         const wasHoldDisabled = players[0].holdDisabled;
+        const userFunctions = players[0].ruleHooks || {};
+        let startTime = performance.now();
 
         const createAndSetupPlayer = (id, offsetX, bindings, padIndex) => {
             const player = new Player(id, offsetX, bindings, padIndex);
             player.holdDisabled = wasHoldDisabled;
+            player.ruleHooks = userFunctions;
             return player;
         };
 
@@ -2771,10 +2773,48 @@ document.getElementById('retryBtn').addEventListener('click', () => {
         } else {
             const p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0);
             const p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1);
-            p1.opponent = p2; 
+            p1.opponent = p2;
             p2.opponent = p1;
             players.push(p1, p2);
         }
+
+        const createPlayerProxy = (player) => {
+            if (!player) return null;
+            return {
+                get stats() { return player.stats; },
+                board: {
+                    hasBlock: (x, y) => {
+                        if (x < 0 || x >= BOARD_WIDTH || y < 0 || y >= BOARD_HEIGHT) return true;
+                        return player.board[y][x] !== null;
+                    },
+                    placeBlock: (x, y, type) => {
+                        if (x >= 0 && x < BOARD_WIDTH && y >= 0 && y < BOARD_HEIGHT) {
+                           player.board[y][x] = Object.keys(COLORS).includes(type) ? type : null;
+                        }
+                    },
+                },
+            };
+        };
+
+        const p1Proxy = createPlayerProxy(players[0]);
+        const p2Proxy = createPlayerProxy(players[1]);
+
+        const gameApi = {
+            win: (player) => { if (player instanceof Player) player.gameClear = true; },
+            lose: (player) => { if (player instanceof Player) player.gameOver = true; },
+            getTime: () => performance.now() - startTime,
+            sendAttack: (player, lines) => {
+                const targetPlayer = (player === p1Proxy && players[0]) ? players[0] :
+                                     (player === p2Proxy && players[1]) ? players[1] : null;
+                if (targetPlayer) {
+                    targetPlayer.addGarbage(lines);
+                }
+            },
+            p1: p1Proxy,
+            p2: p2Proxy
+        };
+        
+        players.forEach(p => p.gameApi = gameApi);
     });
 
     setupEditors();
