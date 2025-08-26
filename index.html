@@ -2582,7 +2582,7 @@ const createAndSetupPlayer = (id, offsetX, bindings, padIndex) => {
             return player;
         };
 
-        if (gameMode === '1P') {
+if (gameMode === '1P') {
             mainCanvas.width = PLAYER_CANVAS_WIDTH * RESOLUTION_SCALE; 
             mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
             mainCanvas.style.width = PLAYER_CANVAS_WIDTH + 'px';
@@ -2889,9 +2889,10 @@ Object.assign(gameSettings, currentRunSettings);
             players.push(p1, p2);
         }
 
-        const createPlayerProxy = (player) => {
+const createPlayerProxy = (player) => {
             if (!player) return null;
             return {
+                id: player.id,
                 get stats() { return player.stats; },
                 board: {
                     hasBlock: (x, y) => {
@@ -2906,8 +2907,8 @@ Object.assign(gameSettings, currentRunSettings);
                 },
             };
         };
- 
-const p1Proxy = createPlayerProxy(players[0]);
+
+        const p1Proxy = createPlayerProxy(players[0]);
         const p2Proxy = createPlayerProxy(players[1]);
 
         const displayApi = {
