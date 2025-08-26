@@ -2625,8 +2625,8 @@ const p1Proxy = createPlayerProxy(players[0]);
 
         const displayApi = {
             setInfoText: (player, text) => {
-                const targetPlayer = (player === p1Proxy && players[0]) ? players[0] :
-                                     (player === p2Proxy && players[1]) ? players[1] : null;
+                const targetPlayer = (player === p1Proxy || player === players[0]) ? players[0] :
+                                     (players[1] && (player === p2Proxy || player === players[1])) ? players[1] : null;
                 if (!targetPlayer) return;
                 
                 const infoDisplay = document.getElementById(`p${targetPlayer.id}-info-display`);
@@ -2645,8 +2645,8 @@ const p1Proxy = createPlayerProxy(players[0]);
                 infoDisplay.style.width = `${HOLD_AREA_WIDTH - PADDING}px`;
             },
             showTimer: (player) => {
-                const targetPlayer = (player === p1Proxy && players[0]) ? players[0] :
-                                     (player === p2Proxy && players[1]) ? players[1] : null;
+                const targetPlayer = (player === p1Proxy || player === players[0]) ? players[0] :
+                                     (players[1] && (player === p2Proxy || player === players[1])) ? players[1] : null;
                 if (!targetPlayer) return;
 
                 targetPlayer.timerEnabled = true;
@@ -2667,10 +2667,10 @@ const p1Proxy = createPlayerProxy(players[0]);
             getTime: () => performance.now() - startTime,
             display: displayApi,
             sendAttack: (player, lines) => {
-                const targetPlayer = (player === p1Proxy && players[0]) ? players[0] :
-                                     (player === p2Proxy && players[1]) ? players[1] : null;
-                if (targetPlayer) {
-                    targetPlayer.addGarbage(lines);
+                const targetPlayer = (player === p1Proxy || player === players[0]) ? players[0] :
+                                     (players[1] && (player === p2Proxy || player === players[1])) ? players[1] : null;
+                if (targetPlayer && targetPlayer.opponent) {
+                    targetPlayer.opponent.addGarbage(lines);
                 }
             },
             p1: p1Proxy,
@@ -2906,14 +2906,14 @@ Object.assign(gameSettings, currentRunSettings);
                 },
             };
         };
-
+ 
 const p1Proxy = createPlayerProxy(players[0]);
         const p2Proxy = createPlayerProxy(players[1]);
 
         const displayApi = {
             setInfoText: (player, text) => {
-                const targetPlayer = (player === p1Proxy && players[0]) ? players[0] :
-                                     (player === p2Proxy && players[1]) ? players[1] : null;
+                const targetPlayer = (player === p1Proxy || player === players[0]) ? players[0] :
+                                     (players[1] && (player === p2Proxy || player === players[1])) ? players[1] : null;
                 if (!targetPlayer) return;
                 
                 const infoDisplay = document.getElementById(`p${targetPlayer.id}-info-display`);
@@ -2932,8 +2932,8 @@ const p1Proxy = createPlayerProxy(players[0]);
                 infoDisplay.style.width = `${HOLD_AREA_WIDTH - PADDING}px`;
             },
             showTimer: (player) => {
-                const targetPlayer = (player === p1Proxy && players[0]) ? players[0] :
-                                     (player === p2Proxy && players[1]) ? players[1] : null;
+                const targetPlayer = (player === p1Proxy || player === players[0]) ? players[0] :
+                                     (players[1] && (player === p2Proxy || player === players[1])) ? players[1] : null;
                 if (!targetPlayer) return;
 
                 targetPlayer.timerEnabled = true;
@@ -2954,10 +2954,10 @@ const p1Proxy = createPlayerProxy(players[0]);
             getTime: () => performance.now() - startTime,
             display: displayApi,
             sendAttack: (player, lines) => {
-                const targetPlayer = (player === p1Proxy && players[0]) ? players[0] :
-                                     (player === p2Proxy && players[1]) ? players[1] : null;
-                if (targetPlayer) {
-                    targetPlayer.addGarbage(lines);
+                const targetPlayer = (player === p1Proxy || player === players[0]) ? players[0] :
+                                     (players[1] && (player === p2Proxy || player === players[1])) ? players[1] : null;
+                if (targetPlayer && targetPlayer.opponent) {
+                    targetPlayer.opponent.addGarbage(lines);
                 }
             },
             p1: p1Proxy,
