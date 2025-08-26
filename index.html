@@ -2602,9 +2602,10 @@ if (gameMode === '1P') {
             players.push(p1, p2);
         }
 
-　　　　　const createPlayerProxy = (player) => {
+const createPlayerProxy = (player) => {
             if (!player) return null;
             return {
+                id: player.id,
                 get stats() { return player.stats; },
                 board: {
                     hasBlock: (x, y) => {
@@ -2623,10 +2624,9 @@ if (gameMode === '1P') {
 const p1Proxy = createPlayerProxy(players[0]);
         const p2Proxy = createPlayerProxy(players[1]);
 
-        const displayApi = {
+const displayApi = {
             setInfoText: (player, text) => {
-                const targetPlayer = (player === p1Proxy || player === players[0]) ? players[0] :
-                                     (players[1] && (player === p2Proxy || player === players[1])) ? players[1] : null;
+                const targetPlayer = players.find(p => p === player || (player && p.id === player.id));
                 if (!targetPlayer) return;
                 
                 const infoDisplay = document.getElementById(`p${targetPlayer.id}-info-display`);
@@ -2645,8 +2645,7 @@ const p1Proxy = createPlayerProxy(players[0]);
                 infoDisplay.style.width = `${HOLD_AREA_WIDTH - PADDING}px`;
             },
             showTimer: (player) => {
-                const targetPlayer = (player === p1Proxy || player === players[0]) ? players[0] :
-                                     (players[1] && (player === p2Proxy || player === players[1])) ? players[1] : null;
+                const targetPlayer = players.find(p => p === player || (player && p.id === player.id));
                 if (!targetPlayer) return;
 
                 targetPlayer.timerEnabled = true;
@@ -2911,10 +2910,9 @@ const createPlayerProxy = (player) => {
         const p1Proxy = createPlayerProxy(players[0]);
         const p2Proxy = createPlayerProxy(players[1]);
 
-        const displayApi = {
+const displayApi = {
             setInfoText: (player, text) => {
-                const targetPlayer = (player === p1Proxy || player === players[0]) ? players[0] :
-                                     (players[1] && (player === p2Proxy || player === players[1])) ? players[1] : null;
+                const targetPlayer = players.find(p => p === player || (player && p.id === player.id));
                 if (!targetPlayer) return;
                 
                 const infoDisplay = document.getElementById(`p${targetPlayer.id}-info-display`);
@@ -2933,8 +2931,7 @@ const createPlayerProxy = (player) => {
                 infoDisplay.style.width = `${HOLD_AREA_WIDTH - PADDING}px`;
             },
             showTimer: (player) => {
-                const targetPlayer = (player === p1Proxy || player === players[0]) ? players[0] :
-                                     (players[1] && (player === p2Proxy || player === players[1])) ? players[1] : null;
+                const targetPlayer = players.find(p => p === player || (player && p.id === player.id));
                 if (!targetPlayer) return;
 
                 targetPlayer.timerEnabled = true;
