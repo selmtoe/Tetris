@@ -2501,21 +2501,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (command === 'init') {
                     self.postMessage({ status: 'ready' });
                 } else if (command === 'think') {
-                    const data = JSON.parse(payload.gameState);
-                    const result = {
-                        piece: data.next[0],
-                        x: Math.floor(Math.random() * (10 - 4)),
-                        y: 18,
-                        rotation: Math.floor(Math.random() * 4)
-                    };
-                    
-                    setTimeout(() => {
-                        self.postMessage({
-                            status: 'result',
-                            playerId: payload.playerId,
-                            result: result
-                        });
-                    }, 100); 
                 }
             };
         `;
