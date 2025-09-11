@@ -293,25 +293,10 @@
         </div>
     </div>
 
-<div id="game-container" style="display: flex; justify-content: center; align-items: flex-start;">
-    <div id="p1-ui-container" style="display: flex; align-items: flex-start;">
-        <div class="side-panel" id="p1-left-panel" style="width: 160px; padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 15px;">
-            <div id="rule-description-display" style="display: none; color: var(--font-color); background: rgba(26, 26, 46, 0.9); padding: 15px; border-radius: 10px; border: 2px solid #4b4b7c; font-family: var(--font-ui); font-size: 14px; width: 100%; max-height: 300px; overflow-y: auto; box-sizing: border-box; word-wrap: break-word; backdrop-filter: blur(4px);"></div>
-            <div id="p1-info-display" style="display: none; color: var(--font-color); font-family: var(--font-display); text-align: center; font-size: 24px; pointer-events: none; width: 100%;"></div>
-            <div id="p1-timer-display" style="display: none; color: var(--font-color); font-family: var(--font-display); text-align: center; font-size: 18px; pointer-events: none; width: 100%; margin-top: auto;"></div>
-        </div>
-    </div>
-    
-    <canvas id="mainCanvas"></canvas>
-
-    <div id="p2-ui-container" style="display: none; align-items: flex-start;">
-        <div class="side-panel" id="p2-left-panel" style="width: 160px; padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 15px;">
-             <div id="p2-info-display" style="display: none; color: var(--font-color); font-family: var(--font-display); text-align: center; font-size: 24px; pointer-events: none; width: 100%;"></div>
-             <div id="p2-timer-display" style="display: none; color: var(--font-color); font-family: var(--font-display); text-align: center; font-size: 18px; pointer-events: none; width: 100%; margin-top: auto;"></div>
-        </div>
-    </div>
-    
-    <div id="scan-instructions" style="display: none; position: absolute;"></div>
+<div id="game-container">
+<div id="rule-description-display" style="display: none; position: absolute; z-index: 155; color: var(--font-color); background: rgba(26, 26, 46, 0.9); padding: 15px; border-radius: 10px; border: 2px solid #4b4b7c; font-family: var(--font-ui); font-size: 14px; max-width: 200px; max-height: 400px; overflow-y: auto; box-sizing: border-box; word-wrap: break-word; backdrop-filter: blur(4px);"></div>
+<canvas id="mainCanvas"></canvas>
+<div id="scan-instructions" style="display: none;"></div>
 
         <div id="scan-controls" style="display: none; margin-top: 15px; gap: 10px; justify-content:center;">
              <button id="scanConfirmBtn" class="button">次へ</button>
@@ -877,7 +862,7 @@ const TETROMINOS = {
 };
 const SRS_OFFSETS = { "JLSTZ": { "0_1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], "1_0": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], "1_2": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], "2_1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], "2_3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], "3_2": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], "3_0": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], "0_3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], }, "I": { "0_1": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], "1_0": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], "1_2": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], "2_1": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], "2_3": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], "3_2": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], "3_0": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], "0_3": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], } };
 
-let players = [], gameMode = '1P', gameState = 'EDITING', lastTime = 0, mainCanvas, ctx, startTime = 0;
+let players = [], gameMode = '1P', gameState = 'EDITING', lastTime = 0, mainCanvas, ctx;
 
 let keyBindings = {
     p1: {
@@ -2362,16 +2347,6 @@ function gameLoop(currentTime) {
     if (gameState === 'PLAYING') {
         players.forEach(p => p.update(dt || 0));
         players.forEach(p => p.draw());
-
-        players.forEach(p => {
-            if (p.timerEnabled) {
-                const timerDisplay = document.getElementById(`p${p.id}-timer-display`);
-                if (timerDisplay) {
-                    const elapsed = (performance.now() - startTime) / 1000;
-                    timerDisplay.innerText = elapsed.toFixed(2);
-                }
-            }
-        });
     } else if (gameState.startsWith('SCAN')) {
         drawScanner();
     }
@@ -2517,7 +2492,7 @@ document.addEventListener('DOMContentLoaded', () => {
 document.getElementById('startGameBtn').addEventListener('click', () => {
         let currentRunSettings = { ...gameSettings };
         let userFunctions = {};
-        startTime = performance.now();
+        let startTime = performance.now();
         
         if (editorData.rule.code) {
             try {
@@ -2562,10 +2537,16 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
         document.getElementById('scan-controls').style.display = 'none';
         document.getElementById('game-controls').style.display = 'flex';
         
-const ruleDescDisplay = document.getElementById('rule-description-display');
+        const ruleDescDisplay = document.getElementById('rule-description-display');
         if (editorData.rule.description) {
             ruleDescDisplay.innerText = editorData.rule.description;
             ruleDescDisplay.style.display = 'block';
+            const p1OffsetX = 0;
+            const leftPos = p1OffsetX + PADDING;
+            const topPos = 160; 
+            ruleDescDisplay.style.left = `${leftPos}px`;
+            ruleDescDisplay.style.top = `${topPos}px`;
+            ruleDescDisplay.style.maxWidth = `${HOLD_AREA_WIDTH - PADDING}px`;
         } else {
             ruleDescDisplay.style.display = 'none';
         }
@@ -2579,15 +2560,14 @@ const ruleDescDisplay = document.getElementById('rule-description-display');
         ctx.setTransform(1, 0, 0, 1, 0, 0);
 
         players = [];
-const createAndSetupPlayer = (id, offsetX, bindings, padIndex) => {
+        const createAndSetupPlayer = (id, offsetX, bindings, padIndex) => {
             const player = new Player(id, offsetX, bindings, padIndex);
             player.holdDisabled = autoStartParams.nh;
             player.ruleHooks = userFunctions;
-            player.timerEnabled = false;
             return player;
         };
 
-if (gameMode === '1P') {
+        if (gameMode === '1P') {
             mainCanvas.width = PLAYER_CANVAS_WIDTH * RESOLUTION_SCALE; 
             mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
             mainCanvas.style.width = PLAYER_CANVAS_WIDTH + 'px';
@@ -2607,10 +2587,9 @@ if (gameMode === '1P') {
             players.push(p1, p2);
         }
 
-const createPlayerProxy = (player) => {
+　　　　　const createPlayerProxy = (player) => {
             if (!player) return null;
             return {
-                id: player.id,
                 get stats() { return player.stats; },
                 board: {
                     hasBlock: (x, y) => {
@@ -2626,42 +2605,18 @@ const createPlayerProxy = (player) => {
             };
         };
 
-const p1Proxy = createPlayerProxy(players[0]);
+        const p1Proxy = createPlayerProxy(players[0]);
         const p2Proxy = createPlayerProxy(players[1]);
-
-const displayApi = {
-setInfoText: (player, text) => {
-                const targetPlayer = players.find(p => p === player || (player && p.id === player.id));
-                if (!targetPlayer) return;
-                
-                const infoDisplay = document.getElementById(`p${targetPlayer.id}-info-display`);
-                if (infoDisplay) {
-                    infoDisplay.innerText = text;
-                    infoDisplay.style.display = 'block';
-                }
-            },
-            showTimer: (player) => {
-                const targetPlayer = players.find(p => p === player || (player && p.id === player.id));
-                if (!targetPlayer) return;
-
-                targetPlayer.timerEnabled = true;
-                const timerDisplay = document.getElementById(`p${targetPlayer.id}-timer-display`);
-                if(timerDisplay) {
-                    timerDisplay.style.display = 'block';
-                }
-            },
-        };
 
         const gameApi = {
             win: (player) => { if (player instanceof Player) player.gameClear = true; },
             lose: (player) => { if (player instanceof Player) player.gameOver = true; },
             getTime: () => performance.now() - startTime,
-            display: displayApi,
             sendAttack: (player, lines) => {
-                const targetPlayer = (player === p1Proxy || player === players[0]) ? players[0] :
-                                     (players[1] && (player === p2Proxy || player === players[1])) ? players[1] : null;
-                if (targetPlayer && targetPlayer.opponent) {
-                    targetPlayer.opponent.addGarbage(lines);
+                const targetPlayer = (player === p1Proxy && players[0]) ? players[0] :
+                                     (player === p2Proxy && players[1]) ? players[1] : null;
+                if (targetPlayer) {
+                    targetPlayer.addGarbage(lines);
                 }
             },
             p1: p1Proxy,
@@ -2689,13 +2644,6 @@ document.getElementById('backToEditorBtn').addEventListener('click', () => {
         document.getElementById('game-controls').style.display = 'none';
         document.getElementById('editor-container').style.display = 'flex';
         document.getElementById('rule-description-display').style.display = 'none';
-
-        ['1', '2'].forEach(id => {
-            const infoDisplay = document.getElementById(`p${id}-info-display`);
-            const timerDisplay = document.getElementById(`p${id}-timer-display`);
-            if (infoDisplay) infoDisplay.style.display = 'none';
-            if (timerDisplay) timerDisplay.style.display = 'none';
-        });
         
         virtualController.hide();
         
@@ -2813,16 +2761,9 @@ document.getElementById('retryBtn').addEventListener('click', () => {
         
         loadGameSettings();
         
-        ['1', '2'].forEach(id => {
-            const infoDisplay = document.getElementById(`p${id}-info-display`);
-            const timerDisplay = document.getElementById(`p${id}-timer-display`);
-            if (infoDisplay) infoDisplay.style.display = 'none';
-            if (timerDisplay) timerDisplay.style.display = 'none';
-        });
-
         let currentRunSettings = { ...gameSettings };
         let userFunctions = {};
-        startTime = performance.now();
+        let startTime = performance.now();
         const wasHoldDisabled = players[0].holdDisabled;
 
         if (editorData.rule.code) {
@@ -2859,13 +2800,12 @@ document.getElementById('retryBtn').addEventListener('click', () => {
             }
         }
         
-Object.assign(gameSettings, currentRunSettings);
+        Object.assign(gameSettings, currentRunSettings);
 
         const createAndSetupPlayer = (id, offsetX, bindings, padIndex) => {
             const player = new Player(id, offsetX, bindings, padIndex);
             player.holdDisabled = wasHoldDisabled;
             player.ruleHooks = userFunctions;
-            player.timerEnabled = false;
             return player;
         };
 
@@ -2880,10 +2820,9 @@ Object.assign(gameSettings, currentRunSettings);
             players.push(p1, p2);
         }
 
-const createPlayerProxy = (player) => {
+        const createPlayerProxy = (player) => {
             if (!player) return null;
             return {
-                id: player.id,
                 get stats() { return player.stats; },
                 board: {
                     hasBlock: (x, y) => {
@@ -2902,39 +2841,15 @@ const createPlayerProxy = (player) => {
         const p1Proxy = createPlayerProxy(players[0]);
         const p2Proxy = createPlayerProxy(players[1]);
 
-const displayApi = {
-            setInfoText: (player, text) => {
-                const targetPlayer = players.find(p => p === player || (player && p.id === player.id));
-                if (!targetPlayer) return;
-                
-                const infoDisplay = document.getElementById(`p${targetPlayer.id}-info-display`);
-                if(infoDisplay){
-                    infoDisplay.innerText = text;
-                    infoDisplay.style.display = 'block';
-                }
-            },
-            showTimer: (player) => {
-                const targetPlayer = players.find(p => p === player || (player && p.id === player.id));
-                if (!targetPlayer) return;
-
-                targetPlayer.timerEnabled = true;
-                const timerDisplay = document.getElementById(`p${targetPlayer.id}-timer-display`);
-                if(timerDisplay){
-                    timerDisplay.style.display = 'block';
-                }
-            },
-        };
-
         const gameApi = {
             win: (player) => { if (player instanceof Player) player.gameClear = true; },
             lose: (player) => { if (player instanceof Player) player.gameOver = true; },
             getTime: () => performance.now() - startTime,
-            display: displayApi,
             sendAttack: (player, lines) => {
-                const targetPlayer = (player === p1Proxy || player === players[0]) ? players[0] :
-                                     (players[1] && (player === p2Proxy || player === players[1])) ? players[1] : null;
-                if (targetPlayer && targetPlayer.opponent) {
-                    targetPlayer.opponent.addGarbage(lines);
+                const targetPlayer = (player === p1Proxy && players[0]) ? players[0] :
+                                     (player === p2Proxy && players[1]) ? players[1] : null;
+                if (targetPlayer) {
+                    targetPlayer.addGarbage(lines);
                 }
             },
             p1: p1Proxy,
