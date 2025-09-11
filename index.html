@@ -217,7 +217,7 @@
 <div class="main-container">
     <div id="editor-container">
         <div class="edit-section top-controls">
-<div class="mode-selection">
+            <div class="mode-selection">
                 <h2>MODE</h2>
                 <div class="button active" id="mode-1p">1P</div>
                 <div class="button" id="mode-2p">2P</div>
@@ -301,25 +301,6 @@
         <div id="scan-controls" style="display: none; margin-top: 15px; gap: 10px; justify-content:center;">
              <button id="scanConfirmBtn" class="button">次へ</button>
              <button id="scanCancelBtn" class="button">キャンセル</button>
-        </div>
-        <div id="ai-debug-container" style="display: none; position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); z-index: 160; background: rgba(26, 26, 46, 0.95); border: 2px solid var(--primary-color); border-radius: 10px; padding: 15px; width: 90%; max-width: 800px; backdrop-filter: blur(4px);">
-            <h2 style="margin-top:0; margin-bottom: 10px; text-align: center;">AI DEBUG</h2>
-            <div style="display: flex; gap: 20px; text-align: left;">
-                <div style="flex: 1;">
-                    <h3 style="margin: 0 0 5px 0; font-family: var(--font-display);">Sent to Worker:</h3>
-                    <pre id="ai-debug-sent" style="background: #000; padding: 10px; border-radius: 5px; height: 150px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; font-family: monospace;"></pre>
-                </div>
-                <div style="flex: 1;">
-                    <h3 style="margin: 0 0 5px 0; font-family: var(--font-display);">Manual AI Control:</h3>
-                    <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; font-family: var(--font-ui);">
-                        <span>Piece:</span><input type="text" id="ai-debug-piece" placeholder="T, L, etc." style="background-color: var(--primary-color); color: var(--font-color); border: 1px solid var(--border-color); padding: 5px; border-radius: 4px;">
-                        <span>X:</span><input type="number" id="ai-debug-x" placeholder="0-9" style="background-color: var(--primary-color); color: var(--font-color); border: 1px solid var(--border-color); padding: 5px; border-radius: 4px;">
-                        <span>Y:</span><input type="number" id="ai-debug-y" placeholder="0-39" style="background-color: var(--primary-color); color: var(--font-color); border: 1px solid var(--border-color); padding: 5px; border-radius: 4px;">
-                        <span>Rotation:</span><input type="number" id="ai-debug-rotation" placeholder="0-3" style="background-color: var(--primary-color); color: var(--font-color); border: 1px solid var(--border-color); padding: 5px; border-radius: 4px;">
-                    </div>
-                    <button id="ai-debug-send-move" class="button" style="margin-top: 10px; width: 100%;">Send Move</button>
-                </div>
-            </div>
         </div>
     </div>
 </div>
@@ -882,26 +863,6 @@ const TETROMINOS = {
 const SRS_OFFSETS = { "JLSTZ": { "0_1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], "1_0": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], "1_2": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], "2_1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], "2_3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], "3_2": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], "3_0": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], "0_3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], }, "I": { "0_1": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], "1_0": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], "1_2": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], "2_1": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], "2_3": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], "3_2": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], "3_0": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], "0_3": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], } };
 
 let players = [], gameMode = '1P', gameState = 'EDITING', lastTime = 0, mainCanvas, ctx;
-let aiWorker = null;
-let isAIMode = false;
-
-const aiWorkerCode = `
-    self.onmessage = function(e) {
-        const data = e.data;
-        console.log('Worker received:', data);
-
-        const move = {
-            piece: data.currentPiece,
-            x: 4,
-            y: 19,
-            rotation: 0
-        };
-
-        setTimeout(() => {
-            self.postMessage(move);
-        }, data.thinkTime || 100);
-    };
-`;
 
 let keyBindings = {
     p1: {
@@ -961,8 +922,6 @@ function* createMinoGenerator(customQueue) {
 class Player {
     constructor(id, offsetX, keyBindings, padIndex) {
         this.id = id; this.offsetX = offsetX; this.keyBindings = keyBindings; this.padIndex = padIndex;
-        this.isAIControlled = false;
-        this.isWaitingForAIMove = false;
         this.keys = {};
         const pData = editorData[`p${id}`];
         this.initialHold = pData.hold;
@@ -1001,7 +960,7 @@ reset() {
         this.spawnNewPiece();
     }
     
-spawnNewPiece() {
+    spawnNewPiece() {
         this.player.pieceType = this.nextQueue.shift();
         this.nextQueue.push(this.minoGenerator.next().value);
         
@@ -1019,73 +978,9 @@ spawnNewPiece() {
                  this.gameOver = true;
             }
         }
-
-        if (this.isAIControlled && !this.gameOver) {
-            this.requestAIMove();
-        }
-    }
-
-    requestAIMove() {
-        if (!aiWorker || this.gameOver) return;
-
-        this.isWaitingForAIMove = true;
-
-        const boardString = this.board.map(row => 
-            row.map(cell => cell === null ? '_' : cell).join('')
-        ).join('');
-        
-        const gameStateForAI = {
-            thinkTime: 100,
-            board: boardString,
-            currentPiece: this.player.pieceType,
-            nextQueue: [...this.nextQueue],
-            holdPiece: this.holdPiece || '',
-            canHold: this.canHold,
-            b2b: this.isB2B,
-            ren: this.ren,
-        };
-
-        document.getElementById('ai-debug-sent').textContent = JSON.stringify(gameStateForAI, null, 2);
-
-        aiWorker.postMessage(gameStateForAI);
-    }
-
-    executeAIMove(move) {
-        if (!this.isAIControlled || !this.isWaitingForAIMove) return;
-        this.isWaitingForAIMove = false;
-
-        if (this.player.pieceType !== move.piece) {
-            if (this.canHold) {
-                this.hold();
-            } else {
-                console.error("AI wants to hold but cannot. Locking piece as is.");
-                this.lockPiece();
-                return;
-            }
-        }
-        
-        if (this.player.pieceType === move.piece) {
-            this.player.rotation = move.rotation;
-            this.player.x = move.x;
-            this.player.y = move.y;
-            
-            const shape = this.getShape(this.player.pieceType, this.player.rotation);
-            if (this.checkCollision(this.player.x, this.player.y, shape)) {
-                 console.error("AI returned an invalid move. Locking piece at spawn.");
-                 this.player.x = Math.floor(BOARD_WIDTH / 2) - 1;
-                 this.player.y = 19;
-                 this.hardDrop();
-            } else {
-                 this.lockPiece();
-            }
-        } else {
-            console.error(`AI-Player piece mismatch after hold. Locking as is.`);
-            this.lockPiece();
-        }
     }
 
     isActionPressed(action) {
-        if (this.isAIControlled) return false;
         const binding = this.keyBindings[action];
         if (binding?.type === 'key' && this.keys[binding.value]) return true;
         
@@ -1106,8 +1001,8 @@ spawnNewPiece() {
         return false;
     }
 
-handlePress(action) {
-        if (this.gameOver || this.isClearingLine || this.isAIControlled) return;
+    handlePress(action) {
+        if (this.gameOver || this.isClearingLine) return;
         switch (action) {
             case 'rotateCCW': this.rotate(-1); break;
             case 'rotateCW':  this.rotate(1); break;
@@ -1117,7 +1012,7 @@ handlePress(action) {
     }
 
 update(dt) {
-        if (this.gameOver || this.gameClear || this.isWaitingForAIMove) return;
+        if (this.gameOver || this.gameClear) return;
 
         if (this.ruleHooks.onUpdate && typeof this.ruleHooks.onUpdate === 'function') {
             try {
@@ -2557,32 +2452,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 
-const aiModeLabel = document.getElementById('ai-mode-label');
-    const aiModeCheckbox = document.getElementById('ai-mode-checkbox');
-
     document.getElementById('mode-1p').addEventListener('click', () => { 
         gameMode = '1P'; 
-        isAIMode = false;
-        aiModeCheckbox.checked = false;
-        aiModeLabel.style.display = 'none';
         document.getElementById('mode-1p').classList.add('active'); 
         document.getElementById('mode-2p').classList.remove('active'); 
         document.getElementById('p2-editor-col').style.display = 'none'; 
-        document.getElementById('p2-key-config-btn').disabled = false;
         setTimeout(updateScale, 0);
     });
-document.getElementById('mode-2p').addEventListener('click', () => { 
+    document.getElementById('mode-2p').addEventListener('click', () => { 
         gameMode = '2P'; 
-        aiModeLabel.style.display = 'flex';
         document.getElementById('mode-2p').classList.add('active'); 
         document.getElementById('mode-1p').classList.remove('active'); 
         document.getElementById('p2-editor-col').style.display = 'flex';
         setTimeout(updateScale, 0);
-    });
-
-    aiModeCheckbox.addEventListener('change', () => {
-        isAIMode = aiModeCheckbox.checked;
-        document.getElementById('p2-key-config-btn').disabled = isAIMode;
     });
     document.getElementById('advanced-link-btn').addEventListener('click', () => {
         document.getElementById('advanced-link-options').style.display = 'block';
@@ -2608,23 +2490,6 @@ document.getElementById('mode-2p').addEventListener('click', () => {
     });
 
 document.getElementById('startGameBtn').addEventListener('click', () => {
-        if (aiWorker) {
-            aiWorker.terminate();
-            aiWorker = null;
-        }
-
-        if (isAIMode) {
-             const workerBlob = new Blob([aiWorkerCode], { type: 'application/javascript' });
-             aiWorker = new Worker(URL.createObjectURL(workerBlob));
-             aiWorker.onmessage = (e) => {
-                const move = e.data;
-                const aiPlayer = players.find(p => p.isAIControlled);
-                if (aiPlayer) {
-                    aiPlayer.executeAIMove(move);
-                }
-             };
-        }
-
         let currentRunSettings = { ...gameSettings };
         let userFunctions = {};
         let startTime = performance.now();
@@ -2671,9 +2536,6 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
         document.getElementById('game-container').style.display = 'block';
         document.getElementById('scan-controls').style.display = 'none';
         document.getElementById('game-controls').style.display = 'flex';
-        if (isAIMode) {
-            document.getElementById('ai-debug-container').style.display = 'block';
-        }
         
         const ruleDescDisplay = document.getElementById('rule-description-display');
         if (editorData.rule.description) {
@@ -2705,14 +2567,14 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
             return player;
         };
 
-if (gameMode === '1P') {
+        if (gameMode === '1P') {
             mainCanvas.width = PLAYER_CANVAS_WIDTH * RESOLUTION_SCALE; 
             mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
             mainCanvas.style.width = PLAYER_CANVAS_WIDTH + 'px';
             mainCanvas.style.height = CANVAS_HEIGHT + 'px';
             players.push(createAndSetupPlayer('1', 0, keyBindings.p1, 0));
         }
-        else { 
+        else {
             const totalWidth = PLAYER_CANVAS_WIDTH * 2;
             mainCanvas.width = totalWidth * RESOLUTION_SCALE; 
             mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
@@ -2720,17 +2582,12 @@ if (gameMode === '1P') {
             mainCanvas.style.height = CANVAS_HEIGHT + 'px';
             const p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0);
             const p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1);
-            
-            if (isAIMode) {
-                p2.isAIControlled = true;
-            }
-
             p1.opponent = p2; 
             p2.opponent = p1;
             players.push(p1, p2);
         }
 
-        const createPlayerProxy = (player) => {
+　　　　　const createPlayerProxy = (player) => {
             if (!player) return null;
             return {
                 get stats() { return player.stats; },
@@ -2782,14 +2639,9 @@ if (gameMode === '1P') {
 document.getElementById('backToEditorBtn').addEventListener('click', () => {
         gameState = 'EDITING';
         players = [];
-        if (aiWorker) {
-            aiWorker.terminate();
-            aiWorker = null;
-        }
         loadGameSettings();
         document.getElementById('game-container').style.display = 'none';
         document.getElementById('game-controls').style.display = 'none';
-        document.getElementById('ai-debug-container').style.display = 'none';
         document.getElementById('editor-container').style.display = 'flex';
         document.getElementById('rule-description-display').style.display = 'none';
         
@@ -3013,34 +2865,9 @@ document.getElementById('retryBtn').addEventListener('click', () => {
 
     lastTime = performance.now(); 
     requestAnimationFrame(gameLoop);
+    
     window.addEventListener('resize', updateScale);
     setTimeout(updateScale, 100);
-
-    document.getElementById('ai-debug-send-move').addEventListener('click', () => {
-        if (gameState !== 'PLAYING' || !isAIMode) {
-            alert('AI対戦モードのプレイ中にのみ使用できます。');
-            return;
-        }
-        const aiPlayer = players.find(p => p.isAIControlled);
-        if (!aiPlayer || !aiPlayer.isWaitingForAIMove) {
-            alert('AIが思考中の時にのみ使用できます。');
-            return;
-        }
-
-        const move = {
-            piece: document.getElementById('ai-debug-piece').value.toUpperCase(),
-            x: parseInt(document.getElementById('ai-debug-x').value),
-            y: parseInt(document.getElementById('ai-debug-y').value),
-            rotation: parseInt(document.getElementById('ai-debug-rotation').value)
-        };
-
-        if (!move.piece || isNaN(move.x) || isNaN(move.y) || isNaN(move.rotation)) {
-            alert('全ての値を正しく入力してください。');
-            return;
-        }
-
-        aiPlayer.executeAIMove(move);
-    });
 });
 </script>
 </body>
