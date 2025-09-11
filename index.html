@@ -221,34 +221,12 @@
                 <h2>MODE</h2>
                 <div class="button active" id="mode-1p">1P</div>
                 <div class="button" id="mode-2p">2P</div>
-                <label id="ai-mode-label" style="display: none; align-items: center; gap: 5px; background-color: var(--primary-color); padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 14px; font-family: var(--font-display); transition: background-color 0.2s;">
-                    <input type="checkbox" id="ai-mode-checkbox" style="width: 16px; height: 16px;"> AI
-                </label>
+                <div class="button" id="mode-ai" style="opacity: 0.5; cursor: not-allowed;" title="実装予定">AI</div>
                 <button id="settingsBtn" class="button" style="margin-left: 15px;">設定</button>
                  <button id="shareBtn" class="button" style="margin-left: 5px;">共有</button>
                  <button id="ruleBtn" class="button" style="margin-left: 5px;">ルール</button>
             </div>
             <button id="startGameBtn" class="button">START GAME</button>
-        </div>
-
-        <div id="ai-debug-container" class="edit-section" style="display: block;">
-            <h2>AI DEBUG</h2>
-            <div style="display: flex; gap: 20px; text-align: left;">
-                <div style="flex: 1;">
-                    <h3>Sent to Worker:</h3>
-                    <pre id="ai-debug-sent" style="background: #000; padding: 10px; border-radius: 5px; height: 150px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;"></pre>
-                </div>
-                <div style="flex: 1;">
-                    <h3>Manual AI Control:</h3>
-                    <div style="display: grid; grid-template-columns: auto 1fr; gap: 5px; align-items: center;">
-                        <span>Piece:</span><input type="text" id="ai-debug-piece" placeholder="T, L, etc." style="width: 100%;">
-                        <span>X:</span><input type="number" id="ai-debug-x" placeholder="0-9" style="width: 100%;">
-                        <span>Y:</span><input type="number" id="ai-debug-y" placeholder="0-39" style="width: 100%;">
-                        <span>Rotation:</span><input type="number" id="ai-debug-rotation" placeholder="0-3" style="width: 100%;">
-                    </div>
-                    <button id="ai-debug-send-move" class="button" style="margin-top: 10px;">Send Move</button>
-                </div>
-            </div>
         </div>
 
 <div class="player-editors">
@@ -323,6 +301,25 @@
         <div id="scan-controls" style="display: none; margin-top: 15px; gap: 10px; justify-content:center;">
              <button id="scanConfirmBtn" class="button">次へ</button>
              <button id="scanCancelBtn" class="button">キャンセル</button>
+        </div>
+        <div id="ai-debug-container" style="display: none; position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); z-index: 160; background: rgba(26, 26, 46, 0.95); border: 2px solid var(--primary-color); border-radius: 10px; padding: 15px; width: 90%; max-width: 800px; backdrop-filter: blur(4px);">
+            <h2 style="margin-top:0; margin-bottom: 10px; text-align: center;">AI DEBUG</h2>
+            <div style="display: flex; gap: 20px; text-align: left;">
+                <div style="flex: 1;">
+                    <h3 style="margin: 0 0 5px 0; font-family: var(--font-display);">Sent to Worker:</h3>
+                    <pre id="ai-debug-sent" style="background: #000; padding: 10px; border-radius: 5px; height: 150px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; font-family: monospace;"></pre>
+                </div>
+                <div style="flex: 1;">
+                    <h3 style="margin: 0 0 5px 0; font-family: var(--font-display);">Manual AI Control:</h3>
+                    <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; font-family: var(--font-ui);">
+                        <span>Piece:</span><input type="text" id="ai-debug-piece" placeholder="T, L, etc." style="background-color: var(--primary-color); color: var(--font-color); border: 1px solid var(--border-color); padding: 5px; border-radius: 4px;">
+                        <span>X:</span><input type="number" id="ai-debug-x" placeholder="0-9" style="background-color: var(--primary-color); color: var(--font-color); border: 1px solid var(--border-color); padding: 5px; border-radius: 4px;">
+                        <span>Y:</span><input type="number" id="ai-debug-y" placeholder="0-39" style="background-color: var(--primary-color); color: var(--font-color); border: 1px solid var(--border-color); padding: 5px; border-radius: 4px;">
+                        <span>Rotation:</span><input type="number" id="ai-debug-rotation" placeholder="0-3" style="background-color: var(--primary-color); color: var(--font-color); border: 1px solid var(--border-color); padding: 5px; border-radius: 4px;">
+                    </div>
+                    <button id="ai-debug-send-move" class="button" style="margin-top: 10px; width: 100%;">Send Move</button>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -2574,20 +2571,18 @@ const aiModeLabel = document.getElementById('ai-mode-label');
         document.getElementById('p2-key-config-btn').disabled = false;
         setTimeout(updateScale, 0);
     });
-    document.getElementById('mode-2p').addEventListener('click', () => { 
+document.getElementById('mode-2p').addEventListener('click', () => { 
         gameMode = '2P'; 
         aiModeLabel.style.display = 'flex';
         document.getElementById('mode-2p').classList.add('active'); 
         document.getElementById('mode-1p').classList.remove('active'); 
-        document.getElementById('p2-editor-col').style.display = aiModeCheckbox.checked ? 'none' : 'flex';
+        document.getElementById('p2-editor-col').style.display = 'flex';
         setTimeout(updateScale, 0);
     });
 
     aiModeCheckbox.addEventListener('change', () => {
         isAIMode = aiModeCheckbox.checked;
-        document.getElementById('p2-editor-col').style.display = isAIMode ? 'none' : 'flex';
         document.getElementById('p2-key-config-btn').disabled = isAIMode;
-        setTimeout(updateScale, 0);
     });
     document.getElementById('advanced-link-btn').addEventListener('click', () => {
         document.getElementById('advanced-link-options').style.display = 'block';
@@ -2676,6 +2671,9 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
         document.getElementById('game-container').style.display = 'block';
         document.getElementById('scan-controls').style.display = 'none';
         document.getElementById('game-controls').style.display = 'flex';
+        if (isAIMode) {
+            document.getElementById('ai-debug-container').style.display = 'block';
+        }
         
         const ruleDescDisplay = document.getElementById('rule-description-display');
         if (editorData.rule.description) {
@@ -2791,6 +2789,7 @@ document.getElementById('backToEditorBtn').addEventListener('click', () => {
         loadGameSettings();
         document.getElementById('game-container').style.display = 'none';
         document.getElementById('game-controls').style.display = 'none';
+        document.getElementById('ai-debug-container').style.display = 'none';
         document.getElementById('editor-container').style.display = 'flex';
         document.getElementById('rule-description-display').style.display = 'none';
         
