@@ -2508,7 +2508,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let think_ai = null;
 try {
     // GitHub上のrawファイルのURLを直接指定します
-    importScripts('https://raw.githubusercontent.com/selmtoe/Tetris/main/think.js');
+    importScripts('https://cdn.jsdelivr.net/gh/selmtoe/Tetris@main/think.js');
 } catch (e) {
                 console.error("AIスクリプトthink.js)の読み込みに失敗しました。", e);
                 self.postMessage({ status: 'error', message: 'AIスクリプト(think.js)が見つかりません。HTMLファイルと同じ階層に配置してください。' });
