@@ -2506,12 +2506,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // AIのロジックを実行するウェブワーカーのコード
         const workerCode = `
             let think_ai = null;
-
-            // Emscriptenが生成したJSファイルをインポートします。
-            
-            try {
-                importScripts('think.js');
-            } catch (e) {
+try {
+    // GitHub上のrawファイルのURLを直接指定します
+    importScripts('https://raw.githubusercontent.com/selmtoe/Tetris/main/think.js');
+} catch (e) {
                 console.error("AIスクリプトthink.js)の読み込みに失敗しました。", e);
                 self.postMessage({ status: 'error', message: 'AIスクリプト(think.js)が見つかりません。HTMLファイルと同じ階層に配置してください。' });
                 throw e;
