@@ -254,9 +254,15 @@
                         <label for="pptLoader-p1" class="button">Load PPT</label>
                         <input type="file" id="pptLoader-p1" data-player="p1" accept="image/*">
                     </div>
-                    <div class="key-config-controls" style="margin-top: 15px; text-align: center;">
+<div class="key-config-controls" style="margin-top: 15px; text-align: center;">
 
                         <button class="button" id="p1-key-config-btn">操作設定</button>
+                    </div>
+                    <div class="ai-controls" style="margin-top: 10px; text-align: center; background-color: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
+                        <label style="display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="p1-ai-enabled" style="width: 18px; height: 18px;">
+                            <span style="font-family: var(--font-display);">AIを使用する</span>
+                        </label>
                     </div>
                 </div>
             </div>
@@ -284,9 +290,15 @@
                         <label for="pptLoader-p2" class="button">Load PPT</label>
                         <input type="file" id="pptLoader-p2" data-player="p2" accept="image/*">
                     </div>
-                    <div class="key-config-controls" style="margin-top: 15px; text-align: center;">
+<div class="key-config-controls" style="margin-top: 15px; text-align: center;">
 
                         <button class="button" id="p2-key-config-btn">操作設定</button>
+                    </div>
+                    <div class="ai-controls" style="margin-top: 10px; text-align: center; background-color: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
+                        <label style="display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="p2-ai-enabled" style="width: 18px; height: 18px;">
+                            <span style="font-family: var(--font-display);">AIを使用する</span>
+                        </label>
                     </div>
                 </div>
             </div>
@@ -301,6 +313,31 @@
         <div id="scan-controls" style="display: none; margin-top: 15px; gap: 10px; justify-content:center;">
              <button id="scanConfirmBtn" class="button">次へ</button>
              <button id="scanCancelBtn" class="button">キャンセル</button>
+        </div>
+<div id="ai-debug-container" style="position: fixed; bottom: 10px; left: 10px; z-index: 200; display: none; gap: 10px; flex-direction: column; font-family: var(--font-ui);">
+        <div id="p1-debug-panel" style="display: none; background: rgba(26, 26, 46, 0.85); padding: 10px; border-radius: 5px; color: white; border: 1px solid var(--primary-color);">
+            <h4 style="margin: 0 0 5px 0; font-family: var(--font-display); color: var(--primary-hover-color);">P1 AI Debug</h4>
+            <div style="font-size: 12px;"><strong>Sent Data:</strong> <textarea id="p1-ai-sent-data" readonly rows="3" style="width: 350px; background-color: #0f0f18; color: white; border: 1px solid var(--primary-color); font-size: 10px;"></textarea></div>
+            <div style="margin-top: 5px; font-size: 12px;">
+                <strong>Manual Control:</strong>
+                <input type="text" id="p1-manual-mino" placeholder="Mino" size="4" style="width: 40px;">
+                <input type="number" id="p1-manual-x" placeholder="X" style="width: 40px;">
+                <input type="number" id="p1-manual-y" placeholder="Y" style="width: 40px;">
+                <input type="number" id="p1-manual-r" placeholder="R" style="width: 40px;">
+                <button id="p1-manual-submit" class="button" style="padding: 2px 6px; font-size: 12px;">Execute</button>
+            </div>
+        </div>
+        <div id="p2-debug-panel" style="display: none; background: rgba(26, 26, 46, 0.85); padding: 10px; border-radius: 5px; color: white; border: 1px solid var(--primary-color);">
+             <h4 style="margin: 0 0 5px 0; font-family: var(--font-display); color: var(--primary-hover-color);">P2 AI Debug</h4>
+            <div style="font-size: 12px;"><strong>Sent Data:</strong> <textarea id="p2-ai-sent-data" readonly rows="3" style="width: 350px; background-color: #0f0f18; color: white; border: 1px solid var(--primary-color); font-size: 10px;"></textarea></div>
+            <div style="margin-top: 5px; font-size: 12px;">
+                <strong>Manual Control:</strong>
+                <input type="text" id="p2-manual-mino" placeholder="Mino" size="4" style="width: 40px;">
+                <input type="number" id="p2-manual-x" placeholder="X" style="width: 40px;">
+                <input type="number" id="p2-manual-y" placeholder="Y" style="width: 40px;">
+                <input type="number" id="p2-manual-r" placeholder="R" style="width: 40px;">
+                <button id="p2-manual-submit" class="button" style="padding: 2px 6px; font-size: 12px;">Execute</button>
+            </div>
         </div>
     </div>
 </div>
@@ -862,8 +899,8 @@ const TETROMINOS = {
 };
 const SRS_OFFSETS = { "JLSTZ": { "0_1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], "1_0": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], "1_2": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], "2_1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], "2_3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], "3_2": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], "3_0": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], "0_3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], }, "I": { "0_1": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], "1_0": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], "1_2": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], "2_1": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], "2_3": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], "3_2": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], "3_0": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], "0_3": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], } };
 
-let players = [], gameMode = '1P', gameState = 'EDITING', lastTime = 0, mainCanvas, ctx;
-
+let players = [], gameMode = '1P', gameState = 'EDITING', lastTime = 0, mainCanvas, ctx, aiWorker;
+    
 let keyBindings = {
     p1: {
         left:      { type: 'key', value: 'a',           label: 'a' },
@@ -919,9 +956,11 @@ function* createMinoGenerator(customQueue) {
     }
 }
 
+// 変更後
 class Player {
-    constructor(id, offsetX, keyBindings, padIndex) {
+    constructor(id, offsetX, keyBindings, padIndex, isAI = false) {
         this.id = id; this.offsetX = offsetX; this.keyBindings = keyBindings; this.padIndex = padIndex;
+        this.isAI = isAI;
         this.keys = {};
         const pData = editorData[`p${id}`];
         this.initialHold = pData.hold;
@@ -934,8 +973,10 @@ class Player {
         this.reset();
     }
 
+// 変更後
 reset() {
         this.player = { x: 0, y: 0, pieceType: null, rotation: 0 };
+        this.isWaitingForAI = false;
         this.nextQueue = [];
         for (let i = 0; i < gameSettings.maxNext; i++) {
             this.nextQueue.push(this.minoGenerator.next().value);
@@ -960,6 +1001,7 @@ reset() {
         this.spawnNewPiece();
     }
     
+// 変更後
     spawnNewPiece() {
         this.player.pieceType = this.nextQueue.shift();
         this.nextQueue.push(this.minoGenerator.next().value);
@@ -978,8 +1020,8 @@ reset() {
                  this.gameOver = true;
             }
         }
+        this.requestAIThink();
     }
-
     isActionPressed(action) {
         const binding = this.keyBindings[action];
         if (binding?.type === 'key' && this.keys[binding.value]) return true;
@@ -1010,9 +1052,9 @@ reset() {
             case 'hold':      this.hold(); break;
         }
     }
-
+// 変更後
 update(dt) {
-        if (this.gameOver || this.gameClear) return;
+        if (this.gameOver || this.gameClear || (this.isAI && this.isWaitingForAI)) return;
 
         if (this.ruleHooks.onUpdate && typeof this.ruleHooks.onUpdate === 'function') {
             try {
@@ -1031,41 +1073,43 @@ update(dt) {
 
         this.processGarbageQueue();
 
-        const left = this.isActionPressed('left');
-        const right = this.isActionPressed('right');
-        const horizDir = left ? -1 : (right ? 1 : 0);
+        if (!this.isAI) {
+            const left = this.isActionPressed('left');
+            const right = this.isActionPressed('right');
+            const horizDir = left ? -1 : (right ? 1 : 0);
 
-        if (horizDir !== 0) {
-            if (this.dasDirection !== horizDir) { 
-                this.dasTimer = 0;
-                this.arrTimer = 0;
-                if (!this.isClearingLine) this.move(horizDir, 0);
-            } else { 
-                this.dasTimer += dt;
-                if (this.dasTimer >= gameSettings.das) {
-                    if (gameSettings.arr === 0) {
-                        if (!this.isClearingLine) {
-                            let successfulMoves = 0;
-                            while (!this.checkCollision(this.player.x + horizDir, this.player.y, this.getShape(this.player.pieceType, this.player.rotation))) {
-                                this.player.x += horizDir;
-                                successfulMoves++;
+            if (horizDir !== 0) {
+                if (this.dasDirection !== horizDir) { 
+                    this.dasTimer = 0;
+                    this.arrTimer = 0;
+                    if (!this.isClearingLine) this.move(horizDir, 0);
+                } else { 
+                    this.dasTimer += dt;
+                    if (this.dasTimer >= gameSettings.das) {
+                        if (gameSettings.arr === 0) {
+                            if (!this.isClearingLine) {
+                                let successfulMoves = 0;
+                                while (!this.checkCollision(this.player.x + horizDir, this.player.y, this.getShape(this.player.pieceType, this.player.rotation))) {
+                                    this.player.x += horizDir;
+                                    successfulMoves++;
+                                }
+                                if (successfulMoves > 0) {
+                                   this.lockTimer = 0;
+                                   this.lastMoveWasRotation = false;
+                                }
                             }
-                            if (successfulMoves > 0) {
-                               this.lockTimer = 0;
-                               this.lastMoveWasRotation = false;
+                        } else {
+                            this.arrTimer += dt;
+                            if (this.arrTimer >= gameSettings.arr) {
+                                if (!this.isClearingLine) this.move(horizDir, 0);
+                                this.arrTimer -= gameSettings.arr;
                             }
-                        }
-                    } else {
-                        this.arrTimer += dt;
-                        if (this.arrTimer >= gameSettings.arr) {
-                            if (!this.isClearingLine) this.move(horizDir, 0);
-                            this.arrTimer -= gameSettings.arr;
                         }
                     }
                 }
             }
+            this.dasDirection = horizDir;
         }
-        this.dasDirection = horizDir;
 
 if (this.isClearingLine) {
             this.lineClearDelayTimer -= dt;
@@ -1101,45 +1145,47 @@ if (this.isClearingLine) {
             return;
         }
 
-        if (this.isActionPressed('softDrop')) {
-             if (gameSettings.sdf > 0) {
-                this.sdfTimer += dt;
-                if (this.sdfTimer >= gameSettings.sdf) {
-                    this.move(0, 1);
-                    this.sdfTimer -= gameSettings.sdf;
-                }
-             } else { 
-                const ghostY = this.getGhostY();
-                if (this.player.y < ghostY) {
-                    this.player.y = ghostY;
-                    this.lockTimer = 0;
-                }
-             }
-        } else {
-            this.sdfTimer = 0;
-        }
-        
-        this.isGrounded = this.checkCollision(this.player.x, this.player.y + 1, this.getShape(this.player.pieceType, this.player.rotation));
-        if (this.isGrounded) {
-            this.lockTimer += dt;
-            if (this.lockTimer >= gameSettings.lockDelay) {
-                this.lockPiece();
-            }
-        } else {
-            this.lockTimer = 0;
-            if (!this.isActionPressed('softDrop')) {
-                 if (gameSettings.gravity > 0) {
-                    this.gravityTimer -= dt;
-                    if (this.gravityTimer <= 0) {
-                        this.move(0, 1, false);
-                        this.gravityTimer += gameSettings.gravity;
+        if (!this.isAI) {
+            if (this.isActionPressed('softDrop')) {
+                 if (gameSettings.sdf > 0) {
+                    this.sdfTimer += dt;
+                    if (this.sdfTimer >= gameSettings.sdf) {
+                        this.move(0, 1);
+                        this.sdfTimer -= gameSettings.sdf;
                     }
                  } else { 
-                    this.player.y = this.getGhostY();
+                    const ghostY = this.getGhostY();
+                    if (this.player.y < ghostY) {
+                        this.player.y = ghostY;
+                        this.lockTimer = 0;
+                    }
                  }
+            } else {
+                this.sdfTimer = 0;
+            }
+            
+            this.isGrounded = this.checkCollision(this.player.x, this.player.y + 1, this.getShape(this.player.pieceType, this.player.rotation));
+            if (this.isGrounded) {
+                this.lockTimer += dt;
+                if (this.lockTimer >= gameSettings.lockDelay) {
+                    this.lockPiece();
+                }
+            } else {
+                this.lockTimer = 0;
+                if (!this.isActionPressed('softDrop')) {
+                     if (gameSettings.gravity > 0) {
+                        this.gravityTimer -= dt;
+                        if (this.gravityTimer <= 0) {
+                            this.move(0, 1, false);
+                            this.gravityTimer += gameSettings.gravity;
+                        }
+                     } else { 
+                        this.player.y = this.getGhostY();
+                     }
+                }
             }
         }
-    }
+    }    
 
 draw() {
         ctx.save(); ctx.translate(this.offsetX, 0);
@@ -1462,7 +1508,68 @@ drawPiece(s,x,y,p,g) {s.forEach(b=>{const px=Math.floor(x+b[0])*BLOCK_SIZE, py=(
         ctx.textBaseline = 'alphabetic';
     }
 
+    // 変更後
     drawMessage(t) { const cX = PLAYFIELD_WIDTH / 2; const cY = CANVAS_HEIGHT / 2; ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(0, -0.5*BLOCK_SIZE, PLAYFIELD_WIDTH, CANVAS_HEIGHT); ctx.fillStyle = '#FFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `bold ${BLOCK_SIZE * 1.5}px "Orbitron"`; ctx.fillText(t, cX, cY); ctx.textBaseline = 'alphabetic'; }
+
+    requestAIThink() {
+        if (!this.isAI || this.gameOver || !this.player.pieceType) return;
+        this.isWaitingForAI = true;
+
+        const boardString = this.board.map(row => 
+            row.map(cell => (cell === null ? '_' : cell)).join('')
+        ).join('');
+        
+        const fullNextQueue = [this.player.pieceType, ...this.nextQueue];
+
+        const gameState = {
+            thinkTime: 500,
+            board: boardString,
+            next: fullNextQueue.join(''),
+            hold: this.holdPiece || '',
+            b2b: this.isB2B,
+            ren: this.ren
+        };
+
+        const gameStateJson = JSON.stringify(gameState);
+        document.getElementById(`p${this.id}-ai-sent-data`).value = gameStateJson;
+
+        aiWorker.postMessage({
+            command: 'think',
+            payload: { playerId: `p${this.id}`, gameState: gameStateJson }
+        });
+    }
+
+    handleAIResult(result) {
+        if (!this.isAI || this.gameOver) return;
+        const { piece, x, y, rotation } = result;
+
+        if (this.player.pieceType !== piece) {
+            if (this.canHold && (this.holdPiece === piece || !this.holdPiece)) {
+                this.hold();
+                if (this.player.pieceType !== piece) {
+                    console.error("AI wanted to use a piece not available after hold:", piece);
+                    this.isWaitingForAI = false;
+                    return;
+                }
+            } else {
+                console.error("AI wanted to use a piece that is not current or holdable:", piece);
+                this.isWaitingForAI = false;
+                return;
+            }
+        }
+        
+        this.player.rotation = rotation;
+        this.player.x = x;
+        this.player.y = y;
+
+        const shape = this.getShape(this.player.pieceType, this.player.rotation);
+        if (this.checkCollision(this.player.x, this.player.y, shape)) {
+            console.warn("AI chose a colliding position. Hard dropping from current spot.", result);
+        }
+
+        this.hardDrop();
+        this.isWaitingForAI = false;
+    }
 }
 
 function setupEditors() { ['p1', 'p2'].forEach(setupPlayerEditor); }
@@ -2383,9 +2490,52 @@ function updateScale() {
     mainContainer.style.transform = `scale(${scale})`;
 }
 
+// 変更後
 document.addEventListener('DOMContentLoaded', () => {
     mainCanvas = document.getElementById('mainCanvas'); ctx = mainCanvas.getContext('2d');
     
+    if (window.Worker) {
+        const workerCode = `
+            self.onmessage = (e) => {
+                const { command, payload } = e.data;
+                if (command === 'init') {
+                    self.postMessage({ status: 'ready' });
+                } else if (command === 'think') {
+                    const data = JSON.parse(payload.gameState);
+                    const result = {
+                        piece: data.next[0],
+                        x: Math.floor(Math.random() * (10 - 4)),
+                        y: 18,
+                        rotation: Math.floor(Math.random() * 4)
+                    };
+                    
+                    setTimeout(() => {
+                        self.postMessage({
+                            status: 'result',
+                            playerId: payload.playerId,
+                            result: result
+                        });
+                    }, 100); 
+                }
+            };
+        `;
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        aiWorker = new Worker(URL.createObjectURL(blob));
+
+        aiWorker.onmessage = (e) => {
+            const { status, playerId, result } = e.data;
+            if (status === 'result') {
+                const player = players.find(p => 'p' + p.id === playerId);
+                if (player) {
+                    player.handleAIResult(result);
+                }
+            }
+        };
+        aiWorker.postMessage({ command: 'init' });
+    } else {
+        console.warn('Web Workers are not supported in this browser.');
+    }
+
     virtualController.init();
 
     loadKeyBindings();
@@ -2488,7 +2638,8 @@ document.addEventListener('DOMContentLoaded', () => {
             hideBack: document.getElementById('hide-back-btn-checkbox').checked
         });
     });
-
+    
+    // 変更後
 document.getElementById('startGameBtn').addEventListener('click', () => {
         let currentRunSettings = { ...gameSettings };
         let userFunctions = {};
@@ -2531,6 +2682,21 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
         const originalSettingsBeforeRun = { ...gameSettings };
         Object.assign(gameSettings, currentRunSettings);
 
+        const p1isAI = document.getElementById('p1-ai-enabled').checked;
+        const p2isAI = document.getElementById('p2-ai-enabled').checked;
+
+        const debugContainer = document.getElementById('ai-debug-container');
+        const p1DebugPanel = document.getElementById('p1-debug-panel');
+        const p2DebugPanel = document.getElementById('p2-debug-panel');
+
+        if (p1isAI || p2isAI) {
+            debugContainer.style.display = 'flex';
+            p1DebugPanel.style.display = p1isAI ? 'block' : 'none';
+            p2DebugPanel.style.display = p2isAI ? 'block' : 'none';
+        } else {
+            debugContainer.style.display = 'none';
+        }
+
         gameState = 'PLAYING'; 
         document.getElementById('editor-container').style.display = 'none'; 
         document.getElementById('game-container').style.display = 'block';
@@ -2561,7 +2727,8 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
 
         players = [];
         const createAndSetupPlayer = (id, offsetX, bindings, padIndex) => {
-            const player = new Player(id, offsetX, bindings, padIndex);
+            const isAI = (id === '1' && p1isAI) || (id === '2' && p2isAI);
+            const player = new Player(id, offsetX, bindings, padIndex, isAI);
             player.holdDisabled = autoStartParams.nh;
             player.ruleHooks = userFunctions;
             return player;
@@ -2636,6 +2803,7 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
     });
 
 
+// 変更後
 document.getElementById('backToEditorBtn').addEventListener('click', () => {
         gameState = 'EDITING';
         players = [];
@@ -2644,6 +2812,7 @@ document.getElementById('backToEditorBtn').addEventListener('click', () => {
         document.getElementById('game-controls').style.display = 'none';
         document.getElementById('editor-container').style.display = 'flex';
         document.getElementById('rule-description-display').style.display = 'none';
+        document.getElementById('ai-debug-container').style.display = 'none';
         
         virtualController.hide();
         
@@ -2756,6 +2925,7 @@ document.getElementById('settingsBtn').addEventListener('click', () => openUnifi
     }
     
 
+// 変更後
 document.getElementById('retryBtn').addEventListener('click', () => {
         if (gameState !== 'PLAYING' || !players.length) return;
         
@@ -2765,6 +2935,8 @@ document.getElementById('retryBtn').addEventListener('click', () => {
         let userFunctions = {};
         let startTime = performance.now();
         const wasHoldDisabled = players[0].holdDisabled;
+        const p1wasAI = players.find(p => p.id === '1')?.isAI || false;
+        const p2wasAI = players.find(p => p.id === '2')?.isAI || false;
 
         if (editorData.rule.code) {
             try {
@@ -2803,7 +2975,8 @@ document.getElementById('retryBtn').addEventListener('click', () => {
         Object.assign(gameSettings, currentRunSettings);
 
         const createAndSetupPlayer = (id, offsetX, bindings, padIndex) => {
-            const player = new Player(id, offsetX, bindings, padIndex);
+            const isAI = (id === '1' && p1wasAI) || (id === '2' && p2wasAI);
+            const player = new Player(id, offsetX, bindings, padIndex, isAI);
             player.holdDisabled = wasHoldDisabled;
             player.ruleHooks = userFunctions;
             return player;
@@ -2857,6 +3030,31 @@ document.getElementById('retryBtn').addEventListener('click', () => {
         };
         
         players.forEach(p => p.gameApi = gameApi);
+    });
+
+    document.getElementById('p1-manual-submit').addEventListener('click', () => {
+        const player = players.find(p => p.id === '1');
+        if (player && player.isAI) {
+            const result = {
+                piece: document.getElementById('p1-manual-mino').value.toUpperCase(),
+                x: parseInt(document.getElementById('p1-manual-x').value),
+                y: parseInt(document.getElementById('p1-manual-y').value),
+                rotation: parseInt(document.getElementById('p1-manual-r').value)
+            };
+            player.handleAIResult(result);
+        }
+    });
+    document.getElementById('p2-manual-submit').addEventListener('click', () => {
+        const player = players.find(p => p.id === '2');
+        if (player && player.isAI) {
+            const result = {
+                piece: document.getElementById('p2-manual-mino').value.toUpperCase(),
+                x: parseInt(document.getElementById('p2-manual-x').value),
+                y: parseInt(document.getElementById('p2-manual-y').value),
+                rotation: parseInt(document.getElementById('p2-manual-r').value)
+            };
+            player.handleAIResult(result);
+        }
     });
 
     setupEditors();
