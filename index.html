@@ -2508,12 +2508,12 @@ document.addEventListener('DOMContentLoaded', () => {
             let think_ai = null;
 
             // Emscriptenが生成したJSファイルをインポートします。
-            // C++ファイルが 'main 7.cpp' なので、出力は 'main7.js' と想定します。
+            
             try {
-                importScripts('main7.js');
+                importScripts('think.js');
             } catch (e) {
-                console.error("AIスクリプト(main7.js)の読み込みに失敗しました。", e);
-                self.postMessage({ status: 'error', message: 'AIスクリプト(main7.js)が見つかりません。HTMLファイルと同じ階層に配置してください。' });
+                console.error("AIスクリプトthink.js)の読み込みに失敗しました。", e);
+                self.postMessage({ status: 'error', message: 'AIスクリプト(think.js)が見つかりません。HTMLファイルと同じ階層に配置してください。' });
                 throw e;
             }
 
