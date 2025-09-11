@@ -1533,10 +1533,10 @@ drawPiece(s,x,y,p,g) {s.forEach(b=>{const px=Math.floor(x+b[0])*BLOCK_SIZE, py=(
         const gameStateJson = JSON.stringify(gameState);
         document.getElementById(`p${this.id}-ai-sent-data`).value = gameStateJson;
 
-        aiWorker.postMessage({
+        /*aiWorker.postMessage({
             command: 'think',
             payload: { playerId: `p${this.id}`, gameState: gameStateJson }
-        });
+        });*/
     }
 
     handleAIResult(result) {
