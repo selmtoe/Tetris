@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html> 
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -254,15 +254,9 @@
                         <label for="pptLoader-p1" class="button">Load PPT</label>
                         <input type="file" id="pptLoader-p1" data-player="p1" accept="image/*">
                     </div>
-<div class="key-config-controls" style="margin-top: 15px; text-align: center;">
+                    <div class="key-config-controls" style="margin-top: 15px; text-align: center;">
 
                         <button class="button" id="p1-key-config-btn">操作設定</button>
-                    </div>
-                    <div class="ai-controls" style="margin-top: 10px; text-align: center; background-color: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
-                        <label style="display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;">
-                            <input type="checkbox" id="p1-ai-enabled" style="width: 18px; height: 18px;">
-                            <span style="font-family: var(--font-display);">AIを使用する</span>
-                        </label>
                     </div>
                 </div>
             </div>
@@ -290,15 +284,9 @@
                         <label for="pptLoader-p2" class="button">Load PPT</label>
                         <input type="file" id="pptLoader-p2" data-player="p2" accept="image/*">
                     </div>
-<div class="key-config-controls" style="margin-top: 15px; text-align: center;">
+                    <div class="key-config-controls" style="margin-top: 15px; text-align: center;">
 
                         <button class="button" id="p2-key-config-btn">操作設定</button>
-                    </div>
-                    <div class="ai-controls" style="margin-top: 10px; text-align: center; background-color: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
-                        <label style="display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;">
-                            <input type="checkbox" id="p2-ai-enabled" style="width: 18px; height: 18px;">
-                            <span style="font-family: var(--font-display);">AIを使用する</span>
-                        </label>
                     </div>
                 </div>
             </div>
@@ -313,31 +301,6 @@
         <div id="scan-controls" style="display: none; margin-top: 15px; gap: 10px; justify-content:center;">
              <button id="scanConfirmBtn" class="button">次へ</button>
              <button id="scanCancelBtn" class="button">キャンセル</button>
-        </div>
-<div id="ai-debug-container" style="position: fixed; bottom: 10px; left: 10px; z-index: 200; display: none; gap: 10px; flex-direction: column; font-family: var(--font-ui);">
-        <div id="p1-debug-panel" style="display: none; background: rgba(26, 26, 46, 0.85); padding: 10px; border-radius: 5px; color: white; border: 1px solid var(--primary-color);">
-            <h4 style="margin: 0 0 5px 0; font-family: var(--font-display); color: var(--primary-hover-color);">P1 AI Debug</h4>
-            <div style="font-size: 12px;"><strong>Sent Data:</strong> <textarea id="p1-ai-sent-data" readonly rows="3" style="width: 350px; background-color: #0f0f18; color: white; border: 1px solid var(--primary-color); font-size: 10px;"></textarea></div>
-            <div style="margin-top: 5px; font-size: 12px;">
-                <strong>Manual Control:</strong>
-                <input type="text" id="p1-manual-mino" placeholder="Mino" size="4" style="width: 40px;">
-                <input type="number" id="p1-manual-x" placeholder="X" style="width: 40px;">
-                <input type="number" id="p1-manual-y" placeholder="Y" style="width: 40px;">
-                <input type="number" id="p1-manual-r" placeholder="R" style="width: 40px;">
-                <button id="p1-manual-submit" class="button" style="padding: 2px 6px; font-size: 12px;">Execute</button>
-            </div>
-        </div>
-        <div id="p2-debug-panel" style="display: none; background: rgba(26, 26, 46, 0.85); padding: 10px; border-radius: 5px; color: white; border: 1px solid var(--primary-color);">
-             <h4 style="margin: 0 0 5px 0; font-family: var(--font-display); color: var(--primary-hover-color);">P2 AI Debug</h4>
-            <div style="font-size: 12px;"><strong>Sent Data:</strong> <textarea id="p2-ai-sent-data" readonly rows="3" style="width: 350px; background-color: #0f0f18; color: white; border: 1px solid var(--primary-color); font-size: 10px;"></textarea></div>
-            <div style="margin-top: 5px; font-size: 12px;">
-                <strong>Manual Control:</strong>
-                <input type="text" id="p2-manual-mino" placeholder="Mino" size="4" style="width: 40px;">
-                <input type="number" id="p2-manual-x" placeholder="X" style="width: 40px;">
-                <input type="number" id="p2-manual-y" placeholder="Y" style="width: 40px;">
-                <input type="number" id="p2-manual-r" placeholder="R" style="width: 40px;">
-                <button id="p2-manual-submit" class="button" style="padding: 2px 6px; font-size: 12px;">Execute</button>
-            </div>
         </div>
     </div>
 </div>
@@ -829,7 +792,7 @@ const virtualController = (() => {
         importLayoutsFromClipboard
     };
 })();
-let isAiReady = false;
+
 const RESOLUTION_SCALE = 2;
 const BLOCK_SIZE = 28;
 const EDITOR_BLOCK_SIZE = 50;
@@ -899,8 +862,8 @@ const TETROMINOS = {
 };
 const SRS_OFFSETS = { "JLSTZ": { "0_1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], "1_0": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], "1_2": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], "2_1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], "2_3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], "3_2": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], "3_0": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], "0_3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], }, "I": { "0_1": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], "1_0": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], "1_2": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], "2_1": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], "2_3": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], "3_2": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], "3_0": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], "0_3": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], } };
 
-let players = [], gameMode = '1P', gameState = 'EDITING', lastTime = 0, mainCanvas, ctx, aiWorker;
-    
+let players = [], gameMode = '1P', gameState = 'EDITING', lastTime = 0, mainCanvas, ctx;
+
 let keyBindings = {
     p1: {
         left:      { type: 'key', value: 'a',           label: 'a' },
@@ -956,11 +919,9 @@ function* createMinoGenerator(customQueue) {
     }
 }
 
-// 変更後
 class Player {
-    constructor(id, offsetX, keyBindings, padIndex, isAI = false) {
+    constructor(id, offsetX, keyBindings, padIndex) {
         this.id = id; this.offsetX = offsetX; this.keyBindings = keyBindings; this.padIndex = padIndex;
-        this.isAI = isAI;
         this.keys = {};
         const pData = editorData[`p${id}`];
         this.initialHold = pData.hold;
@@ -973,10 +934,8 @@ class Player {
         this.reset();
     }
 
-// 変更後
 reset() {
         this.player = { x: 0, y: 0, pieceType: null, rotation: 0 };
-        this.isWaitingForAI = false;
         this.nextQueue = [];
         for (let i = 0; i < gameSettings.maxNext; i++) {
             this.nextQueue.push(this.minoGenerator.next().value);
@@ -1001,7 +960,6 @@ reset() {
         this.spawnNewPiece();
     }
     
-// 変更後
     spawnNewPiece() {
         this.player.pieceType = this.nextQueue.shift();
         this.nextQueue.push(this.minoGenerator.next().value);
@@ -1020,8 +978,8 @@ reset() {
                  this.gameOver = true;
             }
         }
-        this.requestAIThink();
     }
+
     isActionPressed(action) {
         const binding = this.keyBindings[action];
         if (binding?.type === 'key' && this.keys[binding.value]) return true;
@@ -1052,9 +1010,9 @@ reset() {
             case 'hold':      this.hold(); break;
         }
     }
-// 変更後
+
 update(dt) {
-        if (this.gameOver || this.gameClear || (this.isAI && this.isWaitingForAI)) return;
+        if (this.gameOver || this.gameClear) return;
 
         if (this.ruleHooks.onUpdate && typeof this.ruleHooks.onUpdate === 'function') {
             try {
@@ -1073,43 +1031,41 @@ update(dt) {
 
         this.processGarbageQueue();
 
-        if (!this.isAI) {
-            const left = this.isActionPressed('left');
-            const right = this.isActionPressed('right');
-            const horizDir = left ? -1 : (right ? 1 : 0);
+        const left = this.isActionPressed('left');
+        const right = this.isActionPressed('right');
+        const horizDir = left ? -1 : (right ? 1 : 0);
 
-            if (horizDir !== 0) {
-                if (this.dasDirection !== horizDir) { 
-                    this.dasTimer = 0;
-                    this.arrTimer = 0;
-                    if (!this.isClearingLine) this.move(horizDir, 0);
-                } else { 
-                    this.dasTimer += dt;
-                    if (this.dasTimer >= gameSettings.das) {
-                        if (gameSettings.arr === 0) {
-                            if (!this.isClearingLine) {
-                                let successfulMoves = 0;
-                                while (!this.checkCollision(this.player.x + horizDir, this.player.y, this.getShape(this.player.pieceType, this.player.rotation))) {
-                                    this.player.x += horizDir;
-                                    successfulMoves++;
-                                }
-                                if (successfulMoves > 0) {
-                                   this.lockTimer = 0;
-                                   this.lastMoveWasRotation = false;
-                                }
+        if (horizDir !== 0) {
+            if (this.dasDirection !== horizDir) { 
+                this.dasTimer = 0;
+                this.arrTimer = 0;
+                if (!this.isClearingLine) this.move(horizDir, 0);
+            } else { 
+                this.dasTimer += dt;
+                if (this.dasTimer >= gameSettings.das) {
+                    if (gameSettings.arr === 0) {
+                        if (!this.isClearingLine) {
+                            let successfulMoves = 0;
+                            while (!this.checkCollision(this.player.x + horizDir, this.player.y, this.getShape(this.player.pieceType, this.player.rotation))) {
+                                this.player.x += horizDir;
+                                successfulMoves++;
                             }
-                        } else {
-                            this.arrTimer += dt;
-                            if (this.arrTimer >= gameSettings.arr) {
-                                if (!this.isClearingLine) this.move(horizDir, 0);
-                                this.arrTimer -= gameSettings.arr;
+                            if (successfulMoves > 0) {
+                               this.lockTimer = 0;
+                               this.lastMoveWasRotation = false;
                             }
+                        }
+                    } else {
+                        this.arrTimer += dt;
+                        if (this.arrTimer >= gameSettings.arr) {
+                            if (!this.isClearingLine) this.move(horizDir, 0);
+                            this.arrTimer -= gameSettings.arr;
                         }
                     }
                 }
             }
-            this.dasDirection = horizDir;
         }
+        this.dasDirection = horizDir;
 
 if (this.isClearingLine) {
             this.lineClearDelayTimer -= dt;
@@ -1145,47 +1101,45 @@ if (this.isClearingLine) {
             return;
         }
 
-        if (!this.isAI) {
-            if (this.isActionPressed('softDrop')) {
-                 if (gameSettings.sdf > 0) {
-                    this.sdfTimer += dt;
-                    if (this.sdfTimer >= gameSettings.sdf) {
-                        this.move(0, 1);
-                        this.sdfTimer -= gameSettings.sdf;
+        if (this.isActionPressed('softDrop')) {
+             if (gameSettings.sdf > 0) {
+                this.sdfTimer += dt;
+                if (this.sdfTimer >= gameSettings.sdf) {
+                    this.move(0, 1);
+                    this.sdfTimer -= gameSettings.sdf;
+                }
+             } else { 
+                const ghostY = this.getGhostY();
+                if (this.player.y < ghostY) {
+                    this.player.y = ghostY;
+                    this.lockTimer = 0;
+                }
+             }
+        } else {
+            this.sdfTimer = 0;
+        }
+        
+        this.isGrounded = this.checkCollision(this.player.x, this.player.y + 1, this.getShape(this.player.pieceType, this.player.rotation));
+        if (this.isGrounded) {
+            this.lockTimer += dt;
+            if (this.lockTimer >= gameSettings.lockDelay) {
+                this.lockPiece();
+            }
+        } else {
+            this.lockTimer = 0;
+            if (!this.isActionPressed('softDrop')) {
+                 if (gameSettings.gravity > 0) {
+                    this.gravityTimer -= dt;
+                    if (this.gravityTimer <= 0) {
+                        this.move(0, 1, false);
+                        this.gravityTimer += gameSettings.gravity;
                     }
                  } else { 
-                    const ghostY = this.getGhostY();
-                    if (this.player.y < ghostY) {
-                        this.player.y = ghostY;
-                        this.lockTimer = 0;
-                    }
+                    this.player.y = this.getGhostY();
                  }
-            } else {
-                this.sdfTimer = 0;
-            }
-            
-            this.isGrounded = this.checkCollision(this.player.x, this.player.y + 1, this.getShape(this.player.pieceType, this.player.rotation));
-            if (this.isGrounded) {
-                this.lockTimer += dt;
-                if (this.lockTimer >= gameSettings.lockDelay) {
-                    this.lockPiece();
-                }
-            } else {
-                this.lockTimer = 0;
-                if (!this.isActionPressed('softDrop')) {
-                     if (gameSettings.gravity > 0) {
-                        this.gravityTimer -= dt;
-                        if (this.gravityTimer <= 0) {
-                            this.move(0, 1, false);
-                            this.gravityTimer += gameSettings.gravity;
-                        }
-                     } else { 
-                        this.player.y = this.getGhostY();
-                     }
-                }
             }
         }
-    }    
+    }
 
 draw() {
         ctx.save(); ctx.translate(this.offsetX, 0);
@@ -1508,76 +1462,7 @@ drawPiece(s,x,y,p,g) {s.forEach(b=>{const px=Math.floor(x+b[0])*BLOCK_SIZE, py=(
         ctx.textBaseline = 'alphabetic';
     }
 
-    // 変更後
     drawMessage(t) { const cX = PLAYFIELD_WIDTH / 2; const cY = CANVAS_HEIGHT / 2; ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(0, -0.5*BLOCK_SIZE, PLAYFIELD_WIDTH, CANVAS_HEIGHT); ctx.fillStyle = '#FFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `bold ${BLOCK_SIZE * 1.5}px "Orbitron"`; ctx.fillText(t, cX, cY); ctx.textBaseline = 'alphabetic'; }
-
-// 変更後
-    requestAIThink() {
-        if (!this.isAI || this.gameOver || !this.player.pieceType) return;
-        
-        // AIワーカーが準備完了しているかチェックします
-        if (!isAiReady) {
-            console.warn("AI is not ready yet. Skipping think request.");
-            this.isWaitingForAI = false; // 待機状態を解除
-            return;
-        }
-
-        this.isWaitingForAI = true;
-
-        const boardString = this.board.map(row => 
-            row.map(cell => (cell === null ? '_' : cell)).join('')
-        ).join('');
-        
-        const fullNextQueue = [this.player.pieceType, ...this.nextQueue];
-
-        const gameState = {
-            thinkTime: 500, // C++コード内のMAX_THINKING_MSに渡されます
-            board: boardString,
-            next: fullNextQueue.join(''),
-            hold: this.holdPiece || '',
-            b2b: this.isB2B,
-            ren: this.ren
-        };
-
-        const gameStateJson = JSON.stringify(gameState);
-        document.getElementById(`p${this.id}-ai-sent-data`).value = gameStateJson;
-        aiWorker.postMessage({
-            command: 'think',
-            payload: { playerId: `p${this.id}`, gameState: gameStateJson }
-        });
-    }
-
-    handleAIResult(result) {
-        if (!this.isAI || this.gameOver) return;
-        const { piece, x, y, rotation } = result;
-
-        if (this.player.pieceType !== piece) {
-            if (this.canHold && (this.holdPiece === piece || !this.holdPiece)) {
-                this.hold();
-                if (this.player.pieceType !== piece) {
-                    console.error("AI wanted to use a piece not available after hold:", piece);
-                    this.isWaitingForAI = false;
-                    return;
-                }
-            } else {
-                console.error("AI wanted to use a piece that is not current or holdable:", piece);
-                this.isWaitingForAI = false;
-                return;
-            }
-        }
-        
-        this.player.rotation = rotation;
-        this.player.x = x;
-        this.player.y = y;
-
-        const shape = this.getShape(this.player.pieceType, this.player.rotation);
-        if (this.checkCollision(this.player.x, this.player.y, shape)) {
-            console.warn("AI chose a colliding position. Hard dropping from current spot.", result);
-        }
-
-        this.hardDrop();
-        this.isWaitingForAI = false;
-    }
 }
 
 function setupEditors() { ['p1', 'p2'].forEach(setupPlayerEditor); }
@@ -2498,343 +2383,9 @@ function updateScale() {
     mainContainer.style.transform = `scale(${scale})`;
 }
 
-// 変更後
 document.addEventListener('DOMContentLoaded', () => {
     mainCanvas = document.getElementById('mainCanvas'); ctx = mainCanvas.getContext('2d');
     
-// =================== ここからが置き換える新しいコードです ===================
-    if (window.Worker) {
-        const workerCode = `
-// C++コードから移植されたAIロジックをここにすべて含めます
-// =================================================
-
-// 1. AIの定数とクラス定義
-// =================================================
-
-const StandardWeights = {
-    back_to_back: 52, bumpiness: -24, bumpiness_sq: -7, row_transitions: -5, height: -39,
-    top_half: -150, top_quarter: -511, jeopardy: -11, cavity_cells: -173, cavity_cells_sq: -3,
-    overhang_cells: -34, overhang_cells_sq: -1, covered_cells: -17, covered_cells_sq: -1,
-    tslot: [8, 148, 192, 407], well_depth: 57, max_well_depth: 17,
-    well_column: [20, 23, 20, 50, 59, 21, 59, 10, -10, 24],
-    b2b_clear: 104, clear1: -263, clear2: -220, clear3: -178, clear4: 270, tspin1: 1,
-    tspin2: 290, tspin3: 482, mini_tspin1: -158, mini_tspin2: -93, perfect_clear: 999,
-    combo_garbage: 150, wasted_t: -152,
-    COMBO_GARBAGE: [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 4, 5],
-};
-const weights = StandardWeights;
-
-class TetrisBoard {
-    static WIDTH = 10;
-    static HEIGHT = 40;
-
-    constructor(initialRows = null) {
-        this.rows = new Uint16Array(TetrisBoard.HEIGHT).fill(0);
-        if (initialRows) {
-            for (let i = 0; i < TetrisBoard.HEIGHT; ++i) { this.rows[i] = initialRows[i]; }
-        }
-    }
-    clone() {
-        const newBoard = new TetrisBoard();
-        newBoard.rows.set(this.rows);
-        return newBoard;
-    }
-    isFilled(row, col) {
-        if (row < 0 || row >= TetrisBoard.HEIGHT || col < 0 || col >= TetrisBoard.WIDTH) return true;
-        return (this.rows[row] & (1 << col)) !== 0;
-    }
-    fill(row, col) {
-        if (row >= 0 && row < TetrisBoard.HEIGHT && col >= 0 && col < TetrisBoard.WIDTH) {
-            this.rows[row] |= (1 << col);
-        }
-    }
-    clearFullLines() {
-        let cleared = 0;
-        let r = 0;
-        while (r < TetrisBoard.HEIGHT) {
-            if ((this.rows[r] & ((1 << TetrisBoard.WIDTH) - 1)) === ((1 << TetrisBoard.WIDTH) - 1)) {
-                for (let rowToShift = r; rowToShift < TetrisBoard.HEIGHT - 1; ++rowToShift) {
-                    this.rows[rowToShift] = this.rows[rowToShift + 1];
-                }
-                this.rows[TetrisBoard.HEIGHT - 1] = 0;
-                cleared++;
-            } else {
-                r++;
-            }
-        }
-        return cleared;
-    }
-}
-
-// 2. AIのコアロジック関数
-// =================================================
-
-const MOVE_DIGITS = 5;
-let MAX_THINKING_MS = 500;
-const MAX_SEARCH_DEPTH = 15;
-const PLAYFIELD_HEIGHT = 20;
-
-let nodeMap = new Map();
-let searchStartTime = 0;
-let bestNodeIDAtDepth1 = "";
-let maxEvaluationAtDepth1 = -Number.MAX_VALUE;
-
-function judgeAvailableMinos(originalMinoSequence, usedMinos) {
-    const remainingMinos = [...originalMinoSequence];
-    for (const used_mino of usedMinos) {
-        const it_index = remainingMinos.indexOf(used_mino);
-        if (it_index !== -1) {
-            remainingMinos.splice(it_index, 1);
-        }
-    }
-    const available = [];
-    if (remainingMinos.length > 0) available.push(remainingMinos[0]);
-    if (remainingMinos.length >= 2) available.push(remainingMinos[1]);
-    return available;
-}
-
-// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-// ★  ここが修正点です！バッククォートをエスケープしました  ★
-// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-function makeID(baseID, moveIndex) {
-    return \`\${baseID}\${String(moveIndex).padStart(MOVE_DIGITS, '0')}\`;
-}
-
-function isDepthLevel(id, depth) {
-    return id.length === depth * MOVE_DIGITS;
-}
-
-function isTimeExceeded() {
-    return (performance.now() - searchStartTime) > MAX_THINKING_MS;
-}
-
-// ... (ここからAIの全関数が続く) ...
-
-function propagateEvaluation(nodeID) {
-    let currentPropagateTargetID = nodeID;
-    while (nodeMap.has(currentPropagateTargetID)) {
-        const S = nodeMap.get(currentPropagateTargetID);
-        if (isDepthLevel(currentPropagateTargetID, 1)) {
-            if (S.acc_eval + S.transient_eval > maxEvaluationAtDepth1) {
-                maxEvaluationAtDepth1 = S.acc_eval + S.transient_eval;
-                bestNodeIDAtDepth1 = currentPropagateTargetID;
-            }
-        }
-        const parentID = S.parentID;
-        if (parentID === undefined || !nodeMap.has(parentID)) {
-            break;
-        }
-        const P = nodeMap.get(parentID);
-        let max_value_from_children = -Number.MAX_VALUE;
-        let parent_has_valid_children = false;
-        if (P.childrenIDs.length > 0) {
-            for (const child_id_of_P of P.childrenIDs) {
-                if (nodeMap.has(child_id_of_P)) {
-                    const child_node = nodeMap.get(child_id_of_P);
-                    max_value_from_children = Math.max(max_value_from_children, child_node.acc_eval + child_node.transient_eval);
-                    parent_has_valid_children = true;
-                }
-            }
-        }
-        if (parent_has_valid_children) {
-            if (P.transient_eval < max_value_from_children) {
-                P.transient_eval = max_value_from_children;
-                currentPropagateTargetID = parentID;
-            } else {
-                break;
-            }
-        } else {
-            break;
-        }
-    }
-}
-
-function getMinoShape(pieceType, rotation) {
-    rotation = rotation % 4;
-    switch (pieceType) {
-        case 'I': return (rotation == 0 || rotation == 2) ? [[0,0], [0,1], [0,2], [0,3]] : [[0,0], [1,0], [2,0], [3,0]];
-        case 'O': return [[0,0], [1,0], [0,1], [1,1]];
-        case 'T':
-            if (rotation == 1) return [[0,0], [0,-1], [0,1], [1,0]];
-            if (rotation == 2) return [[0,0], [1,0], [-1,0], [0,-1]];
-            if (rotation == 3) return [[0,0], [0,-1], [0,1], [-1,0]];
-            return [[0,0], [1,0], [-1,0], [0,1]];
-        case 'S': return (rotation == 1 || rotation == 3) ? [[0,0], [1,-1], [1,0], [0,1]] : [[0,0], [-1,0], [1,1], [0,1]];
-        case 'Z': return (rotation == 1 || rotation == 3) ? [[0,0], [-1,-1], [-1,0], [0,1]] : [[0,0], [1,0], [-1,1], [0,1]];
-        case 'J':
-            if (rotation == 0) return [[0,0], [-1,0], [1,0], [-1,1]];
-            if (rotation == 1) return [[0,0], [0,-1], [1,1], [0,1]];
-            if (rotation == 2) return [[0,0], [1,0], [-1,0], [1,-1]];
-            return [[0,0], [0,-1], [-1,-1], [0,1]];
-        case 'L':
-            if (rotation == 0) return [[0,0], [-1,0], [1,0], [1,1]];
-            if (rotation == 1) return [[0,0], [0,-1], [1,-1], [0,1]];
-            if (rotation == 2) return [[0,0], [1,0], [-1,0], [-1,-1]];
-            return [[0,0], [0,-1], [-1,1], [0,1]];
-        default: return [[0,0]];
-    }
-}
-
-function checkCollision(board, pieceType, rotation, x_pivot, y_pivot) {
-    const shapeWithPivot = getMinoShape(pieceType, rotation);
-    for (const blockOffset of shapeWithPivot) {
-        if (board.isFilled(y_pivot + blockOffset[1], x_pivot + blockOffset[0])) {
-            return true;
-        }
-    }
-    return false;
-}
-
-function placeMinoOnBoard(board, pieceType, p) {
-    const shapeWithPivot = getMinoShape(pieceType, p.rotation);
-    for(const offset of shapeWithPivot) {
-        board.fill(p.y + offset[1], p.x + offset[0]);
-    }
-}
-
-// ... (他の全てのAIヘルパー関数も同様に整形して記述)
-// 全てのAIロジック関数をここに含めます。長いため省略していますが、
-// evaluate, expand, runAI, checkRotationKicks 等の関数は全て必要です。
-// 以下にそれらの関数を整形して記載します。
-function getColumnHeights(board) { const heights = new Array(TetrisBoard.WIDTH).fill(0); for (let c = 0; c < TetrisBoard.WIDTH; ++c) { for (let r = TetrisBoard.HEIGHT - 1; r >= 0; --r) { if (board.isFilled(r, c)) { heights[c] = r + 1; break; } } } return heights; }
-function calculateBumpiness(board, wellColumn) { const heights = getColumnHeights(board); let bumpiness_val = 0; let bumpiness_sq_val = 0; let prev_col_idx; if (wellColumn === 0) { prev_col_idx = 1; } else { prev_col_idx = 0; } while (prev_col_idx < TetrisBoard.WIDTH && prev_col_idx === wellColumn) { prev_col_idx++; } if (prev_col_idx >= TetrisBoard.WIDTH) { return [0, 0]; } let current_height = heights[prev_col_idx]; for (let i = prev_col_idx + 1; i < TetrisBoard.WIDTH; ++i) { if (i === wellColumn) { continue; } const dh = Math.abs(heights[i] - current_height); bumpiness_val += dh; bumpiness_sq_val += dh * dh; current_height = heights[i]; } return [bumpiness_val, bumpiness_sq_val]; }
-function calculateCavitiesAndOverhangs(board) { const heights = getColumnHeights(board); let cavities = 0; let overhangs = 0; let max_board_height = 0; for (const h of heights) { max_board_height = Math.max(max_board_height, h); } if (max_board_height === 0) return [0,0]; for (let y = 0; y < max_board_height; ++y) { for (let x = 0; x < TetrisBoard.WIDTH; ++x) { if (board.isFilled(y, x) || y >= heights[x]) { continue; } let counted_as_overhang = false; if (x > 1) { if (heights[x - 1] <= y && heights[x - 2] <= (y + 1)) { overhangs++; counted_as_overhang = true; } } if (counted_as_overhang) continue; if (x < TetrisBoard.WIDTH - 2) { if (heights[x + 1] <= y && heights[x + 2] <= (y + 1)) { overhangs++; counted_as_overhang = true; } } if (counted_as_overhang) continue; cavities++; } } return [cavities, overhangs]; }
-function calculateCoveredCells(board) { const heights = getColumnHeights(board); let covered = 0; let covered_sq = 0; for (let x = 0; x < TetrisBoard.WIDTH; ++x) { if (heights[x] <= 1) { continue; } for (let y = heights[x] - 2; y >= 0; --y) { if (!board.isFilled(y, x)) { const cells_above_hole = heights[x] - (y + 1); const actual_cells_counted = Math.min(6, cells_above_hole); covered += actual_cells_counted; covered_sq += actual_cells_counted * actual_cells_counted; } } } return [covered, covered_sq]; }
-function countSetBits(n) { let count = 0; while (n > 0) { n &= (n - 1); count++; } return count; }
-function calculateRowTransitions(board) { let rust_transitions = 0; for (let y = 0; y < TetrisBoard.HEIGHT; ++y) { const r = board.rows[y]; const d = (r | (1 << TetrisBoard.WIDTH)) ^ (1 | (r << 1)); rust_transitions += countSetBits(d); } return rust_transitions; }
-function calculateWell(board) { const heights = getColumnHeights(board); let well_col = -1; let min_h = TetrisBoard.HEIGHT + 1; for (let c = 0; c < TetrisBoard.WIDTH; ++c) { if (heights[c] < min_h) { min_h = heights[c]; well_col = c; } } let depth = 0; if (well_col !== -1) { for (let y = heights[well_col]; y < TetrisBoard.HEIGHT; ++y) { let is_well_row = true; for (let x = 0; x < TetrisBoard.WIDTH; ++x) { if (x !== well_col && !board.isFilled(y, x)) { is_well_row = false; break; } } if (is_well_row) { depth++; } else { break; } } } depth = Math.min(depth, weights.max_well_depth); return [depth, well_col]; }
-function check_sides(board, x, y) { for (let dx = 1; dx <= 9; ++dx) { if (x - dx < 0 || x + dx >= TetrisBoard.WIDTH) return false; if (!board.isFilled(y, x - dx) || !board.isFilled(y, x + dx)) { return false; } } return true; }
-function check_top(board, x, y) { for (let check_y = y + 1; check_y < 25; ++check_y) { if (board.isFilled(check_y, x)) { return false; } } return true; }
-function get_tslot_score(count) { if (count >= 3) return weights.tslot[3]; if (count === 2) return weights.tslot[2]; if (count === 1) return weights.tslot[1]; return weights.tslot[0]; }
-function calculateTslots(board) { let t_slot_score = 0.0; for (let y = 0; y < TetrisBoard.HEIGHT; ++y) { for (let x = 0; x < TetrisBoard.WIDTH; ++x) { const is_filled = (dx, dy) => { return board.isFilled(y + dy, x + dx); }; if (!is_filled(-1, 0) && is_filled(1, -1) && is_filled(-1, -1) && is_filled(-1, 1)) { if (check_top(board, x, y) && check_top(board, x + 1, y)) { let count = 0; if (check_sides(board, x, y)) count++; if (check_sides(board, x, y - 1)) count++; t_slot_score += (count === 2) ? weights.tslot[2] : ((count === 1) ? weights.tslot[1] : weights.tslot[0]); } } if (!is_filled(1, 0) && is_filled(1, -1) && is_filled(-1, -1) && is_filled(1, 1)) { if (check_top(board, x, y) && check_top(board, x - 1, y)) { let count = 0; if (check_sides(board, x, y)) count++; if (check_sides(board, x, y - 1)) count++; t_slot_score += (count === 2) ? weights.tslot[2] : ((count === 1) ? weights.tslot[1] : weights.tslot[0]); } } if (!is_filled(2, -1) && !is_filled(2, -2) && !is_filled(2, -3) && !is_filled(1, -2) && is_filled(2, 1) && is_filled(1, -1) && is_filled(2, -4)) { if (check_top(board, x, y) && check_top(board, x - 1, y) && check_top(board, x + 1, y)) { let count = 0; if (check_sides(board, x + 2, y - 3)) count++; if (check_sides(board, x + 2, y - 1)) count++; if (check_sides(board, x + 2, y - 2)) count++; t_slot_score += get_tslot_score(count); } } if (!is_filled(-2, -1) && !is_filled(-2, -2) && !is_filled(-2, -3) && !is_filled(-1, -2) && is_filled(-2, 1) && is_filled(-1, -1) && is_filled(-2, -4)) { if (check_top(board, x, y) && check_top(board, x - 1, y) && check_top(board, x + 1, y)) { let count = 0; if (check_sides(board, x - 2, y - 3)) count++; if (check_sides(board, x - 2, y - 1)) count++; if (check_sides(board, x - 2, y - 2)) count++; t_slot_score += get_tslot_score(count); } } if (!is_filled(2, -2) && !is_filled(2, -3) && !is_filled(2, -4) && !is_filled(1, -3) && !is_filled(2, -1) && !is_filled(1, -1) && is_filled(2, 0) && is_filled(-1, 0) && is_filled(1, -2) && is_filled(2,-5)) { if (check_top(board, x, y) && check_top(board, x + 1, y)) { let count = 0; if (check_sides(board, x + 2, y - 4)) count++; if (check_sides(board, x + 2, y - 3)) count++; if (check_sides(board, x + 2, y - 2)) count++; t_slot_score += get_tslot_score(count); } } if (!is_filled(-2, -2) && !is_filled(-2, -3) && !is_filled(-2, -4) && !is_filled(-1, -3) && !is_filled(-2, -1) && !is_filled(-1, -1) && is_filled(-2, 0) && is_filled(1, 0) && is_filled(-1, -2) && is_filled(-2,-5)) { if (check_top(board, x, y) && check_top(board, x - 1, y)) { let count = 0; if (check_sides(board, x - 2, y - 4)) count++; if (check_sides(board, x - 2, y - 3)) count++; if (check_sides(board, x - 2, y - 2)) count++; t_slot_score += get_tslot_score(count); } } } } return t_slot_score; }
-function isPerfectClear(board){ return board.rows[0] === 0; }
-function evaluate(board, lastPlacement, linesCleared, isKick, softDropCount, currentCombo, currentB2BActive){ let acc_eval = 0.0; let transient_eval = 0.0; if (isPerfectClear(board) === true) acc_eval += weights.perfect_clear; if (true) { if (currentB2BActive && linesCleared > 0) { acc_eval += weights.b2b_clear; } if (currentCombo > 0) { const combo_idx = Math.min(currentCombo, weights.COMBO_GARBAGE.length - 1); acc_eval += weights.combo_garbage * weights.COMBO_GARBAGE[combo_idx]; } if (isKick && lastPlacement.pieceType === 'T') { if (linesCleared === 1) acc_eval += weights.tspin1; else if (linesCleared === 2) acc_eval += weights.tspin2; else if (linesCleared === 3) acc_eval += weights.tspin3; } else if (isKick ) { if (linesCleared === 1) acc_eval += weights.clear1; else if (linesCleared === 2) acc_eval += weights.clear2; else if (linesCleared === 3) acc_eval += weights.clear3; } else { if (linesCleared === 1) acc_eval += weights.clear1; else if (linesCleared === 2) acc_eval += weights.clear2; else if (linesCleared === 3) acc_eval += weights.clear3; else if (linesCleared === 4) acc_eval += weights.clear4; } } if (lastPlacement.pieceType === 'T' && (linesCleared === 0 || !isKick)) { acc_eval += weights.wasted_t; } if (currentB2BActive) { transient_eval += weights.back_to_back; } const heights = getColumnHeights(board); let highest_point = 0; for(const h of heights) highest_point = Math.max(highest_point, h); transient_eval += weights.top_quarter * Math.max(0, highest_point - 15); transient_eval += weights.top_half * Math.max(0, highest_point - 10); transient_eval += weights.height * highest_point; transient_eval += weights.jeopardy * Math.max(0, highest_point - 10); transient_eval += calculateTslots(board); const [well_d, well_c] = calculateWell(board); transient_eval += weights.well_depth * well_d; if (well_d > 0 && well_c >= 0 && well_c < weights.well_column.length) { transient_eval += weights.well_column[well_c]; } transient_eval += weights.row_transitions * calculateRowTransitions(board); const [bump, bump_sq] = calculateBumpiness(board, well_c); transient_eval += bump * weights.bumpiness; transient_eval += bump_sq * weights.bumpiness_sq; const [cav, over] = calculateCavitiesAndOverhangs(board); transient_eval += weights.cavity_cells * cav; transient_eval += weights.cavity_cells_sq * cav * cav; transient_eval += weights.overhang_cells * over; transient_eval += weights.overhang_cells_sq * over * over; const [cov, cov_sq] = calculateCoveredCells(board); transient_eval += weights.covered_cells * cov; transient_eval += weights.covered_cells_sq * cov_sq; return [acc_eval, transient_eval]; }
-function createAndAddChildNode(parentNodeID, boardStateAtParent, p, isKick, childrenGenerated) { if (!nodeMap.has(parentNodeID)) return; const parentNode = nodeMap.get(parentNodeID); const childID = makeID(parentNodeID, parentNode.childrenIDs.length); const childNode = { board: null, acc_eval: 0.0, transient_eval: -Number.MAX_VALUE, place: p, expanded: false, childrenIDs: [], parentID: parentNodeID, softDropCount: 0, comboCount: 0, B2B: false, }; if (p.y >= PLAYFIELD_HEIGHT) childNode.softDropCount = 0; else childNode.softDropCount = Math.max(0, (PLAYFIELD_HEIGHT - 1) - p.y); const boardAfterPlace = boardStateAtParent.clone(); placeMinoOnBoard(boardAfterPlace, p.pieceType, p); const linesCleared = boardAfterPlace.clearFullLines(); childNode.board = boardAfterPlace; const parentActualNode = nodeMap.get(parentNodeID); if (linesCleared > 0) { childNode.comboCount = parentActualNode.comboCount + 1; } else { childNode.comboCount = 0; } const moveWasSpecialForB2B = (isKick && p.pieceType === 'T' && linesCleared > 0) || (linesCleared >= 4); if (moveWasSpecialForB2B) { childNode.B2B = true; } else { childNode.B2B = (linesCleared > 0) ? false : parentActualNode.B2B; } const [acc_val, transient_val] = evaluate(boardAfterPlace, p, linesCleared, isKick, childNode.softDropCount, childNode.comboCount, childNode.B2B); childNode.acc_eval = acc_val; childNode.transient_eval = transient_val; nodeMap.set(childID, childNode); nodeMap.get(parentNodeID).childrenIDs.push(childID); childrenGenerated.push([childID, p]); propagateEvaluation(childID); }
-function checkRotationKicks(board, x_pivot, y_pivot, pieceType, currentRotation, parentNodeID, childrenGenerated) { let kickNodeCreated = false; const is_filled = (dx, dy) => { return board.isFilled(y_pivot + dy, x_pivot + dx); }; if (pieceType === 'S' && currentRotation === 0) { if (is_filled(1, 0) && is_filled(0, -1) && is_filled(0, -4) && !is_filled(-1, -1) && !is_filled(-1, -2) && !is_filled(0, -2) && !is_filled(0, -3)) { createAndAddChildNode(parentNodeID, board, {x: x_pivot - 1, y: y_pivot - 2, rotation: 1, pieceType: 'S'}, true, childrenGenerated); kickNodeCreated = true; } } if (pieceType === 'Z' && currentRotation === 0) { if (is_filled(-1, 0) && is_filled(0, -1) && is_filled(0, -4) && !is_filled(1, -1) && !is_filled(1, -2) && !is_filled(0, -2) && !is_filled(0, -3)) { createAndAddChildNode(parentNodeID, board, {x: x_pivot + 1, y: y_pivot - 2, rotation: 1, pieceType: 'Z'}, true, childrenGenerated); kickNodeCreated = true; } } if (pieceType === 'S' && currentRotation === 1) { if (is_filled(0, -1) && (is_filled(0, -3) || is_filled(1, -3)) && !is_filled(0, -2) && !is_filled(1, -2) && !is_filled(2, -1)) { createAndAddChildNode(parentNodeID, board, {x: x_pivot + 1, y: y_pivot - 2, rotation: 0, pieceType: 'S'}, true, childrenGenerated); kickNodeCreated = true; } } if (pieceType === 'Z' && currentRotation === 1) { if (is_filled(0, -1) && (is_filled(0, -3) || is_filled(-1, -3)) && !is_filled(0, -2) && !is_filled(-1, -2) && !is_filled(-2, -1)) { createAndAddChildNode(parentNodeID, board, {x: x_pivot - 1, y: y_pivot - 2, rotation: 0, pieceType: 'Z'}, true, childrenGenerated); kickNodeCreated = true; } } if (pieceType === 'T' && currentRotation === 1) { if (!is_filled(-1, 0) && is_filled(1, -1) && is_filled(-1, -1) && is_filled(-1, 1)) { createAndAddChildNode(parentNodeID, board, {x: x_pivot, y: y_pivot, rotation: 2, pieceType: 'T'}, true, childrenGenerated); createAndAddChildNode(parentNodeID, board, {x: x_pivot, y: y_pivot, rotation: 0, pieceType: 'T'}, true, childrenGenerated); kickNodeCreated = true; } } if (pieceType === 'T' && currentRotation === 3) { if (!is_filled(1, 0) && is_filled(1, -1) && is_filled(-1, -1) && is_filled(1, 1)) { createAndAddChildNode(parentNodeID, board, {x: x_pivot, y: y_pivot, rotation: 2, pieceType: 'T'}, true, childrenGenerated); createAndAddChildNode(parentNodeID, board, {x: x_pivot, y: y_pivot, rotation: 0, pieceType: 'T'}, true, childrenGenerated); kickNodeCreated = true; } } if (pieceType === 'T' && currentRotation === 0) { if (!is_filled(2, -1) && !is_filled(2, -2) && !is_filled(2, -3) && !is_filled(1, -2) && is_filled(2, 1) && is_filled(1, -1) && is_filled(2, -4)) { createAndAddChildNode(parentNodeID, board, {x: x_pivot + 2, y: y_pivot - 2, rotation: 3, pieceType: 'T'}, true, childrenGenerated); kickNodeCreated = true; } if (!is_filled(-2, -1) && !is_filled(-2, -2) && !is_filled(-2, -3) && !is_filled(-1, -2) && is_filled(-2, 1) && is_filled(-1, -1) && is_filled(-2, -4)) { createAndAddChildNode(parentNodeID, board, {x: x_pivot - 2, y: y_pivot - 2, rotation: 1, pieceType: 'T'}, true, childrenGenerated); kickNodeCreated = true; } } if (pieceType === 'T' && currentRotation === 1) { if (!is_filled(2, -2) && !is_filled(2, -3) && !is_filled(2, -4) && !is_filled(1, -3) && !is_filled(2, -1) && !is_filled(1, -1) && is_filled(2, 0) && is_filled(-1, 0) && is_filled(1, -2) && is_filled(2,-5)) { createAndAddChildNode(parentNodeID, board, {x: x_pivot + 2, y: y_pivot - 3, rotation: 3, pieceType: 'T'}, true, childrenGenerated); kickNodeCreated = true; } } if (pieceType === 'T' && currentRotation === 3) { if (!is_filled(-2, -2) && !is_filled(-2, -3) && !is_filled(-2, -4) && !is_filled(-1, -3) && !is_filled(-2, -1) && !is_filled(-1, -1) && is_filled(-2, 0) && is_filled(1, 0) && is_filled(-1, -2) && is_filled(-2,-5)) { createAndAddChildNode(parentNodeID, board, {x: x_pivot - 2, y: y_pivot - 3, rotation: 1, pieceType: 'T'}, true, childrenGenerated); kickNodeCreated = true; } } return kickNodeCreated; }
-function expand(parentNodeID, boardStateAtParent, pieceToPlace, pathPlacementsToParent) { const childrenGenerated = []; if (!nodeMap.has(parentNodeID)) return childrenGenerated; for (let x_pivot = -2; x_pivot < TetrisBoard.WIDTH + 2; ++x_pivot) { for (let r = 0; r < 4; ++r) { let skip_this_x_r_combination = false; if (pieceToPlace === 'O' && r > 0) continue; if ((pieceToPlace === 'I' || pieceToPlace === 'S' || pieceToPlace === 'Z') && r > 1) continue; let landing_y = -1; let max_relative_y = 0; for(const offset of getMinoShape(pieceToPlace, r)){ if(offset[1] > max_relative_y) max_relative_y = offset[1]; } let initial_y_candidate = PLAYFIELD_HEIGHT + max_relative_y; for (let y_candidate = initial_y_candidate; y_candidate >= -(TetrisBoard.HEIGHT - PLAYFIELD_HEIGHT) ; --y_candidate) { if (!checkCollision(boardStateAtParent, pieceToPlace, r, x_pivot, y_candidate)) { if (checkCollision(boardStateAtParent, pieceToPlace, r, x_pivot, y_candidate - 1)) { landing_y = y_candidate; break; } } else { let all_blocks_above_playfield = true; for(const offset of getMinoShape(pieceToPlace, r)){ if (y_candidate + offset[1] < PLAYFIELD_HEIGHT){ all_blocks_above_playfield = false; break; } } if (all_blocks_above_playfield && y_candidate >= PLAYFIELD_HEIGHT -1 - max_relative_y) { } else if (y_candidate >= PLAYFIELD_HEIGHT -1 - max_relative_y) { skip_this_x_r_combination = true; break; } } } if (skip_this_x_r_combination || landing_y === -1) { continue; } const kickNodeWasCreated = checkRotationKicks(boardStateAtParent, x_pivot, landing_y, pieceToPlace, r, parentNodeID, childrenGenerated); if (!kickNodeWasCreated) { const currentPlacement = {x: x_pivot, y: landing_y, rotation: r, pieceType: pieceToPlace}; createAndAddChildNode(parentNodeID, boardStateAtParent, currentPlacement, false, childrenGenerated); } } } const parentNode = nodeMap.get(parentNodeID); if (parentNode && parentNode.childrenIDs.length > 0) { parentNode.expanded = true; } return childrenGenerated; }
-function select(parentNodeID) { if (isTimeExceeded() || !nodeMap.has(parentNodeID)) { return ""; } const children_ids = nodeMap.get(parentNodeID).childrenIDs; if (children_ids.length === 0) { return ""; } const child_evals = []; let Emin = Number.MAX_VALUE; let first_valid_child = true; for (const id of children_ids) { if (nodeMap.has(id)) { const child_node = nodeMap.get(id); const current_eval = child_node.acc_eval + child_node.transient_eval; child_evals.push({id: id, eval: current_eval}); if (first_valid_child) { Emin = current_eval; first_valid_child = false; } else { if (current_eval < Emin) { Emin = current_eval; } } } } if (child_evals.length === 0) { return ""; } child_evals.sort((a, b) => b.eval - a.eval); const weights_for_selection = []; let totalWeight = 0.0; for (let i = 0; i < child_evals.length; ++i) { const E_I = child_evals[i].eval; const rank_I = i + 1.0; const numerator = Math.pow(E_I - Emin + 1.0, 2) + 10.0; const denominator = Math.pow(rank_I - 1.0, 2) + 1.0; const weight_val = numerator / denominator; weights_for_selection.push(weight_val); totalWeight += weight_val; } if (totalWeight === 0.0 || child_evals.length === 0) { if (child_evals.length === 0) return ""; return child_evals[0].id; } const r = Math.random() * totalWeight; let cumulativeWeight = 0.0; for (let i = 0; i < child_evals.length; ++i) { cumulativeWeight += weights_for_selection[i]; if (r <= cumulativeWeight) { return child_evals[i].id; } } if (child_evals.length > 0) return child_evals[child_evals.length - 1].id; return ""; }
-function runAI(initialBoard, minoSequence, initialB2B, initialCombo) { bestNodeIDAtDepth1 = ""; maxEvaluationAtDepth1 = -Number.MAX_VALUE; searchStartTime = performance.now(); const rootID = ""; nodeMap.clear(); const rootNodeSpecs = { board: initialBoard, acc_eval: 0.0, transient_eval: -Number.MAX_VALUE, place: {}, expanded: false, childrenIDs: [], parentID: undefined, softDropCount: 0, comboCount: initialCombo, B2B: initialB2B, }; nodeMap.set(rootID, rootNodeSpecs); const availableMinos = judgeAvailableMinos(minoSequence, []); for (const pieceForExpansion of availableMinos) { expand(rootID, initialBoard, pieceForExpansion, []); } while (!isTimeExceeded()) { let selectedNodeID = rootID; let depthOfSelectedNode = 0; let placementsToSelectedNode = []; let usedMinosOnPath = []; while (nodeMap.has(selectedNodeID) && nodeMap.get(selectedNodeID).expanded) { if (depthOfSelectedNode >= MAX_SEARCH_DEPTH ) { break; } const childNodeID = select(selectedNodeID); if (childNodeID === "" || !nodeMap.has(childNodeID)) { break; } placementsToSelectedNode.push(nodeMap.get(childNodeID).place); usedMinosOnPath.push(nodeMap.get(childNodeID).place.pieceType); selectedNodeID = childNodeID; depthOfSelectedNode++; } const selectedNode = nodeMap.get(selectedNodeID); if (selectedNode && !selectedNode.expanded) { if (depthOfSelectedNode < MAX_SEARCH_DEPTH) { const boardStateForExpansion = selectedNode.board; const availableMinosForExpand = judgeAvailableMinos(minoSequence, usedMinosOnPath); if (availableMinosForExpand.length > 0) { for (const pieceForExpansion of availableMinosForExpand) { expand(selectedNodeID, boardStateForExpansion, pieceForExpansion, placementsToSelectedNode); } } } } } if (bestNodeIDAtDepth1 !== "" && nodeMap.has(bestNodeIDAtDepth1)) { return nodeMap.get(bestNodeIDAtDepth1).place; } const rootNode = nodeMap.get(rootID); if (rootNode && rootNode.childrenIDs.length > 0) { let bestFallbackID = ""; let maxEvalFallback = -Number.MAX_VALUE; for(const childID of rootNode.childrenIDs){ if(nodeMap.has(childID)){ const child_node = nodeMap.get(childID); const current_total_eval = child_node.acc_eval + child_node.transient_eval; if(current_total_eval > maxEvalFallback){ maxEvalFallback = current_total_eval; bestFallbackID = childID; } } } if(bestFallbackID !== ""){ return nodeMap.get(bestFallbackID).place; } } return {x: 4, y: 18, rotation: 0, pieceType: minoSequence[0] || 'T'}; }
-
-// 3. Web Workerのメイン処理
-// =================================================
-
-self.onmessage = (e) => {
-    const { command, payload } = e.data;
-    if (command === 'think') {
-        const { playerId, gameState } = payload;
-        const parsedState = JSON.parse(gameState);
-
-        // --- ステップA: シミュレーターのデータをAIの形式に変換 ---
-        MAX_THINKING_MS = parsedState.thinkTime || 500;
-        const board = new TetrisBoard();
-        const board_str = parsedState.board;
-        for (let i = 0; i < board_str.length; ++i) {
-            if (board_str[i] !== '_') {
-                const x = i % TetrisBoard.WIDTH;
-                const y = Math.floor(i / TetrisBoard.WIDTH);
-                board.fill(y, x);
-            }
-        }
-
-        const minoSequence = [];
-        if (parsedState.hold) {
-            minoSequence.push(parsedState.hold[0]);
-        }
-        if (parsedState.next) {
-            for (const mino of parsedState.next) {
-                minoSequence.push(mino);
-            }
-        }
-
-        const initialB2B = parsedState.b2b || false;
-        const ren = parsedState.ren || -1;
-        const initialCombo = (ren < 0) ? 0 : ren + 1;
-
-        // --- ステップB: AIの実行 ---
-        const bestMove = runAI(board, minoSequence, initialB2B, initialCombo);
-
-        // --- ステップC: AIの結果をシミュレーターの形式に変換 ---
-        let output_x = bestMove.x;
-        let output_y = bestMove.y;
-        
-        switch (bestMove.pieceType) {
-            case 'I':
-                if (bestMove.rotation === 0 || bestMove.rotation === 2) {
-                    output_x = bestMove.x - 1;
-                    output_y = 39 - bestMove.y;
-                } else {
-                    output_x = bestMove.x - 2;
-                    output_y = 38 - bestMove.y;
-                }
-                break;
-            case 'S':
-            case 'Z':
-                if (bestMove.rotation === 0 || bestMove.rotation === 2) {
-                    output_x = bestMove.x;
-                    output_y = 39 - bestMove.y;
-                } else {
-                    output_x = bestMove.x - 1;
-                    output_y = 39 - bestMove.y;
-                }
-                break;
-            case 'O':
-            case 'L':
-            case 'J':
-            case 'T':
-                output_x = bestMove.x;
-                output_y = 39 - bestMove.y;
-                break;
-            default:
-                output_x = bestMove.x;
-                output_y = 39 - bestMove.y;
-                break;
-        }
-
-        const result = {
-            piece: bestMove.pieceType,
-            x: output_x,
-            y: output_y,
-            rotation: bestMove.rotation
-        };
-
-        // --- ステップD: 結果をメインスレッドに送信 ---
-        self.postMessage({ status: 'result', playerId, result });
-    }
-};
-
-self.postMessage({ status: 'ready' });
-        `;
-        const blob = new Blob([workerCode], { type: 'application/javascript' });
-        aiWorker = new Worker(URL.createObjectURL(blob));
-// =================== ここまでが置き換える新しいコードです =================
-// =================== ここまでが置き換える新しいコードです ===================
-
-
-        // ワーカーからのメッセージを処理します
-        aiWorker.onmessage = (e) => {
-            const { status, playerId, result, message } = e.data;
-            if (status === 'ready') {
-                isAiReady = true; // AIが準備完了したことをフラグで管理
-                console.log('AI Worker is ready.');
-                alert('AIの準備が完了しました。');
-            } else if (status === 'result') {
-                const player = players.find(p => 'p' + p.id === playerId);
-                if (player) {
-                    player.handleAIResult(result);
-                }
-            } else if (status === 'error') {
-                isAiReady = false;
-                console.error('AI Worker Error:', message);
-                alert('AIワーカーでエラーが発生しました: ' + message);
-            }
-        };
-    } else {
-        console.warn('Web Workers are not supported in this browser.');
-        // AIチェックボックスを無効化するなどのフォールバック処理
-        document.getElementById('p1-ai-enabled').disabled = true;
-        document.getElementById('p2-ai-enabled').disabled = true;
-    }
-
     virtualController.init();
 
     loadKeyBindings();
@@ -2937,8 +2488,7 @@ self.postMessage({ status: 'ready' });
             hideBack: document.getElementById('hide-back-btn-checkbox').checked
         });
     });
-    
-    // 変更後
+
 document.getElementById('startGameBtn').addEventListener('click', () => {
         let currentRunSettings = { ...gameSettings };
         let userFunctions = {};
@@ -2981,21 +2531,6 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
         const originalSettingsBeforeRun = { ...gameSettings };
         Object.assign(gameSettings, currentRunSettings);
 
-        const p1isAI = document.getElementById('p1-ai-enabled').checked;
-        const p2isAI = document.getElementById('p2-ai-enabled').checked;
-
-        const debugContainer = document.getElementById('ai-debug-container');
-        const p1DebugPanel = document.getElementById('p1-debug-panel');
-        const p2DebugPanel = document.getElementById('p2-debug-panel');
-
-        if (p1isAI || p2isAI) {
-            debugContainer.style.display = 'flex';
-            p1DebugPanel.style.display = p1isAI ? 'block' : 'none';
-            p2DebugPanel.style.display = p2isAI ? 'block' : 'none';
-        } else {
-            debugContainer.style.display = 'none';
-        }
-
         gameState = 'PLAYING'; 
         document.getElementById('editor-container').style.display = 'none'; 
         document.getElementById('game-container').style.display = 'block';
@@ -3026,8 +2561,7 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
 
         players = [];
         const createAndSetupPlayer = (id, offsetX, bindings, padIndex) => {
-            const isAI = (id === '1' && p1isAI) || (id === '2' && p2isAI);
-            const player = new Player(id, offsetX, bindings, padIndex, isAI);
+            const player = new Player(id, offsetX, bindings, padIndex);
             player.holdDisabled = autoStartParams.nh;
             player.ruleHooks = userFunctions;
             return player;
@@ -3102,7 +2636,6 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
     });
 
 
-// 変更後
 document.getElementById('backToEditorBtn').addEventListener('click', () => {
         gameState = 'EDITING';
         players = [];
@@ -3111,7 +2644,6 @@ document.getElementById('backToEditorBtn').addEventListener('click', () => {
         document.getElementById('game-controls').style.display = 'none';
         document.getElementById('editor-container').style.display = 'flex';
         document.getElementById('rule-description-display').style.display = 'none';
-        document.getElementById('ai-debug-container').style.display = 'none';
         
         virtualController.hide();
         
@@ -3224,7 +2756,6 @@ document.getElementById('settingsBtn').addEventListener('click', () => openUnifi
     }
     
 
-// 変更後
 document.getElementById('retryBtn').addEventListener('click', () => {
         if (gameState !== 'PLAYING' || !players.length) return;
         
@@ -3234,8 +2765,6 @@ document.getElementById('retryBtn').addEventListener('click', () => {
         let userFunctions = {};
         let startTime = performance.now();
         const wasHoldDisabled = players[0].holdDisabled;
-        const p1wasAI = players.find(p => p.id === '1')?.isAI || false;
-        const p2wasAI = players.find(p => p.id === '2')?.isAI || false;
 
         if (editorData.rule.code) {
             try {
@@ -3274,8 +2803,7 @@ document.getElementById('retryBtn').addEventListener('click', () => {
         Object.assign(gameSettings, currentRunSettings);
 
         const createAndSetupPlayer = (id, offsetX, bindings, padIndex) => {
-            const isAI = (id === '1' && p1wasAI) || (id === '2' && p2wasAI);
-            const player = new Player(id, offsetX, bindings, padIndex, isAI);
+            const player = new Player(id, offsetX, bindings, padIndex);
             player.holdDisabled = wasHoldDisabled;
             player.ruleHooks = userFunctions;
             return player;
@@ -3329,31 +2857,6 @@ document.getElementById('retryBtn').addEventListener('click', () => {
         };
         
         players.forEach(p => p.gameApi = gameApi);
-    });
-
-    document.getElementById('p1-manual-submit').addEventListener('click', () => {
-        const player = players.find(p => p.id === '1');
-        if (player && player.isAI) {
-            const result = {
-                piece: document.getElementById('p1-manual-mino').value.toUpperCase(),
-                x: parseInt(document.getElementById('p1-manual-x').value),
-                y: parseInt(document.getElementById('p1-manual-y').value),
-                rotation: parseInt(document.getElementById('p1-manual-r').value)
-            };
-            player.handleAIResult(result);
-        }
-    });
-    document.getElementById('p2-manual-submit').addEventListener('click', () => {
-        const player = players.find(p => p.id === '2');
-        if (player && player.isAI) {
-            const result = {
-                piece: document.getElementById('p2-manual-mino').value.toUpperCase(),
-                x: parseInt(document.getElementById('p2-manual-x').value),
-                y: parseInt(document.getElementById('p2-manual-y').value),
-                rotation: parseInt(document.getElementById('p2-manual-r').value)
-            };
-            player.handleAIResult(result);
-        }
     });
 
     setupEditors();
