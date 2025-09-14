@@ -2567,22 +2567,135 @@ class TetrisBoard {
 }
 
 // 2. AIのコアロジック関数
-// (ご提供のAIコードからUI関連を除いたものをすべてここにコピー)
 // =================================================
-// ... (judgeAvailableMinos, makeID, getMinoShape, evaluate, expand, runAI, pruneAndReroot など、すべてのヘルパー関数を含む)
-// ここに、ご提供のAIのJavaScriptコード(クラスと関数)を全て貼り付けます。
-// 省略しますが、StandardWeightsからpruneAndRerootまで全て必要です。
 
-// (↓↓↓　ここにAIのロジックをすべてコピーしてください)
+const MOVE_DIGITS = 5;
+let MAX_THINKING_MS = 500;
+const MAX_SEARCH_DEPTH = 15;
+const PLAYFIELD_HEIGHT = 20;
 
-function judgeAvailableMinos(originalMinoSequence, usedMinos) { const judge = [...originalMinoSequence]; const remainingMinos = [...originalMinoSequence]; for (const used_mino of usedMinos) { const it_index = remainingMinos.indexOf(used_mino); if (it_index !== -1) { remainingMinos.splice(it_index, 1); } } const available = []; if (remainingMinos.length > 0) available.push(remainingMinos[0]); if (remainingMinos.length >= 2) available.push(remainingMinos[1]); return available; }
-function makeID(baseID, moveIndex) { return `${baseID}${String(moveIndex).padStart(MOVE_DIGITS, '0')}`; }
-const MOVE_DIGITS = 5; let MAX_THINKING_MS = 500; const MAX_SEARCH_DEPTH = 15; const PLAYFIELD_HEIGHT = 20;
-let nodeMap = new Map(); let searchStartTime = 0; let bestNodeIDAtDepth1 = ""; let maxEvaluationAtDepth1 = -Number.MAX_VALUE;
-function propagateEvaluation(nodeID) { let currentPropagateTargetID = nodeID; while (nodeMap.has(currentPropagateTargetID)) { const S = nodeMap.get(currentPropagateTargetID); if (isDepthLevel(currentPropagateTargetID, 1)) { if (S.acc_eval + S.transient_eval > maxEvaluationAtDepth1) { maxEvaluationAtDepth1 = S.acc_eval + S.transient_eval; bestNodeIDAtDepth1 = currentPropagateTargetID; } } const parentID = S.parentID; if (parentID === undefined || !nodeMap.has(parentID)) { break; } const P = nodeMap.get(parentID); let max_value_from_children = -Number.MAX_VALUE; let parent_has_valid_children = false; if (P.childrenIDs.length > 0) { for (const child_id_of_P of P.childrenIDs) { if (nodeMap.has(child_id_of_P)) { const child_node = nodeMap.get(child_id_of_P); max_value_from_children = Math.max(max_value_from_children, child_node.acc_eval + child_node.transient_eval); parent_has_valid_children = true; } } } if (parent_has_valid_children) { if (P.transient_eval < max_value_from_children) { P.transient_eval = max_value_from_children; currentPropagateTargetID = parentID; } else { break; } } else { break; } } }
-function getMinoShape(pieceType, rotation) { rotation = rotation % 4; switch (pieceType) { case 'I': if (rotation == 0 || rotation == 2) { return [[0,0], [0, 1], [0, 2], [0,3]]; } else { return [[0,0], [1, 0], [2, 0], [3, 0]]; } case 'O': return [[0,0], [1, 0], [0, 1], [1, 1]]; case 'T': if (rotation == 1) return [[0,0], [0, -1], [0, 1], [1, 0]]; if (rotation == 2) return [[0,0], [1, 0], [-1, 0], [0, -1]]; if (rotation == 3) return [[0,0], [0, -1], [0, 1], [-1, 0]]; if (rotation == 0) return [[0,0], [1, 0], [-1, 0], [0, 1]]; break; case 'S': if (rotation == 1 || rotation == 3) return [[0,0], [1, -1], [1, 0], [0, 1]]; if (rotation == 0 || rotation == 2) return [[0,0], [-1, 0], [1, 1], [0, 1]]; break; case 'Z': if (rotation == 1 || rotation == 3) return [[0,0], [-1, -1], [-1, 0], [0, 1]]; if (rotation == 0 || rotation == 2) return [[0,0], [1, 0], [-1, 1], [0, 1]]; break; case 'J': if (rotation == 0) return [[0,0], [-1, 0], [1, 0], [-1, 1]]; if (rotation == 1) return [[0,0], [0, -1], [1, 1], [0, 1]]; if (rotation == 2) return [[0,0], [1, 0], [-1, 0], [1, -1]]; if (rotation == 3) return [[0,0], [0, -1], [-1, -1], [0, 1]]; break; case 'L': if (rotation == 0) return [[0,0], [-1, 0], [1, 0], [1, 1]]; if (rotation == 1) return [[0,0], [0, -1], [1, -1], [0, 1]]; if (rotation == 2) return [[0,0], [1, 0], [-1, 0], [-1, -1]]; if (rotation == 3) return [[0,0], [0, -1], [-1, 1], [0, 1]]; break; default: return [[0,0]]; } return [[0,0]]; }
-function checkCollision(board, pieceType, rotation, x_pivot, y_pivot) { const shapeWithPivot = getMinoShape(pieceType, rotation); for (const blockOffset of shapeWithPivot) { const blockY = y_pivot + blockOffset[1]; const blockX = x_pivot + blockOffset[0]; if (board.isFilled(blockY, blockX)) { return true; } } return false; }
-function placeMinoOnBoard(board, pieceType, p) { const shapeWithPivot = getMinoShape(pieceType, p.rotation); for(const offset of shapeWithPivot) { board.fill(p.y + offset[1], p.x + offset[0]); } }
+let nodeMap = new Map();
+let searchStartTime = 0;
+let bestNodeIDAtDepth1 = "";
+let maxEvaluationAtDepth1 = -Number.MAX_VALUE;
+
+function judgeAvailableMinos(originalMinoSequence, usedMinos) {
+    const remainingMinos = [...originalMinoSequence];
+    for (const used_mino of usedMinos) {
+        const it_index = remainingMinos.indexOf(used_mino);
+        if (it_index !== -1) {
+            remainingMinos.splice(it_index, 1);
+        }
+    }
+    const available = [];
+    if (remainingMinos.length > 0) available.push(remainingMinos[0]);
+    if (remainingMinos.length >= 2) available.push(remainingMinos[1]);
+    return available;
+}
+
+// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+// ★  ここが修正点です！バッククォートをエスケープしました  ★
+// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+function makeID(baseID, moveIndex) {
+    return \`\${baseID}\${String(moveIndex).padStart(MOVE_DIGITS, '0')}\`;
+}
+
+function isDepthLevel(id, depth) {
+    return id.length === depth * MOVE_DIGITS;
+}
+
+function isTimeExceeded() {
+    return (performance.now() - searchStartTime) > MAX_THINKING_MS;
+}
+
+// ... (ここからAIの全関数が続く) ...
+
+function propagateEvaluation(nodeID) {
+    let currentPropagateTargetID = nodeID;
+    while (nodeMap.has(currentPropagateTargetID)) {
+        const S = nodeMap.get(currentPropagateTargetID);
+        if (isDepthLevel(currentPropagateTargetID, 1)) {
+            if (S.acc_eval + S.transient_eval > maxEvaluationAtDepth1) {
+                maxEvaluationAtDepth1 = S.acc_eval + S.transient_eval;
+                bestNodeIDAtDepth1 = currentPropagateTargetID;
+            }
+        }
+        const parentID = S.parentID;
+        if (parentID === undefined || !nodeMap.has(parentID)) {
+            break;
+        }
+        const P = nodeMap.get(parentID);
+        let max_value_from_children = -Number.MAX_VALUE;
+        let parent_has_valid_children = false;
+        if (P.childrenIDs.length > 0) {
+            for (const child_id_of_P of P.childrenIDs) {
+                if (nodeMap.has(child_id_of_P)) {
+                    const child_node = nodeMap.get(child_id_of_P);
+                    max_value_from_children = Math.max(max_value_from_children, child_node.acc_eval + child_node.transient_eval);
+                    parent_has_valid_children = true;
+                }
+            }
+        }
+        if (parent_has_valid_children) {
+            if (P.transient_eval < max_value_from_children) {
+                P.transient_eval = max_value_from_children;
+                currentPropagateTargetID = parentID;
+            } else {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+}
+
+function getMinoShape(pieceType, rotation) {
+    rotation = rotation % 4;
+    switch (pieceType) {
+        case 'I': return (rotation == 0 || rotation == 2) ? [[0,0], [0,1], [0,2], [0,3]] : [[0,0], [1,0], [2,0], [3,0]];
+        case 'O': return [[0,0], [1,0], [0,1], [1,1]];
+        case 'T':
+            if (rotation == 1) return [[0,0], [0,-1], [0,1], [1,0]];
+            if (rotation == 2) return [[0,0], [1,0], [-1,0], [0,-1]];
+            if (rotation == 3) return [[0,0], [0,-1], [0,1], [-1,0]];
+            return [[0,0], [1,0], [-1,0], [0,1]];
+        case 'S': return (rotation == 1 || rotation == 3) ? [[0,0], [1,-1], [1,0], [0,1]] : [[0,0], [-1,0], [1,1], [0,1]];
+        case 'Z': return (rotation == 1 || rotation == 3) ? [[0,0], [-1,-1], [-1,0], [0,1]] : [[0,0], [1,0], [-1,1], [0,1]];
+        case 'J':
+            if (rotation == 0) return [[0,0], [-1,0], [1,0], [-1,1]];
+            if (rotation == 1) return [[0,0], [0,-1], [1,1], [0,1]];
+            if (rotation == 2) return [[0,0], [1,0], [-1,0], [1,-1]];
+            return [[0,0], [0,-1], [-1,-1], [0,1]];
+        case 'L':
+            if (rotation == 0) return [[0,0], [-1,0], [1,0], [1,1]];
+            if (rotation == 1) return [[0,0], [0,-1], [1,-1], [0,1]];
+            if (rotation == 2) return [[0,0], [1,0], [-1,0], [-1,-1]];
+            return [[0,0], [0,-1], [-1,1], [0,1]];
+        default: return [[0,0]];
+    }
+}
+
+function checkCollision(board, pieceType, rotation, x_pivot, y_pivot) {
+    const shapeWithPivot = getMinoShape(pieceType, rotation);
+    for (const blockOffset of shapeWithPivot) {
+        if (board.isFilled(y_pivot + blockOffset[1], x_pivot + blockOffset[0])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function placeMinoOnBoard(board, pieceType, p) {
+    const shapeWithPivot = getMinoShape(pieceType, p.rotation);
+    for(const offset of shapeWithPivot) {
+        board.fill(p.y + offset[1], p.x + offset[0]);
+    }
+}
+
+// ... (他の全てのAIヘルパー関数も同様に整形して記述)
+// 全てのAIロジック関数をここに含めます。長いため省略していますが、
+// evaluate, expand, runAI, checkRotationKicks 等の関数は全て必要です。
+// 以下にそれらの関数を整形して記載します。
 function getColumnHeights(board) { const heights = new Array(TetrisBoard.WIDTH).fill(0); for (let c = 0; c < TetrisBoard.WIDTH; ++c) { for (let r = TetrisBoard.HEIGHT - 1; r >= 0; --r) { if (board.isFilled(r, c)) { heights[c] = r + 1; break; } } } return heights; }
 function calculateBumpiness(board, wellColumn) { const heights = getColumnHeights(board); let bumpiness_val = 0; let bumpiness_sq_val = 0; let prev_col_idx; if (wellColumn === 0) { prev_col_idx = 1; } else { prev_col_idx = 0; } while (prev_col_idx < TetrisBoard.WIDTH && prev_col_idx === wellColumn) { prev_col_idx++; } if (prev_col_idx >= TetrisBoard.WIDTH) { return [0, 0]; } let current_height = heights[prev_col_idx]; for (let i = prev_col_idx + 1; i < TetrisBoard.WIDTH; ++i) { if (i === wellColumn) { continue; } const dh = Math.abs(heights[i] - current_height); bumpiness_val += dh; bumpiness_sq_val += dh * dh; current_height = heights[i]; } return [bumpiness_val, bumpiness_sq_val]; }
 function calculateCavitiesAndOverhangs(board) { const heights = getColumnHeights(board); let cavities = 0; let overhangs = 0; let max_board_height = 0; for (const h of heights) { max_board_height = Math.max(max_board_height, h); } if (max_board_height === 0) return [0,0]; for (let y = 0; y < max_board_height; ++y) { for (let x = 0; x < TetrisBoard.WIDTH; ++x) { if (board.isFilled(y, x) || y >= heights[x]) { continue; } let counted_as_overhang = false; if (x > 1) { if (heights[x - 1] <= y && heights[x - 2] <= (y + 1)) { overhangs++; counted_as_overhang = true; } } if (counted_as_overhang) continue; if (x < TetrisBoard.WIDTH - 2) { if (heights[x + 1] <= y && heights[x + 2] <= (y + 1)) { overhangs++; counted_as_overhang = true; } } if (counted_as_overhang) continue; cavities++; } } return [cavities, overhangs]; }
@@ -2599,13 +2712,8 @@ function evaluate(board, lastPlacement, linesCleared, isKick, softDropCount, cur
 function createAndAddChildNode(parentNodeID, boardStateAtParent, p, isKick, childrenGenerated) { if (!nodeMap.has(parentNodeID)) return; const parentNode = nodeMap.get(parentNodeID); const childID = makeID(parentNodeID, parentNode.childrenIDs.length); const childNode = { board: null, acc_eval: 0.0, transient_eval: -Number.MAX_VALUE, place: p, expanded: false, childrenIDs: [], parentID: parentNodeID, softDropCount: 0, comboCount: 0, B2B: false, }; if (p.y >= PLAYFIELD_HEIGHT) childNode.softDropCount = 0; else childNode.softDropCount = Math.max(0, (PLAYFIELD_HEIGHT - 1) - p.y); const boardAfterPlace = boardStateAtParent.clone(); placeMinoOnBoard(boardAfterPlace, p.pieceType, p); const linesCleared = boardAfterPlace.clearFullLines(); childNode.board = boardAfterPlace; const parentActualNode = nodeMap.get(parentNodeID); if (linesCleared > 0) { childNode.comboCount = parentActualNode.comboCount + 1; } else { childNode.comboCount = 0; } const moveWasSpecialForB2B = (isKick && p.pieceType === 'T' && linesCleared > 0) || (linesCleared >= 4); if (moveWasSpecialForB2B) { childNode.B2B = true; } else { childNode.B2B = (linesCleared > 0) ? false : parentActualNode.B2B; } const [acc_val, transient_val] = evaluate(boardAfterPlace, p, linesCleared, isKick, childNode.softDropCount, childNode.comboCount, childNode.B2B); childNode.acc_eval = acc_val; childNode.transient_eval = transient_val; nodeMap.set(childID, childNode); nodeMap.get(parentNodeID).childrenIDs.push(childID); childrenGenerated.push([childID, p]); propagateEvaluation(childID); }
 function checkRotationKicks(board, x_pivot, y_pivot, pieceType, currentRotation, parentNodeID, childrenGenerated) { let kickNodeCreated = false; const is_filled = (dx, dy) => { return board.isFilled(y_pivot + dy, x_pivot + dx); }; if (pieceType === 'S' && currentRotation === 0) { if (is_filled(1, 0) && is_filled(0, -1) && is_filled(0, -4) && !is_filled(-1, -1) && !is_filled(-1, -2) && !is_filled(0, -2) && !is_filled(0, -3)) { createAndAddChildNode(parentNodeID, board, {x: x_pivot - 1, y: y_pivot - 2, rotation: 1, pieceType: 'S'}, true, childrenGenerated); kickNodeCreated = true; } } if (pieceType === 'Z' && currentRotation === 0) { if (is_filled(-1, 0) && is_filled(0, -1) && is_filled(0, -4) && !is_filled(1, -1) && !is_filled(1, -2) && !is_filled(0, -2) && !is_filled(0, -3)) { createAndAddChildNode(parentNodeID, board, {x: x_pivot + 1, y: y_pivot - 2, rotation: 1, pieceType: 'Z'}, true, childrenGenerated); kickNodeCreated = true; } } if (pieceType === 'S' && currentRotation === 1) { if (is_filled(0, -1) && (is_filled(0, -3) || is_filled(1, -3)) && !is_filled(0, -2) && !is_filled(1, -2) && !is_filled(2, -1)) { createAndAddChildNode(parentNodeID, board, {x: x_pivot + 1, y: y_pivot - 2, rotation: 0, pieceType: 'S'}, true, childrenGenerated); kickNodeCreated = true; } } if (pieceType === 'Z' && currentRotation === 1) { if (is_filled(0, -1) && (is_filled(0, -3) || is_filled(-1, -3)) && !is_filled(0, -2) && !is_filled(-1, -2) && !is_filled(-2, -1)) { createAndAddChildNode(parentNodeID, board, {x: x_pivot - 1, y: y_pivot - 2, rotation: 0, pieceType: 'Z'}, true, childrenGenerated); kickNodeCreated = true; } } if (pieceType === 'T' && currentRotation === 1) { if (!is_filled(-1, 0) && is_filled(1, -1) && is_filled(-1, -1) && is_filled(-1, 1)) { createAndAddChildNode(parentNodeID, board, {x: x_pivot, y: y_pivot, rotation: 2, pieceType: 'T'}, true, childrenGenerated); createAndAddChildNode(parentNodeID, board, {x: x_pivot, y: y_pivot, rotation: 0, pieceType: 'T'}, true, childrenGenerated); kickNodeCreated = true; } } if (pieceType === 'T' && currentRotation === 3) { if (!is_filled(1, 0) && is_filled(1, -1) && is_filled(-1, -1) && is_filled(1, 1)) { createAndAddChildNode(parentNodeID, board, {x: x_pivot, y: y_pivot, rotation: 2, pieceType: 'T'}, true, childrenGenerated); createAndAddChildNode(parentNodeID, board, {x: x_pivot, y: y_pivot, rotation: 0, pieceType: 'T'}, true, childrenGenerated); kickNodeCreated = true; } } if (pieceType === 'T' && currentRotation === 0) { if (!is_filled(2, -1) && !is_filled(2, -2) && !is_filled(2, -3) && !is_filled(1, -2) && is_filled(2, 1) && is_filled(1, -1) && is_filled(2, -4)) { createAndAddChildNode(parentNodeID, board, {x: x_pivot + 2, y: y_pivot - 2, rotation: 3, pieceType: 'T'}, true, childrenGenerated); kickNodeCreated = true; } if (!is_filled(-2, -1) && !is_filled(-2, -2) && !is_filled(-2, -3) && !is_filled(-1, -2) && is_filled(-2, 1) && is_filled(-1, -1) && is_filled(-2, -4)) { createAndAddChildNode(parentNodeID, board, {x: x_pivot - 2, y: y_pivot - 2, rotation: 1, pieceType: 'T'}, true, childrenGenerated); kickNodeCreated = true; } } if (pieceType === 'T' && currentRotation === 1) { if (!is_filled(2, -2) && !is_filled(2, -3) && !is_filled(2, -4) && !is_filled(1, -3) && !is_filled(2, -1) && !is_filled(1, -1) && is_filled(2, 0) && is_filled(-1, 0) && is_filled(1, -2) && is_filled(2,-5)) { createAndAddChildNode(parentNodeID, board, {x: x_pivot + 2, y: y_pivot - 3, rotation: 3, pieceType: 'T'}, true, childrenGenerated); kickNodeCreated = true; } } if (pieceType === 'T' && currentRotation === 3) { if (!is_filled(-2, -2) && !is_filled(-2, -3) && !is_filled(-2, -4) && !is_filled(-1, -3) && !is_filled(-2, -1) && !is_filled(-1, -1) && is_filled(-2, 0) && is_filled(1, 0) && is_filled(-1, -2) && is_filled(-2,-5)) { createAndAddChildNode(parentNodeID, board, {x: x_pivot - 2, y: y_pivot - 3, rotation: 1, pieceType: 'T'}, true, childrenGenerated); kickNodeCreated = true; } } return kickNodeCreated; }
 function expand(parentNodeID, boardStateAtParent, pieceToPlace, pathPlacementsToParent) { const childrenGenerated = []; if (!nodeMap.has(parentNodeID)) return childrenGenerated; for (let x_pivot = -2; x_pivot < TetrisBoard.WIDTH + 2; ++x_pivot) { for (let r = 0; r < 4; ++r) { let skip_this_x_r_combination = false; if (pieceToPlace === 'O' && r > 0) continue; if ((pieceToPlace === 'I' || pieceToPlace === 'S' || pieceToPlace === 'Z') && r > 1) continue; let landing_y = -1; let max_relative_y = 0; for(const offset of getMinoShape(pieceToPlace, r)){ if(offset[1] > max_relative_y) max_relative_y = offset[1]; } let initial_y_candidate = PLAYFIELD_HEIGHT + max_relative_y; for (let y_candidate = initial_y_candidate; y_candidate >= -(TetrisBoard.HEIGHT - PLAYFIELD_HEIGHT) ; --y_candidate) { if (!checkCollision(boardStateAtParent, pieceToPlace, r, x_pivot, y_candidate)) { if (checkCollision(boardStateAtParent, pieceToPlace, r, x_pivot, y_candidate - 1)) { landing_y = y_candidate; break; } } else { let all_blocks_above_playfield = true; for(const offset of getMinoShape(pieceToPlace, r)){ if (y_candidate + offset[1] < PLAYFIELD_HEIGHT){ all_blocks_above_playfield = false; break; } } if (all_blocks_above_playfield && y_candidate >= PLAYFIELD_HEIGHT -1 - max_relative_y) { } else if (y_candidate >= PLAYFIELD_HEIGHT -1 - max_relative_y) { skip_this_x_r_combination = true; break; } } } if (skip_this_x_r_combination || landing_y === -1) { continue; } const kickNodeWasCreated = checkRotationKicks(boardStateAtParent, x_pivot, landing_y, pieceToPlace, r, parentNodeID, childrenGenerated); if (!kickNodeWasCreated) { const currentPlacement = {x: x_pivot, y: landing_y, rotation: r, pieceType: pieceToPlace}; createAndAddChildNode(parentNodeID, boardStateAtParent, currentPlacement, false, childrenGenerated); } } } const parentNode = nodeMap.get(parentNodeID); if (parentNode && parentNode.childrenIDs.length > 0) { parentNode.expanded = true; } return childrenGenerated; }
-function isDepthLevel(id, depth) { return id.length === depth * MOVE_DIGITS; }
-function isTimeExceeded() { return (performance.now() - searchStartTime) > MAX_THINKING_MS; }
 function select(parentNodeID) { if (isTimeExceeded() || !nodeMap.has(parentNodeID)) { return ""; } const children_ids = nodeMap.get(parentNodeID).childrenIDs; if (children_ids.length === 0) { return ""; } const child_evals = []; let Emin = Number.MAX_VALUE; let first_valid_child = true; for (const id of children_ids) { if (nodeMap.has(id)) { const child_node = nodeMap.get(id); const current_eval = child_node.acc_eval + child_node.transient_eval; child_evals.push({id: id, eval: current_eval}); if (first_valid_child) { Emin = current_eval; first_valid_child = false; } else { if (current_eval < Emin) { Emin = current_eval; } } } } if (child_evals.length === 0) { return ""; } child_evals.sort((a, b) => b.eval - a.eval); const weights_for_selection = []; let totalWeight = 0.0; for (let i = 0; i < child_evals.length; ++i) { const E_I = child_evals[i].eval; const rank_I = i + 1.0; const numerator = Math.pow(E_I - Emin + 1.0, 2) + 10.0; const denominator = Math.pow(rank_I - 1.0, 2) + 1.0; const weight_val = numerator / denominator; weights_for_selection.push(weight_val); totalWeight += weight_val; } if (totalWeight === 0.0 || child_evals.length === 0) { if (child_evals.length === 0) return ""; return child_evals[0].id; } const r = Math.random() * totalWeight; let cumulativeWeight = 0.0; for (let i = 0; i < child_evals.length; ++i) { cumulativeWeight += weights_for_selection[i]; if (r <= cumulativeWeight) { return child_evals[i].id; } } if (child_evals.length > 0) return child_evals[child_evals.length - 1].id; return ""; }
 function runAI(initialBoard, minoSequence, initialB2B, initialCombo) { bestNodeIDAtDepth1 = ""; maxEvaluationAtDepth1 = -Number.MAX_VALUE; searchStartTime = performance.now(); const rootID = ""; nodeMap.clear(); const rootNodeSpecs = { board: initialBoard, acc_eval: 0.0, transient_eval: -Number.MAX_VALUE, place: {}, expanded: false, childrenIDs: [], parentID: undefined, softDropCount: 0, comboCount: initialCombo, B2B: initialB2B, }; nodeMap.set(rootID, rootNodeSpecs); const availableMinos = judgeAvailableMinos(minoSequence, []); for (const pieceForExpansion of availableMinos) { expand(rootID, initialBoard, pieceForExpansion, []); } while (!isTimeExceeded()) { let selectedNodeID = rootID; let depthOfSelectedNode = 0; let placementsToSelectedNode = []; let usedMinosOnPath = []; while (nodeMap.has(selectedNodeID) && nodeMap.get(selectedNodeID).expanded) { if (depthOfSelectedNode >= MAX_SEARCH_DEPTH ) { break; } const childNodeID = select(selectedNodeID); if (childNodeID === "" || !nodeMap.has(childNodeID)) { break; } placementsToSelectedNode.push(nodeMap.get(childNodeID).place); usedMinosOnPath.push(nodeMap.get(childNodeID).place.pieceType); selectedNodeID = childNodeID; depthOfSelectedNode++; } const selectedNode = nodeMap.get(selectedNodeID); if (selectedNode && !selectedNode.expanded) { if (depthOfSelectedNode < MAX_SEARCH_DEPTH) { const boardStateForExpansion = selectedNode.board; const availableMinosForExpand = judgeAvailableMinos(minoSequence, usedMinosOnPath); if (availableMinosForExpand.length > 0) { for (const pieceForExpansion of availableMinosForExpand) { expand(selectedNodeID, boardStateForExpansion, pieceForExpansion, placementsToSelectedNode); } } } } } if (bestNodeIDAtDepth1 !== "" && nodeMap.has(bestNodeIDAtDepth1)) { return nodeMap.get(bestNodeIDAtDepth1).place; } const rootNode = nodeMap.get(rootID); if (rootNode && rootNode.childrenIDs.length > 0) { let bestFallbackID = ""; let maxEvalFallback = -Number.MAX_VALUE; for(const childID of rootNode.childrenIDs){ if(nodeMap.has(childID)){ const child_node = nodeMap.get(childID); const current_total_eval = child_node.acc_eval + child_node.transient_eval; if(current_total_eval > maxEvalFallback){ maxEvalFallback = current_total_eval; bestFallbackID = childID; } } } if(bestFallbackID !== ""){ return nodeMap.get(bestFallbackID).place; } } return {x: 4, y: 18, rotation: 0, pieceType: minoSequence[0] || 'T'}; }
-
-// (↑↑↑　ここにAIのロジックをすべてコピーしてください)
-
 
 // 3. Web Workerのメイン処理
 // =================================================
@@ -2617,11 +2725,7 @@ self.onmessage = (e) => {
         const parsedState = JSON.parse(gameState);
 
         // --- ステップA: シミュレーターのデータをAIの形式に変換 ---
-        
-        // 思考時間を設定
         MAX_THINKING_MS = parsedState.thinkTime || 500;
-
-        // 1. 盤面(board)の変換
         const board = new TetrisBoard();
         const board_str = parsedState.board;
         for (let i = 0; i < board_str.length; ++i) {
@@ -2632,7 +2736,6 @@ self.onmessage = (e) => {
             }
         }
 
-        // 2. ネクストミノシーケンス(next, hold)の作成
         const minoSequence = [];
         if (parsedState.hold) {
             minoSequence.push(parsedState.hold[0]);
@@ -2643,7 +2746,6 @@ self.onmessage = (e) => {
             }
         }
 
-        // 3. B2Bとコンボ(ren)の設定
         const initialB2B = parsedState.b2b || false;
         const ren = parsedState.ren || -1;
         const initialCombo = (ren < 0) ? 0 : ren + 1;
@@ -2655,25 +2757,22 @@ self.onmessage = (e) => {
         let output_x = bestMove.x;
         let output_y = bestMove.y;
         
-        // AIの座標系(y=0が底)とシミュレーターの座標系(y=0が天井)は違うため、Y座標を反転させる必要がある。
-        // また、AIのPivot（回転中心）の定義とシミュレーターのPivotが異なるため、微調整を行う。
-        // このロジックはご提供のC++コードのmain関数内ロジックを忠実に再現したものです。
         switch (bestMove.pieceType) {
             case 'I':
-                if (bestMove.rotation === 0 || bestMove.rotation === 2) { // 横向き
+                if (bestMove.rotation === 0 || bestMove.rotation === 2) {
                     output_x = bestMove.x - 1;
                     output_y = 39 - bestMove.y;
-                } else { // 縦向き
+                } else {
                     output_x = bestMove.x - 2;
                     output_y = 38 - bestMove.y;
                 }
                 break;
             case 'S':
             case 'Z':
-                if (bestMove.rotation === 0 || bestMove.rotation === 2) { // 横向き
+                if (bestMove.rotation === 0 || bestMove.rotation === 2) {
                     output_x = bestMove.x;
                     output_y = 39 - bestMove.y;
-                } else { // 縦向き
+                } else {
                     output_x = bestMove.x - 1;
                     output_y = 39 - bestMove.y;
                 }
@@ -2703,12 +2802,11 @@ self.onmessage = (e) => {
     }
 };
 
-// Workerが準備完了したことをメインスreadに通知
 self.postMessage({ status: 'ready' });
-
         `;
         const blob = new Blob([workerCode], { type: 'application/javascript' });
         aiWorker = new Worker(URL.createObjectURL(blob));
+// =================== ここまでが置き換える新しいコードです =================
 // =================== ここまでが置き換える新しいコードです ===================
 
 
