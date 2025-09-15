@@ -892,7 +892,7 @@ function updateAiDebugDisplay(payload) {
     for (let y = 0; y < payload.board.length; y++) {
         const row = payload.board[y];
         // 各セルを 'null' または引用符付きの文字列 ('G'など) に変換します
-        const rowString = row.map(cell => cell === null ? 'null' : `'${cell}'`).join(', ');
+        const rowString = row.map(cell => cell === null ? 'null' : `"${cell}"`).join(', ');
         boardArrayString += `  [${rowString}]`;
         if (y < payload.board.length - 1) {
             boardArrayString += ',\n'; // 最終行以外はカンマと改行を追加
