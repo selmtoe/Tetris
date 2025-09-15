@@ -1573,7 +1573,7 @@ if (bestMove && bestMove.pieceType !== ' ') {
         finalY = 37 - bestMove.y;
     }
     // bestMoveのミノが 'Z' かつ 回転が 1 の場合の座標計算
-    if (bestMove.pieceType === 'Z' && bestMove.rotation === 1) {
+    elseif (bestMove.pieceType === 'Z' && bestMove.rotation === 1) {
         finalX = bestMove.x - 1;
         finalY = 39 - bestMove.y;
     } 
