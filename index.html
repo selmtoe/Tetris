@@ -2927,7 +2927,7 @@ document.getElementById('settingsBtn').addEventListener('click', () => openUnifi
     }
     
 
-document.getElementById('retryBtn').addEventListener('click', () => {
+    document.getElementById('retryBtn').addEventListener('click', () => {
         if (gameState !== 'PLAYING' || !players.length) return;
         
         loadGameSettings();
@@ -2973,19 +2973,22 @@ document.getElementById('retryBtn').addEventListener('click', () => {
         
         Object.assign(gameSettings, currentRunSettings);
 
-        const createAndSetupPlayer = (id, offsetX, bindings, padIndex) => {
-            const player = new Player(id, offsetX, bindings, padIndex);
+        const createAndSetupPlayer = (id, offsetX, bindings, padIndex, isAi) => {
+            const player = new Player(id, offsetX, bindings, padIndex, isAi);
             player.holdDisabled = wasHoldDisabled;
             player.ruleHooks = userFunctions;
             return player;
         };
 
         players = [];
+        const p1_isAi_retry = document.getElementById('p1-ai-toggle').checked;
+        const p2_isAi_retry = document.getElementById('p2-ai-toggle').checked;
+
         if (gameMode === '1P') {
-            players.push(createAndSetupPlayer('1', 0, keyBindings.p1, 0));
+            players.push(createAndSetupPlayer('1', 0, keyBindings.p1, 0, p1_isAi_retry));
         } else {
-            const p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0);
-            const p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1);
+            const p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0, p1_isAi_retry);
+            const p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1, p2_isAi_retry);
             p1.opponent = p2;
             p2.opponent = p1;
             players.push(p1, p2);
