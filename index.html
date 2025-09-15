@@ -492,7 +492,10 @@ const StandardWeights = {
 };
 
 const weights = StandardWeights;
-
+const MOVE_DIGITS = 5;
+const MAX_THINKING_MS = 500;
+const MAX_SEARCH_DEPTH = 15;
+const PLAYFIELD_HEIGHT = 20;
 
 //ホールド判定(おそらく全てのホールドに対応)
 function judgeAvailableMinos(
@@ -515,7 +518,6 @@ function judgeAvailableMinos(
 
     return available;
 }
-
 
 function makeID(baseID, moveIndex) {
     return `${baseID}${String(moveIndex).padStart(MOVE_DIGITS, '0')}`;
@@ -585,11 +587,6 @@ class TetrisBoard {
     }
 }
 
-
-const MOVE_DIGITS = 5;
-const MAX_THINKING_MS = 500;
-const MAX_SEARCH_DEPTH = 15;
-const PLAYFIELD_HEIGHT = 20;
 
 // Placement, Node are defined as plain objects.
 
