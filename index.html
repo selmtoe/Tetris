@@ -1566,22 +1566,23 @@ const bestMove = runAI(board, minoSequence, isB2B, ren);
 if (bestMove && bestMove.pieceType !== ' ') {
     let finalX;
     let finalY;
+// bestMoveのミノが 'I' かつ 回転が 1 の場合の座標計算
+if (bestMove.pieceType === 'I' && bestMove.rotation === 1) {
+    finalX = bestMove.x - 2;
+    finalY = 37 - bestMove.y;
+} 
+// bestMoveのミノが 'Z' かつ 回転が 1 の場合の座標計算
+else if (bestMove.pieceType === 'Z' && bestMove.rotation === 1) {
+    finalX = bestMove.x - 1;
+    finalY = 39 - bestMove.y;
+} 
+// それ以外の場合の座標計算
+else {
+    finalX = bestMove.x;
+    finalY = 39 - bestMove.y;
+}
 
-    // bestMoveのミノが 'I' かつ 回転が 1 の場合の座標計算
-    if (bestMove.pieceType === 'I' && bestMove.rotation === 1) {
-        finalX = bestMove.x - 2;
-        finalY = 37 - bestMove.y;
-    }
-    // bestMoveのミノが 'Z' かつ 回転が 1 の場合の座標計算
-    elseif (bestMove.pieceType === 'Z' && bestMove.rotation === 1) {
-        finalX = bestMove.x - 1;
-        finalY = 39 - bestMove.y;
-    } 
-    // それ以外の場合の座標計算
-    else {
-        finalX = bestMove.x;
-        finalY = 39 - bestMove.y;
-    }
+
 
     return {
         piece: bestMove.pieceType,
