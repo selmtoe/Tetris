@@ -3878,8 +3878,8 @@ players = [];
             p2.opponent = p1;
             players.push(p1, p2);
         }
-
-　　　　　const createPlayerProxy = (player) => {
+    
+    const createPlayerProxy = (player) => {
             if (!player) return null;
             return {
                 get stats() { return player.stats; },
