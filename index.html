@@ -3977,8 +3977,8 @@ if (gameSettings.touchControlsEnabled) {
         const aiDebugDisplay = document.getElementById('ai-debug-display');
         const aiDebugControls = document.getElementById('ai-debug-controls');
         if (players.some(p => p.isAi)) {
-            if(aiDebugDisplay) aiDebugDisplay.style.display = 'block';
-            if(aiDebugControls) aiDebugControls.style.display = 'block';
+            if(aiDebugDisplay) aiDebugDisplay.style.display = 'none';
+            if(aiDebugControls) aiDebugControls.style.display = 'none';
         } else {
             if(aiDebugDisplay) aiDebugDisplay.style.display = 'none';
             if(aiDebugControls) aiDebugControls.style.display = 'none';
