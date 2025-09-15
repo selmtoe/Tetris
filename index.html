@@ -2222,9 +2222,14 @@ reset() {
             case 'hold':      this.hold(); break;
         }
     }
-
 update(dt) {
         if (this.gameOver || this.gameClear) return;
+
+        if (this.specialMoveTextTimer > 0) {
+            this.specialMoveTextTimer -= dt;
+        }
+
+        this.processGarbageQueue();
 
         if (this.isClearingLine) {
             this.lineClearDelayTimer -= dt;
@@ -2277,12 +2282,6 @@ update(dt) {
             }
         }
         if (this.gameOver || this.gameClear) return;
-
-        if (this.specialMoveTextTimer > 0) {
-            this.specialMoveTextTimer -= dt;
-        }
-
-        this.processGarbageQueue();
 
         const left = this.isActionPressed('left');
         const right = this.isActionPressed('right');
@@ -2357,7 +2356,6 @@ update(dt) {
             }
         }
     }
-
 draw() {
         ctx.save(); ctx.translate(this.offsetX, 0);
         this.drawUI();
