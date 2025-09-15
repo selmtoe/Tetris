@@ -254,8 +254,11 @@
                         <label for="pptLoader-p1" class="button">Load PPT</label>
                         <input type="file" id="pptLoader-p1" data-player="p1" accept="image/*">
                     </div>
-                    <div class="key-config-controls" style="margin-top: 15px; text-align: center;">
-
+<div class="key-config-controls" style="margin-top: 15px; text-align: center; display: flex; justify-content: center; align-items: center; gap: 10px;">
+                        <label class="setting-item" style="padding:0; margin:0;">
+                            <input type="checkbox" id="p1-ai-toggle">
+                            <span>AI</span>
+                        </label>
                         <button class="button" id="p1-key-config-btn">操作設定</button>
                     </div>
                 </div>
@@ -284,8 +287,11 @@
                         <label for="pptLoader-p2" class="button">Load PPT</label>
                         <input type="file" id="pptLoader-p2" data-player="p2" accept="image/*">
                     </div>
-                    <div class="key-config-controls" style="margin-top: 15px; text-align: center;">
-
+<div class="key-config-controls" style="margin-top: 15px; text-align: center; display: flex; justify-content: center; align-items: center; gap: 10px;">
+                        <label class="setting-item" style="padding:0; margin:0;">
+                            <input type="checkbox" id="p2-ai-toggle">
+                            <span>AI</span>
+                        </label>
                         <button class="button" id="p2-key-config-btn">操作設定</button>
                     </div>
                 </div>
@@ -920,8 +926,10 @@ function* createMinoGenerator(customQueue) {
 }
 
 class Player {
-    constructor(id, offsetX, keyBindings, padIndex) {
+    constructor(id, offsetX, keyBindings, padIndex, isAi = false) {
         this.id = id; this.offsetX = offsetX; this.keyBindings = keyBindings; this.padIndex = padIndex;
+        this.isAi = isAi;
+        this.isAiThinking = false;
         this.keys = {};
         const pData = editorData[`p${id}`];
         this.initialHold = pData.hold;
@@ -1013,6 +1021,13 @@ reset() {
 
 update(dt) {
         if (this.gameOver || this.gameClear) return;
+
+        if (this.isAi) {
+            if (!this.isAiThinking && !this.isClearingLine) {
+                this.requestAiMove();
+            }
+            return;
+        }
 
         if (this.ruleHooks.onUpdate && typeof this.ruleHooks.onUpdate === 'function') {
             try {
@@ -1462,7 +1477,52 @@ drawPiece(s,x,y,p,g) {s.forEach(b=>{const px=Math.floor(x+b[0])*BLOCK_SIZE, py=(
         ctx.textBaseline = 'alphabetic';
     }
 
-    drawMessage(t) { const cX = PLAYFIELD_WIDTH / 2; const cY = CANVAS_HEIGHT / 2; ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(0, -0.5*BLOCK_SIZE, PLAYFIELD_WIDTH, CANVAS_HEIGHT); ctx.fillStyle = '#FFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `bold ${BLOCK_SIZE * 1.5}px "Orbitron"`; ctx.fillText(t, cX, cY); ctx.textBaseline = 'alphabetic'; }
+drawMessage(t) { const cX = PLAYFIELD_WIDTH / 2; const cY = CANVAS_HEIGHT / 2; ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(0, -0.5*BLOCK_SIZE, PLAYFIELD_WIDTH, CANVAS_HEIGHT); ctx.fillStyle = '#FFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `bold ${BLOCK_SIZE * 1.5}px "Orbitron"`; ctx.fillText(t, cX, cY); ctx.textBaseline = 'alphabetic'; }
+
+    requestAiMove() {
+        this.isAiThinking = true;
+
+        const nextSequenceForAI = [...this.nextQueue];
+        if (this.holdPiece) {
+            nextSequenceForAI.splice(1, 0, this.holdPiece);
+        }
+        
+        const aiPayload = {
+            playerId: this.id,
+            board: this.board,
+            minoSequence: [this.player.pieceType, ...nextSequenceForAI],
+            isB2B: this.isB2B,
+            ren: this.ren,
+            thinkingTime: 500
+        };
+        
+        console.log("AI思考開始", aiPayload);
+        
+    }
+
+    executeAiMove(move) {
+        if (this.gameOver || !move) {
+            this.isAiThinking = false;
+            return;
+        }
+
+        if (this.player.pieceType !== move.pieceType) {
+            if (this.canHold) {
+                this.hold();
+            } else {
+                this.isAiThinking = false;
+                return;
+            }
+        }
+
+        this.player.rotation = move.rotation;
+        this.player.x = move.x;
+        this.player.y = move.y;
+        
+        this.lockPiece();
+
+        this.isAiThinking = false;
+    }
 }
 
 function setupEditors() { ['p1', 'p2'].forEach(setupPlayerEditor); }
@@ -2559,9 +2619,12 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
 
         ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-        players = [];
-        const createAndSetupPlayer = (id, offsetX, bindings, padIndex) => {
-            const player = new Player(id, offsetX, bindings, padIndex);
+players = [];
+        const p1_isAi = document.getElementById('p1-ai-toggle').checked;
+        const p2_isAi = document.getElementById('p2-ai-toggle').checked;
+
+        const createAndSetupPlayer = (id, offsetX, bindings, padIndex, isAi) => {
+            const player = new Player(id, offsetX, bindings, padIndex, isAi);
             player.holdDisabled = autoStartParams.nh;
             player.ruleHooks = userFunctions;
             return player;
@@ -2572,7 +2635,7 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
             mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
             mainCanvas.style.width = PLAYER_CANVAS_WIDTH + 'px';
             mainCanvas.style.height = CANVAS_HEIGHT + 'px';
-            players.push(createAndSetupPlayer('1', 0, keyBindings.p1, 0));
+            players.push(createAndSetupPlayer('1', 0, keyBindings.p1, 0, p1_isAi));
         }
         else {
             const totalWidth = PLAYER_CANVAS_WIDTH * 2;
@@ -2580,8 +2643,8 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
             mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
             mainCanvas.style.width = totalWidth + 'px';
             mainCanvas.style.height = CANVAS_HEIGHT + 'px';
-            const p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0);
-            const p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1);
+            const p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0, p1_isAi);
+            const p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1, p2_isAi);
             p1.opponent = p2; 
             p2.opponent = p1;
             players.push(p1, p2);
