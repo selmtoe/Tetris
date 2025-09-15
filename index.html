@@ -333,10 +333,11 @@
 
 <div id="settings-modal">
     <div class="modal-content">
-        <div class="modal-tabs">
+<div class="modal-tabs">
             <button class="tab-button active" data-tab="general">諸設定</button>
             <button class="tab-button" data-tab="p1-keys">1P操作設定</button>
             <button class="tab-button" data-tab="p2-keys" id="p2-keys-tab-btn" style="display: none;">2P操作設定</button>
+            <button class="tab-button" data-tab="ai-settings">AI設定</button>
         </div>
 
         <div class="tab-content active" id="tab-content-general">
@@ -363,6 +364,12 @@
             <h2 style="margin-top: 20px;">PLAYER 2 - 操作設定</h2>
             <p></p>
             <div id="p2-key-config-list" class="key-config-list-container"></div>
+        </div>
+
+        <div class="tab-content" id="tab-content-ai-settings">
+            <h2 style="margin-top: 20px;">AI設定</h2>
+            <p></p>
+            <div id="ai-settings-list" class="key-config-list-container"></div>
         </div>
         
         <div class="modal-controls" style="border-top: 1px solid var(--primary-color); padding-top: 15px; margin-top: 20px;">
@@ -493,7 +500,7 @@ const StandardWeights = {
 
 const weights = StandardWeights;
 const MOVE_DIGITS = 5;
-const MAX_THINKING_MS = 500;
+let MAX_THINKING_MS = 500;
 const MAX_SEARCH_DEPTH = 15;
 const PLAYFIELD_HEIGHT = 20;
 
@@ -1596,7 +1603,10 @@ return null;
 }
 
 self.onmessage = (e) => {
-    const { boardString, nextString, isB2B, ren } = e.data;
+    const { boardString, nextString, isB2B, ren, thinkingTime } = e.data;
+    if (thinkingTime) {
+        MAX_THINKING_MS = thinkingTime;
+    }
     
     const bestMove = findBestMove(boardString, nextString, isB2B, ren);
     
@@ -1987,6 +1997,7 @@ let gameSettings = {
     maxNext: 5,
     showEffects: true,
     touchControlsEnabled: 'ontouchstart' in window,
+    aiThinkingTime: 500,
 };
 
 const COLORS = { 'I': '#00f0f0', 'O': '#f0f000', 'T': '#a000f0', 'L': '#f0a000', 'J': '#0000f0', 'S': '#00f000', 'Z': '#f00000', 'G': '#999999', 'E': '#808080' };
@@ -2707,7 +2718,8 @@ requestAiMove() {
             boardString: boardString,
             nextString: nextString,
             isB2B: this.isB2B,
-            ren: this.ren + 1
+            ren: this.ren + 1,
+            thinkingTime: gameSettings.aiThinkingTime
         };
 
         if (aiWorker) {
@@ -3120,6 +3132,42 @@ function populateKeyConfigTab(playerId) {
 
 
 
+function populateAiSettingsTab() {
+    const list = document.getElementById('ai-settings-list');
+    list.innerHTML = '';
+
+    const itemType = document.createElement('div');
+    itemType.className = 'setting-item';
+    const labelType = document.createElement('span');
+    labelType.textContent = 'AIの種類';
+    const selectType = document.createElement('select');
+    selectType.style.minWidth = '150px';
+    selectType.style.backgroundColor = 'var(--primary-color)';
+    selectType.style.color = 'var(--font-color)';
+    selectType.style.border = '1px solid var(--border-color)';
+    selectType.style.padding = '5px';
+    selectType.style.borderRadius = '4px';
+    selectType.innerHTML = '<option value="default">Default Bot</option>';
+    itemType.append(labelType, selectType);
+    list.appendChild(itemType);
+
+    const itemTime = document.createElement('div');
+    itemTime.className = 'setting-item';
+    const labelTime = document.createElement('span');
+    labelTime.textContent = 'AIの思考時間 (ms)';
+    const inputTime = document.createElement('input');
+    inputTime.type = 'number';
+    inputTime.min = 50;
+    inputTime.max = 5000;
+    inputTime.step = 50;
+    inputTime.value = gameSettings.aiThinkingTime;
+    inputTime.onchange = e => {
+        gameSettings.aiThinkingTime = Math.max(50, Math.min(5000, parseInt(e.target.value, 10)));
+    };
+    itemTime.append(labelTime, inputTime);
+    list.appendChild(itemTime);
+}
+
 function openUnifiedSettingsModal(initialTab = 'general') {
     const modal = document.getElementById('settings-modal');
     
@@ -3133,6 +3181,7 @@ function openUnifiedSettingsModal(initialTab = 'general') {
 
     populateGeneralSettingsTab();
     populateKeyConfigTab('p1');
+    populateAiSettingsTab();
     if (gameMode === '2P') {
         populateKeyConfigTab('p2');
     }
