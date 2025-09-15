@@ -886,19 +886,33 @@ let players = [], gameMode = '1P', gameState = 'EDITING', lastTime = 0, mainCanv
 function updateAiDebugDisplay(payload) {
     const display = document.getElementById('ai-debug-display');
     if (!display) return;
-    
-    let boardStr = '';
-    for (let y = 20; y < 40; y++) {
-        boardStr += payload.board[y].map(cell => cell ? cell : '.').join('') + '<br>';
-    }
 
+    // 盤面データをJavaScriptの2D配列形式の文字列に変換します
+    let boardArrayString = '[\n';
+    for (let y = 0; y < payload.board.length; y++) {
+        const row = payload.board[y];
+        // 各セルを 'null' または引用符付きの文字列 ('G'など) に変換します
+        const rowString = row.map(cell => cell === null ? 'null' : `'${cell}'`).join(', ');
+        boardArrayString += `  [${rowString}]`;
+        if (y < payload.board.length - 1) {
+            boardArrayString += ',\n'; // 最終行以外はカンマと改行を追加
+        }
+    }
+    boardArrayString += '\n]';
+
+    // 表示用のHTMLを生成します。盤面部分はtextareaに置き換えます。
     display.innerHTML = `
         PlayerID: ${payload.playerId}<br>
         REN: ${payload.ren}, B2B: ${payload.isB2B}<br>
         Hold: ${payload.holdPiece || 'none'} (CanHold: ${payload.canHold})<br>
         Next: ${payload.minoSequence.join(', ')}<br>
-        Board:<br>${boardStr}
+        Board (2D Array):<br>
+        <textarea readonly style="width: 95%; height: 150px; font-family: monospace; font-size: 10px; background: #222; color: #eee; border: 1px solid #555; resize: vertical;"></textarea>
     `;
+
+    // innerHTMLで設定した後、textareaのvalueに文字列を代入することで、
+    // 改行が正しく反映され、コピー可能な状態になります。
+    display.querySelector('textarea').value = boardArrayString;
 }
 
 let keyBindings = {
