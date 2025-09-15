@@ -300,6 +300,14 @@
 
 <div id="game-container">
 <div id="rule-description-display" style="display: none; position: absolute; z-index: 155; color: var(--font-color); background: rgba(26, 26, 46, 0.9); padding: 15px; border-radius: 10px; border: 2px solid #4b4b7c; font-family: var(--font-ui); font-size: 14px; max-width: 200px; max-height: 400px; overflow-y: auto; box-sizing: border-box; word-wrap: break-word; backdrop-filter: blur(4px);"></div>
+<div id="ai-debug-display" style="display: none; position: absolute; z-index: 156; color: white; background: rgba(0,0,0,0.7); padding: 5px; font-family: monospace; font-size: 10px; left: 10px; top: 300px; max-height: 400px; overflow: auto;"></div>
+<div id="ai-debug-controls" style="display: none; position: absolute; z-index: 156; color: white; background: rgba(0,0,0,0.7); padding: 5px; font-family: monospace; font-size: 12px; left: 10px; top: 150px;">
+    <input id="ai-debug-piece" placeholder="Piece (T)" size="3">
+    <input id="ai-debug-x" placeholder="X" size="2">
+    <input id="ai-debug-y" placeholder="Y" size="2">
+    <input id="ai-debug-rot" placeholder="Rot" size="2">
+    <button id="ai-debug-execute">Execute</button>
+</div>
 <canvas id="mainCanvas"></canvas>
 <div id="scan-instructions" style="display: none;"></div>
 
@@ -441,6 +449,60 @@
 </div>
 
 <script>
+
+const aiWorkerScript = `
+self.onmessage = (e) => {
+    const { board, minoSequence, isB2B, ren, playerId, holdPiece, canHold } = e.data;
+    const currentPiece = minoSequence[0];
+
+    function getShape(p, r) {
+        const TETROMINOS = {
+            'I': { shape: [[0, 0], [1, 0], [2, 0], [3, 0]], center: [1.5, 0.5] }, 'O': { shape: [[0, 0], [1, 0], [0, -1], [1, -1]], center: [0.5, -0.5] },
+            'T': { shape: [[0, 0], [-1, 0], [0, -1], [1, 0]], center: [0, 0] }, 'L': { shape: [[-1, 0], [0, 0], [1, 0], [1, -1]], center: [0, 0] },
+            'J': { shape: [[0, 0], [-1, 0], [1, 0], [-1, -1]], center: [0, 0] }, 'S': { shape: [[1, -1], [-1, 0], [0, 0], [0, -1]], center: [0, 0] },
+            'Z': { shape: [[0, 0], [1, 0], [0, -1], [-1, -1]], center: [0, 0] }
+        };
+        if(!p) return []; const o=TETROMINOS[p].shape; if(r===0||p==='O')return o; const c=TETROMINOS[p].center; return o.map(b=>{let [x,y]=[b[0]-c[0],b[1]-c[1]]; for(let i=0;i<r;i++){[x,y]=[-y,x];} return [x+c[0]+(p==='O'?0.5:0),y+c[1]+(p==='O'?0.5:0)];});
+    }
+
+    function checkCollision(x, y, shape, board) {
+        for(const b of shape) {
+            const bx=Math.floor(x+b[0]), by=Math.floor(y+b[1]);
+            if(bx<0||bx>=10||by>=40||(by>=0&&board[by]?.[bx])) return true;
+        }
+        return false;
+    }
+    
+    let bestMove = null;
+    let bestScore = -Infinity;
+
+    // Evaluate current piece
+    for (let r = 0; r < 4; r++) {
+        const shape = getShape(currentPiece, r);
+        for (let x = -2; x < 10; x++) {
+            if (checkCollision(x, 19, shape, board)) continue;
+            let y = 19;
+            while(!checkCollision(x, y + 1, shape, board)) { y++; }
+            const score = -y;
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = { pieceType: currentPiece, x: x, y: y, rotation: r };
+            }
+        }
+    }
+
+    // A real AI would also evaluate using the hold piece here
+    // This is just a placeholder implementation
+
+    const start = Date.now();
+    while(Date.now() - start < 20) {}
+
+    self.postMessage({
+        playerId: playerId,
+        move: bestMove
+    });
+};
+`;
 
 const virtualController = (() => {
 
@@ -867,7 +929,25 @@ const TETROMINOS = {
 };
 const SRS_OFFSETS = { "JLSTZ": { "0_1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], "1_0": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], "1_2": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], "2_1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], "2_3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], "3_2": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], "3_0": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], "0_3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], }, "I": { "0_1": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], "1_0": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], "1_2": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], "2_1": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], "2_3": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], "3_2": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], "3_0": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], "0_3": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], } };
 
-let players = [], gameMode = '1P', gameState = 'EDITING', lastTime = 0, mainCanvas, ctx;
+let players = [], gameMode = '1P', gameState = 'EDITING', lastTime = 0, mainCanvas, ctx, aiWorker;
+
+function updateAiDebugDisplay(payload) {
+    const display = document.getElementById('ai-debug-display');
+    if (!display) return;
+    
+    let boardStr = '';
+    for (let y = 20; y < 40; y++) {
+        boardStr += payload.board[y].map(cell => cell ? cell : '.').join('') + '<br>';
+    }
+
+    display.innerHTML = `
+        PlayerID: ${payload.playerId}<br>
+        REN: ${payload.ren}, B2B: ${payload.isB2B}<br>
+        Hold: ${payload.holdPiece || 'none'} (CanHold: ${payload.canHold})<br>
+        Next: ${payload.minoSequence.join(', ')}<br>
+        Board:<br>${boardStr}
+    `;
+}
 
 let keyBindings = {
     p1: {
@@ -1478,25 +1558,25 @@ drawPiece(s,x,y,p,g) {s.forEach(b=>{const px=Math.floor(x+b[0])*BLOCK_SIZE, py=(
 
 drawMessage(t) { const cX = PLAYFIELD_WIDTH / 2; const cY = CANVAS_HEIGHT / 2; ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(0, -0.5*BLOCK_SIZE, PLAYFIELD_WIDTH, CANVAS_HEIGHT); ctx.fillStyle = '#FFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `bold ${BLOCK_SIZE * 1.5}px "Orbitron"`; ctx.fillText(t, cX, cY); ctx.textBaseline = 'alphabetic'; }
 
-    requestAiMove() {
+requestAiMove() {
         this.isAiThinking = true;
 
         const nextSequenceForAI = [...this.nextQueue];
-        if (this.holdPiece) {
-            nextSequenceForAI.splice(1, 0, this.holdPiece);
-        }
         
         const aiPayload = {
             playerId: this.id,
             board: this.board,
             minoSequence: [this.player.pieceType, ...nextSequenceForAI],
+            holdPiece: this.holdPiece,
+            canHold: this.canHold,
             isB2B: this.isB2B,
-            ren: this.ren,
-            thinkingTime: 500
+            ren: this.ren
         };
         
-        console.log("AI思考開始", aiPayload);
-        
+        updateAiDebugDisplay(aiPayload);
+        if (aiWorker) {
+            aiWorker.postMessage(aiPayload);
+        }
     }
 
     executeAiMove(move) {
@@ -2445,6 +2525,20 @@ function updateScale() {
 document.addEventListener('DOMContentLoaded', () => {
     mainCanvas = document.getElementById('mainCanvas'); ctx = mainCanvas.getContext('2d');
     
+    const aiWorkerBlob = new Blob([aiWorkerScript], { type: 'application/javascript' });
+    aiWorker = new Worker(URL.createObjectURL(aiWorkerBlob));
+
+    aiWorker.onmessage = (e) => {
+        if (gameState !== 'PLAYING') return;
+
+        const { playerId, move } = e.data;
+        const player = players.find(p => p.id === playerId && p.isAi);
+
+        if (player) {
+            player.executeAiMove(move);
+        }
+    };
+    
     virtualController.init();
 
     loadKeyBindings();
@@ -2690,8 +2784,18 @@ players = [];
         autoStartParams = { ss: false, nh: false, hb: false };
         ctx.scale(RESOLUTION_SCALE, RESOLUTION_SCALE);
 
-        if (gameSettings.touchControlsEnabled) {
+if (gameSettings.touchControlsEnabled) {
             virtualController.show();
+        }
+
+        const aiDebugDisplay = document.getElementById('ai-debug-display');
+        const aiDebugControls = document.getElementById('ai-debug-controls');
+        if (players.some(p => p.isAi)) {
+            if(aiDebugDisplay) aiDebugDisplay.style.display = 'block';
+            if(aiDebugControls) aiDebugControls.style.display = 'block';
+        } else {
+            if(aiDebugDisplay) aiDebugDisplay.style.display = 'none';
+            if(aiDebugControls) aiDebugControls.style.display = 'none';
         }
 
         setTimeout(updateScale, 0);
@@ -2709,6 +2813,11 @@ document.getElementById('backToEditorBtn').addEventListener('click', () => {
         
         virtualController.hide();
         
+        const aiDebugDisplay = document.getElementById('ai-debug-display');
+        const aiDebugControls = document.getElementById('ai-debug-controls');
+        if(aiDebugDisplay) aiDebugDisplay.style.display = 'none';
+        if(aiDebugControls) aiDebugControls.style.display = 'none';
+
         setTimeout(updateScale, 0);
     });
     
@@ -2928,8 +3037,35 @@ document.getElementById('retryBtn').addEventListener('click', () => {
     lastTime = performance.now(); 
     requestAnimationFrame(gameLoop);
     
-    window.addEventListener('resize', updateScale);
+window.addEventListener('resize', updateScale);
     setTimeout(updateScale, 100);
+
+    document.getElementById('ai-debug-execute').addEventListener('click', () => {
+        const piece = document.getElementById('ai-debug-piece').value.toUpperCase();
+        const x = parseInt(document.getElementById('ai-debug-x').value, 10);
+        const y = parseInt(document.getElementById('ai-debug-y').value, 10);
+        const rot = parseInt(document.getElementById('ai-debug-rot').value, 10);
+
+        if (!piece || isNaN(x) || isNaN(y) || isNaN(rot)) {
+            alert('Invalid debug input.');
+            return;
+        }
+
+        const aiPlayer = players.find(p => p.isAi);
+        if (!aiPlayer) {
+            alert('No AI player found to execute the move.');
+            return;
+        }
+        
+        const move = {
+            pieceType: piece,
+            x: x,
+            y: y,
+            rotation: rot
+        };
+
+        aiPlayer.executeAiMove(move);
+    });
 });
 </script>
 </body>
