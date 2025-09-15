@@ -451,8 +451,16 @@
 <script>
 
 const aiWorkerScript = `
-self.onmessage = (e) => {
+function findBestMove(boardString, nextString, isB2B, ren) {
+    
+}
 
+self.onmessage = (e) => {
+    const { boardString, nextString, isB2B, ren } = e.data;
+    
+    const bestMove = findBestMove(boardString, nextString, isB2B, ren);
+    
+    self.postMessage(bestMove);
 };
 `;
 
@@ -1527,31 +1535,55 @@ drawMessage(t) { const cX = PLAYFIELD_WIDTH / 2; const cY = CANVAS_HEIGHT / 2; c
 requestAiMove() {
         this.isAiThinking = true;
 
-        const nextSequenceForAI = [...this.nextQueue];
-        
-        const aiPayload = {
+        const debugPayload = {
             playerId: this.id,
             board: this.board,
-            minoSequence: [this.player.pieceType, ...nextSequenceForAI],
+            minoSequence: [this.player.pieceType, ...this.nextQueue],
             holdPiece: this.holdPiece,
             canHold: this.canHold,
             isB2B: this.isB2B,
             ren: this.ren
         };
-        
-        updateAiDebugDisplay(aiPayload);
+        updateAiDebugDisplay(debugPayload);
+
+        let boardString = '[\n';
+        for (let y = 0; y < this.board.length; y++) {
+            const row = this.board[y];
+            const rowString = row.map(cell => cell === null ? 'null' : `"${cell}"`).join(', ');
+            boardString += `  [${rowString}]`;
+            if (y < this.board.length - 1) {
+                boardString += ',\n';
+            }
+        }
+        boardString += '\n]';
+
+        let nextPiecesForWorker;
+        if (this.holdPiece) {
+            nextPiecesForWorker = [this.holdPiece, this.player.pieceType, ...this.nextQueue];
+        } else {
+            nextPiecesForWorker = [this.player.pieceType, ...this.nextQueue];
+        }
+        const nextString = nextPiecesForWorker.join('');
+
+        const aiWorkerPayload = {
+            boardString: boardString,
+            nextString: nextString,
+            isB2B: this.isB2B,
+            ren: this.ren + 1
+        };
+
         if (aiWorker) {
-            aiWorker.postMessage(aiPayload);
+            aiWorker.postMessage(aiWorkerPayload);
         }
     }
 
-    executeAiMove(move) {
+executeAiMove(move) {
         if (this.gameOver || !move) {
             this.isAiThinking = false;
             return;
         }
 
-        if (this.player.pieceType !== move.pieceType) {
+        if (this.player.pieceType !== move.piece) {
             if (this.canHold) {
                 this.hold();
             } else {
@@ -2497,8 +2529,9 @@ document.addEventListener('DOMContentLoaded', () => {
     aiWorker.onmessage = (e) => {
         if (gameState !== 'PLAYING') return;
 
-        const { playerId, move } = e.data;
-        const player = players.find(p => p.id === playerId && p.isAi);
+        const move = e.data;
+        
+        const player = players.find(p => p.isAi && p.isAiThinking);
 
         if (player) {
             player.executeAiMove(move);
