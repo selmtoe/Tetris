@@ -520,7 +520,7 @@ function judgeAvailableMinos(
 }
 
 function makeID(baseID, moveIndex) {
-    return `${baseID}${String(moveIndex).padStart(MOVE_DIGITS, '0')}`;
+    return `\${baseID}\${String(moveIndex).padStart(MOVE_DIGITS, '0')}`;
 }
 
 class TetrisBoard {
