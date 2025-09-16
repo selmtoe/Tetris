@@ -917,50 +917,6 @@ function calculateTslots(board) {
                      t_slot_score += (count === 2) ? weights.tslot[2] : ((count === 1) ? weights.tslot[1] : weights.tslot[0]);
                 }
             }
-            // TST
-            if (!is_filled(2, -1) && !is_filled(2, -2) && !is_filled(2, -3) && !is_filled(1, -2) &&
-                 is_filled(2, 1) && is_filled(1, -1) && is_filled(2, -4)) {
-                if (check_top(board, x, y) && check_top(board, x - 1, y) && check_top(board, x + 1, y)) {
-                    let count = 0;
-                    if (check_sides(board, x + 2, y - 3)) count++;
-                    if (check_sides(board, x + 2, y - 1)) count++;
-                    if (check_sides(board, x + 2, y - 2)) count++;
-                    t_slot_score += get_tslot_score(count);
-                }
-            }
-            // TST
-            if (!is_filled(-2, -1) && !is_filled(-2, -2) && !is_filled(-2, -3) && !is_filled(-1, -2) &&
-                 is_filled(-2, 1) && is_filled(-1, -1) && is_filled(-2, -4)) {
-                if (check_top(board, x, y) && check_top(board, x - 1, y) && check_top(board, x + 1, y)) {
-                    let count = 0;
-                    if (check_sides(board, x - 2, y - 3)) count++;
-                    if (check_sides(board, x - 2, y - 1)) count++;
-                    if (check_sides(board, x - 2, y - 2)) count++;
-                    t_slot_score += get_tslot_score(count);
-                }
-            }
-            // TST
-            if (!is_filled(2, -2) && !is_filled(2, -3) && !is_filled(2, -4) && !is_filled(1, -3) && !is_filled(2, -1) && !is_filled(1, -1) &&
-                 is_filled(2, 0) && is_filled(-1, 0) && is_filled(1, -2) && is_filled(2,-5)) {
-                if (check_top(board, x, y) && check_top(board, x + 1, y)) {
-                    let count = 0;
-                    if (check_sides(board, x + 2, y - 4)) count++;
-                    if (check_sides(board, x + 2, y - 3)) count++;
-                    if (check_sides(board, x + 2, y - 2)) count++;
-                    t_slot_score += get_tslot_score(count);
-                }
-            }
-            // TST
-            if (!is_filled(-2, -2) && !is_filled(-2, -3) && !is_filled(-2, -4) && !is_filled(-1, -3) && !is_filled(-2, -1) && !is_filled(-1, -1) &&
-                 is_filled(-2, 0) && is_filled(1, 0) && is_filled(-1, -2) && is_filled(-2,-5)) {
-                if (check_top(board, x, y) && check_top(board, x - 1, y)) {
-                    let count = 0;
-                    if (check_sides(board, x - 2, y - 4)) count++;
-                    if (check_sides(board, x - 2, y - 3)) count++;
-                    if (check_sides(board, x - 2, y - 2)) count++;
-                    t_slot_score += get_tslot_score(count);
-                }
-            }
         }
     }
     return t_slot_score;
