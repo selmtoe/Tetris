@@ -2040,7 +2040,7 @@ const TETROMINOS = {
 };
 const SRS_OFFSETS = { "JLSTZ": { "0_1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], "1_0": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], "1_2": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]], "2_1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], "2_3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], "3_2": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], "3_0": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], "0_3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], }, "I": { "0_1": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], "1_0": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], "1_2": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], "2_1": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], "2_3": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], "3_2": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], "3_0": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], "0_3": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], } };
 
-let players = [], gameMode = '1P', gameState = 'EDITING', lastTime = 0, mainCanvas, ctx, aiWorker;
+let players = [], gameMode = '1P', gameState = 'EDITING', lastTime = 0, mainCanvas, ctx, aiWorkerBlob;
 
 function updateAiDebugDisplay(payload) {
     const display = document.getElementById('ai-debug-display');
@@ -2134,6 +2134,17 @@ class Player {
         this.id = id; this.offsetX = offsetX; this.keyBindings = keyBindings; this.padIndex = padIndex;
         this.isAi = isAi;
         this.isAiThinking = false;
+        this.aiWorker = null;
+
+        if (this.isAi) {
+            this.aiWorker = new Worker(URL.createObjectURL(aiWorkerBlob));
+            this.aiWorker.onmessage = (e) => {
+                if (gameState === 'PLAYING' && this.isAiThinking) {
+                    this.executeAiMove(e.data);
+                }
+            };
+        }
+
         this.keys = {};
         const pData = editorData[`p${id}`];
         this.initialHold = pData.hold;
@@ -2720,8 +2731,8 @@ requestAiMove() {
             thinkingTime: gameSettings.aiThinkingTime
         };
 
-        if (aiWorker) {
-            aiWorker.postMessage(aiWorkerPayload);
+        if (this.aiWorker) {
+            this.aiWorker.postMessage(aiWorkerPayload);
         }
     }
 
@@ -3708,20 +3719,7 @@ function updateScale() {
 document.addEventListener('DOMContentLoaded', () => {
     mainCanvas = document.getElementById('mainCanvas'); ctx = mainCanvas.getContext('2d');
     
-    const aiWorkerBlob = new Blob([aiWorkerScript], { type: 'application/javascript' });
-    aiWorker = new Worker(URL.createObjectURL(aiWorkerBlob));
-
-    aiWorker.onmessage = (e) => {
-        if (gameState !== 'PLAYING') return;
-
-        const move = e.data;
-        
-        const player = players.find(p => p.isAi && p.isAiThinking);
-
-        if (player) {
-            player.executeAiMove(move);
-        }
-    };
+    aiWorkerBlob = new Blob([aiWorkerScript], { type: 'application/javascript' });
     
     virtualController.init();
 
