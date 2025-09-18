@@ -341,7 +341,7 @@
         </div>
 
         <div class="tab-content active" id="tab-content-general">
-             <h2 style="margin-top: 20px;">ゲーム設定</h2>
+             <h2 style="margin-top: 20px;"></h2>
              <p></p>
              <div id="settings-list"></div>
         </div>
@@ -2132,12 +2132,14 @@ reset() {
 
         this.viewY = BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT;
         this.pendingGarbage = 0;this.garbageQueue = []; this.ren = -1; this.isB2B = false;
-        this.lastMoveWasRotation = false; this.lastSrsKickIndex = -1;
+        this.lastMoveWasRotation = false;
+        this.lastSrsKickIndex = -1;
         this.specialMoveText = [];
         this.specialMoveTextTimer = 0;
+        this.customUIText = null;
         this.lastGarbageHoleX = -1;
         this.spawnNewPiece();
-    }
+}
     
     spawnNewPiece() {
         this.player.pieceType = this.nextQueue.shift();
@@ -2195,87 +2197,35 @@ update(dt) {
         if (this.specialMoveTextTimer > 0) {
             this.specialMoveTextTimer -= dt;
         }
-
-        this.processGarbageQueue();
-
-        if (this.isClearingLine) {
-            this.lineClearDelayTimer -= dt;
-            if (this.lineClearDelayTimer <= 0) { 
-                this.isClearingLine = false; 
-                this.riseGarbage(); 
-                if (this.nextQueue[0] === 'E') {
-                    if (this.holdPiece) {
-                        this.player.pieceType = this.holdPiece;
-                        this.holdPiece = null;
-                        this.canHold = false;
-                        
-                        this.player.rotation = 0;
-                        this.lockTimer = 0;
-                        this.lastMoveWasRotation = false;
-                        this.player.x = Math.floor(BOARD_WIDTH / 2) - Math.floor(TETROMINOS[this.player.pieceType].center[0]) -1;
-                        const shape = this.getShape(this.player.pieceType, this.player.rotation);
-                        this.player.y = 19;
-                        if (this.checkCollision(this.player.x, this.player.y, shape)) {
-                            this.player.y = 18;
-                            if (this.checkCollision(this.player.x, this.player.y, shape)) {
-                                 this.gameOver = true;
-                            }
-                        }
-                        return;
-                    } else {
-                        this.gameOver = true;
-                        return;
-                    }
-                }
-                this.spawnNewPiece(); 
-            }
-            return;
-        }
-
-        if (this.isAi) {
-            if (!this.isAiThinking) {
-                this.requestAiMove();
-            }
-            return;
-        }
-
-        if (this.ruleHooks.onUpdate && typeof this.ruleHooks.onUpdate === 'function') {
-            try {
-                this.ruleHooks.onUpdate(this.gameApi, this);
-            } catch (e) {
-                console.error("Rule error onUpdate:", e);
-                this.gameOver = true;
-                return;
-            }
-        }
-        if (this.gameOver || this.gameClear) return;
+this.processGarbageQueue();
 
         const left = this.isActionPressed('left');
         const right = this.isActionPressed('right');
         const horizDir = left ? -1 : (right ? 1 : 0);
-
         if (horizDir !== 0) {
             if (this.dasDirection !== horizDir) { 
                 this.dasTimer = 0;
                 this.arrTimer = 0;
-                this.move(horizDir, 0);
+                if (!this.isClearingLine) this.move(horizDir, 0);
             } else { 
                 this.dasTimer += dt;
                 if (this.dasTimer >= gameSettings.das) {
                     if (gameSettings.arr === 0) {
-                        let successfulMoves = 0;
-                        while (!this.checkCollision(this.player.x + horizDir, this.player.y, this.getShape(this.player.pieceType, this.player.rotation))) {
-                            this.player.x += horizDir;
-                            successfulMoves++;
-                        }
-                        if (successfulMoves > 0) {
-                           this.lockTimer = 0;
-                           this.lastMoveWasRotation = false;
+                        if (!this.isClearingLine) {
+                            let successfulMoves = 0;
+                            while (!this.checkCollision(this.player.x + horizDir, this.player.y, this.getShape(this.player.pieceType, this.player.rotation))) {
+                                this.player.x += horizDir;
+                                successfulMoves++;
+                            }
+                            if (successfulMoves > 0) {
+                               this.lockTimer = 0;
+                               this.lastMoveWasRotation = false;
+                            }
                         }
                     } else {
                         this.arrTimer += dt;
                         if (this.arrTimer >= gameSettings.arr) {
-                            this.move(horizDir, 0);
+                            if (!this.isClearingLine) this.move(horizDir, 0);
                             this.arrTimer -= gameSettings.arr;
                         }
                     }
@@ -2284,6 +2234,57 @@ update(dt) {
         }
         this.dasDirection = horizDir;
 
+        if (this.isClearingLine) {
+            this.lineClearDelayTimer -= dt;
+if (this.lineClearDelayTimer <= 0) { 
+                this.isClearingLine = false;
+this.riseGarbage(); 
+                if (this.nextQueue[0] === 'E') {
+                    if (this.holdPiece) {
+                        this.player.pieceType = this.holdPiece;
+this.holdPiece = null;
+                        this.canHold = false;
+                        
+                        this.player.rotation = 0;
+                        this.lockTimer = 0;
+                        this.lastMoveWasRotation = false;
+this.player.x = Math.floor(BOARD_WIDTH / 2) - Math.floor(TETROMINOS[this.player.pieceType].center[0]) -1;
+                        const shape = this.getShape(this.player.pieceType, this.player.rotation);
+                        this.player.y = 19;
+if (this.checkCollision(this.player.x, this.player.y, shape)) {
+                            this.player.y = 18;
+if (this.checkCollision(this.player.x, this.player.y, shape)) {
+                                 this.gameOver = true;
+}
+                        }
+                        return;
+} else {
+                        this.gameOver = true;
+return;
+                    }
+                }
+                this.spawnNewPiece();
+}
+            return;
+}
+
+        if (this.isAi) {
+            if (!this.isAiThinking) {
+                this.requestAiMove();
+}
+            return;
+}
+
+        if (this.ruleHooks.onUpdate && typeof this.ruleHooks.onUpdate === 'function') {
+            try {
+                this.ruleHooks.onUpdate(this.gameApi, this);
+} catch (e) {
+                console.error("Rule error onUpdate:", e);
+this.gameOver = true;
+                return;
+            }
+        }
+        if (this.gameOver || this.gameClear) return;
         if (this.isActionPressed('softDrop')) {
              if (gameSettings.sdf > 0) {
                 this.sdfTimer += dt;
@@ -2394,7 +2395,28 @@ hold() {
 
 lockPiece() {
         if (!this.player.pieceType) return;
-        const tspinResult = this.checkForTSpin();
+        let tspinResult = this.checkForTSpin();
+
+        // AI操作の場合の独立したTスピン判定 (一時的なもので、後で削除する予定)
+        if (this.isAi && this.player.pieceType === 'T' ) {
+            const shape = this.getShape(this.player.pieceType, this.player.rotation);
+            let isCoveredFromAbove = false;
+            for (const block of shape) {
+                const blockX = Math.floor(this.player.x + block[0]);
+                const blockY = Math.floor(this.player.y + block[1]);
+
+                // 設置ミノの上が埋まっている→Tspin
+                if (blockY - 1 < 0 || (this.board[blockY - 1] && this.board[blockY - 1][blockX] !== null)) {
+                    isCoveredFromAbove = true;
+                    break;
+                }
+            }
+            // 1つでも上が埋まっていれば、他の条件に関わらずT-Spinとする
+            if (isCoveredFromAbove) {
+                tspinResult = 'TSPIN';
+            }
+        }
+
         const shape = this.getShape(this.player.pieceType, this.player.rotation);
 
         this.specialMoveText = [];
@@ -2599,17 +2621,30 @@ drawPiece(s,x,y,p,g) {s.forEach(b=>{const px=Math.floor(x+b[0])*BLOCK_SIZE, py=(
             if (this.holdPiece) { const s = this.getShape(this.holdPiece, 0); s.forEach(b => { const px = (HOLD_AREA_WIDTH / 2) - (TETROMINOS[this.holdPiece].center[0] * BLOCK_SIZE) + (b[0] * BLOCK_SIZE), py = 70 - (TETROMINOS[this.holdPiece].center[1] * BLOCK_SIZE) + (b[1] * BLOCK_SIZE); this.drawBlock(this.holdPiece, px, py); }); }
         }
         
-        const meterX = PLAYFIELD_X_OFFSET - 12; const meterWidth = 8; const meterMaxHeight = BOARD_VISIBLE_HEIGHT * BLOCK_SIZE;
+const meterX = PLAYFIELD_X_OFFSET - 12;
+        const meterWidth = 8; const meterMaxHeight = BOARD_VISIBLE_HEIGHT * BLOCK_SIZE;
         const pendingHeight = Math.min(this.pendingGarbage, BOARD_VISIBLE_HEIGHT) * BLOCK_SIZE;
-        if (pendingHeight > 0) { ctx.fillStyle = 'red'; ctx.fillRect(meterX, meterMaxHeight - pendingHeight + (0.5 * BLOCK_SIZE), meterWidth, pendingHeight); }
+        if (pendingHeight > 0) { ctx.fillStyle = 'red'; ctx.fillRect(meterX, meterMaxHeight - pendingHeight + (0.5 * BLOCK_SIZE), meterWidth, pendingHeight);
+        }
         const queuedLines = this.garbageQueue.reduce((sum, g) => sum + g.lines, 0);
         const queuedHeight = Math.min(queuedLines, BOARD_VISIBLE_HEIGHT - this.pendingGarbage) * BLOCK_SIZE;
-        if (queuedHeight > 0) { ctx.fillStyle = 'yellow'; ctx.fillRect(meterX, meterMaxHeight - pendingHeight - queuedHeight + (0.5*BLOCK_SIZE), meterWidth, queuedHeight); }
+        if (queuedHeight > 0) { ctx.fillStyle = 'yellow';
 
-        ctx.fillStyle = '#FFF'; const rX = PLAYFIELD_X_OFFSET + PLAYFIELD_WIDTH + PADDING + NEXT_AREA_WIDTH / 2;
+ctx.fillRect(meterX, meterMaxHeight - pendingHeight - queuedHeight + (0.5*BLOCK_SIZE), meterWidth, queuedHeight);
+}
+        if (this.customUIText !== null) {
+            ctx.font = `bold ${BLOCK_SIZE * 1.6}px "Orbitron"`;
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillText(this.customUIText, HOLD_AREA_WIDTH / 2, 300);
+            ctx.font = `bold ${BLOCK_SIZE * 1.2}px "Orbitron"`;
+}
+
+        ctx.fillStyle = '#FFF';
+const rX = PLAYFIELD_X_OFFSET + PLAYFIELD_WIDTH + PADDING + NEXT_AREA_WIDTH / 2;
+
         ctx.fillText('NEXT', rX, 40);
         for (let i = 0; i < gameSettings.maxNext; i++) {
-            const pT = this.nextQueue[i]; 
+            const pT = this.nextQueue[i];
             if (!pT) continue;
             if (pT === 'E') break;
             const s = this.getShape(pT, 0);
@@ -3422,7 +3457,7 @@ function loadBoardFromPptCanvas(sourceCanvas, playerId) {
 
         // 0番目の座標はホールド
         if (i === 0) {
-            const foundHoldMino = findClosestColor(avgColor.r, avgColor.g, avgColor.b);
+            const foundHoldMino = findClosestMinoOnly(avgColor.r, avgColor.g, avgColor.b);
             editorData[playerId].hold = foundHoldMino;
         // 1番目以降の座標はネクスト
         } else {
@@ -3438,6 +3473,7 @@ function loadBoardFromPptCanvas(sourceCanvas, playerId) {
             }
         }
     }
+
     
     // 削除されたミノの色をチェックし、条件を満たせばNEXTキューに追加
     if (deletedMinoColors.length > 0 && deletedMinoColors.every(color => color === deletedMinoColors[0])) {
@@ -3785,139 +3821,153 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
         let userFunctions = {};
         let startTime = performance.now();
         
-        if (editorData.rule.code) {
-            try {
-                const initApi = {
-                    forceSetting: (key, value) => {
-                        if (key in currentRunSettings) {
-                            currentRunSettings[key] = value;
-                        } else {
-                            console.warn(`Rule tried to force unknown setting: ${key}`);
-                        }
-                    }
-                };
-                
-                const combinedCode = editorData.rule.code + 
-                    `\nreturn { 
-                        onInit: typeof onInit === 'function' ? onInit : undefined,
-                        onPieceLock: typeof onPieceLock === 'function' ? onPieceLock : undefined,
-                        onUpdate: typeof onUpdate === 'function' ? onUpdate : undefined
-                    };`;
-
-                const ruleScript = new Function('api', combinedCode);
-                const returnedFuncs = ruleScript(initApi);
-
-                if (returnedFuncs.onInit) {
-                    returnedFuncs.onInit(initApi);
-                }
-                userFunctions = returnedFuncs;
-
-            } catch (e) {
-                alert('カスタムルールコードの実行中にエラーが発生しました:\n' + e.message);
-                console.error("Custom rule script error:", e);
-                return;
-            }
-        }
-        
-        const originalSettingsBeforeRun = { ...gameSettings };
-        Object.assign(gameSettings, currentRunSettings);
-
-        gameState = 'PLAYING'; 
-        document.getElementById('editor-container').style.display = 'none'; 
-        document.getElementById('game-container').style.display = 'block';
-        document.getElementById('scan-controls').style.display = 'none';
-        document.getElementById('game-controls').style.display = 'flex';
-        
-        const ruleDescDisplay = document.getElementById('rule-description-display');
-        if (editorData.rule.description) {
-            ruleDescDisplay.innerText = editorData.rule.description;
-            ruleDescDisplay.style.display = 'block';
-            const p1OffsetX = 0;
-            const leftPos = p1OffsetX + PADDING;
-            const topPos = 160; 
-            ruleDescDisplay.style.left = `${leftPos}px`;
-            ruleDescDisplay.style.top = `${topPos}px`;
-            ruleDescDisplay.style.maxWidth = `${HOLD_AREA_WIDTH - PADDING}px`;
-        } else {
-            ruleDescDisplay.style.display = 'none';
-        }
-        
-        if (autoStartParams.hb) {
-            document.getElementById('backToEditorBtn').style.display = 'none';
-        } else {
-            document.getElementById('backToEditorBtn').style.display = '';
-        }
-
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-players = [];
-        const p1_isAi = document.getElementById('p1-ai-toggle').checked;
+        players = [];
+const p1_isAi = document.getElementById('p1-ai-toggle').checked;
         const p2_isAi = document.getElementById('p2-ai-toggle').checked;
-
-        const createAndSetupPlayer = (id, offsetX, bindings, padIndex, isAi) => {
-            const player = new Player(id, offsetX, bindings, padIndex, isAi);
-            player.holdDisabled = autoStartParams.nh;
-            player.ruleHooks = userFunctions;
-            return player;
-        };
-
+        
         if (gameMode === '1P') {
-            mainCanvas.width = PLAYER_CANVAS_WIDTH * RESOLUTION_SCALE; 
-            mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
-            mainCanvas.style.width = PLAYER_CANVAS_WIDTH + 'px';
-            mainCanvas.style.height = CANVAS_HEIGHT + 'px';
-            players.push(createAndSetupPlayer('1', 0, keyBindings.p1, 0, p1_isAi));
-        }
-        else {
-            const totalWidth = PLAYER_CANVAS_WIDTH * 2;
-            mainCanvas.width = totalWidth * RESOLUTION_SCALE; 
-            mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
-            mainCanvas.style.width = totalWidth + 'px';
-            mainCanvas.style.height = CANVAS_HEIGHT + 'px';
-            const p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0, p1_isAi);
-            const p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1, p2_isAi);
-            p1.opponent = p2; 
-            p2.opponent = p1;
+            const player = new Player('1', 0, keyBindings.p1, 0, p1_isAi);
+player.holdDisabled = autoStartParams.nh;
+            players.push(player);
+} else {
+            const p1 = new Player('1', 0, keyBindings.p1, 0, p1_isAi);
+            p1.holdDisabled = autoStartParams.nh;
+            const p2 = new Player('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1, p2_isAi);
+            p2.holdDisabled = autoStartParams.nh;
+            p1.opponent = p2;
+p2.opponent = p1;
             players.push(p1, p2);
         }
-    
-    const createPlayerProxy = (player) => {
+
+        const createPlayerProxy = (player) => {
             if (!player) return null;
-            return {
-                get stats() { return player.stats; },
+return {
+                get stats() { return player.stats;
+},
                 board: {
                     hasBlock: (x, y) => {
                         if (x < 0 || x >= BOARD_WIDTH || y < 0 || y >= BOARD_HEIGHT) return true;
-                        return player.board[y][x] !== null;
+return player.board[y][x] !== null;
                     },
                     placeBlock: (x, y, type) => {
                         if (x >= 0 && x < BOARD_WIDTH && y >= 0 && y < BOARD_HEIGHT) {
-                           player.board[y][x] = Object.keys(COLORS).includes(type) ? type : null;
+                           player.board[y][x] = Object.keys(COLORS).includes(type) ?
+type : null;
                         }
                     },
                 },
             };
-        };
+};
 
         const p1Proxy = createPlayerProxy(players[0]);
         const p2Proxy = createPlayerProxy(players[1]);
 
         const gameApi = {
-            win: (player) => { if (player instanceof Player) player.gameClear = true; },
-            lose: (player) => { if (player instanceof Player) player.gameOver = true; },
+            win: (player) => { if (player instanceof Player) player.gameClear = true;
+},
+            lose: (player) => { if (player instanceof Player) player.gameOver = true;
+},
+            setCustomUIText: (player, text) => {
+                const targetPlayer = (player === p1Proxy && players[0]) ?
+players[0] :
+                    (player === p2Proxy && players[1]) ?
+players[1] : null;
+                if (targetPlayer) {
+                    targetPlayer.customUIText = String(text);
+}
+            },
             getTime: () => performance.now() - startTime,
             sendAttack: (player, lines) => {
-                const targetPlayer = (player === p1Proxy && players[0]) ? players[0] :
-                                     (player === p2Proxy && players[1]) ? players[1] : null;
+                const targetPlayer = (player === p1Proxy && players[0]) ?
+players[0] :
+                                     (player === p2Proxy && players[1]) ?
+players[1] : null;
                 if (targetPlayer) {
                     targetPlayer.addGarbage(lines);
+}
+            },
+            forceSetting: (key, value) => {
+                if (key in currentRunSettings) {
+                    currentRunSettings[key] = value;
+                } else {
+                        console.warn(`Rule tried to force unknown setting: ${key}`);
                 }
             },
             p1: p1Proxy,
             p2: p2Proxy
         };
         
-        players.forEach(p => p.gameApi = gameApi);
+        if (editorData.rule.code) {
+            try {
+                const combinedCode = editorData.rule.code + 
+                    `\nreturn { 
+                        onInit: typeof onInit === 'function' ? onInit : undefined,
+     onPieceLock: typeof onPieceLock === 'function' ? onPieceLock : undefined,
+                        onUpdate: typeof onUpdate === 'function' ?
+onUpdate : undefined
+                    };`;
+const ruleScript = new Function('api', combinedCode);
+                const returnedFuncs = ruleScript(gameApi);
+if (returnedFuncs.onInit) {
+                    returnedFuncs.onInit(gameApi);
+}
+                userFunctions = returnedFuncs;
+} catch (e) {
+                alert('カスタムルールコードの実行中にエラーが発生しました:\n' + e.message);
+console.error("Custom rule script error:", e);
+                return;
+            }
+        }
+        
+        players.forEach(p => {
+            p.ruleHooks = userFunctions;
+            p.gameApi = gameApi;
+        });
+
+        const originalSettingsBeforeRun = { ...gameSettings };
+Object.assign(gameSettings, currentRunSettings);
+
+        gameState = 'PLAYING'; 
+        document.getElementById('editor-container').style.display = 'none'; 
+        document.getElementById('game-container').style.display = 'block';
+        document.getElementById('scan-controls').style.display = 'none';
+        document.getElementById('game-controls').style.display = 'flex';
+const ruleDescDisplay = document.getElementById('rule-description-display');
+        if (editorData.rule.description) {
+            ruleDescDisplay.innerText = editorData.rule.description;
+ruleDescDisplay.style.display = 'block';
+            const p1OffsetX = 0;
+            const leftPos = p1OffsetX + PADDING;
+            const topPos = 160; 
+            ruleDescDisplay.style.left = `${leftPos}px`;
+ruleDescDisplay.style.top = `${topPos}px`;
+            ruleDescDisplay.style.maxWidth = `${HOLD_AREA_WIDTH - PADDING}px`;
+        } else {
+            ruleDescDisplay.style.display = 'none';
+}
+        
+        if (autoStartParams.hb) {
+            document.getElementById('backToEditorBtn').style.display = 'none';
+} else {
+            document.getElementById('backToEditorBtn').style.display = '';
+}
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+        if (gameMode === '1P') {
+            mainCanvas.width = PLAYER_CANVAS_WIDTH * RESOLUTION_SCALE;
+mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
+            mainCanvas.style.width = PLAYER_CANVAS_WIDTH + 'px';
+            mainCanvas.style.height = CANVAS_HEIGHT + 'px';
+}
+        else {
+            const totalWidth = PLAYER_CANVAS_WIDTH * 2;
+mainCanvas.width = totalWidth * RESOLUTION_SCALE; 
+            mainCanvas.height = CANVAS_HEIGHT * RESOLUTION_SCALE;
+            mainCanvas.style.width = totalWidth + 'px';
+            mainCanvas.style.height = CANVAS_HEIGHT + 'px';
+        }
+
         
         autoStartParams = { ss: false, nh: false, hb: false };
         ctx.scale(RESOLUTION_SCALE, RESOLUTION_SCALE);
@@ -4065,7 +4115,7 @@ document.getElementById('settingsBtn').addEventListener('click', () => openUnifi
     }
     
 
-    document.getElementById('retryBtn').addEventListener('click', () => {
+document.getElementById('retryBtn').addEventListener('click', () => {
         if (gameState !== 'PLAYING' || !players.length) return;
         
         loadGameSettings();
@@ -4075,61 +4125,22 @@ document.getElementById('settingsBtn').addEventListener('click', () => openUnifi
         let startTime = performance.now();
         const wasHoldDisabled = players[0].holdDisabled;
 
-        if (editorData.rule.code) {
-            try {
-                const initApi = {
-                    forceSetting: (key, value) => {
-                        if (key in currentRunSettings) {
-                            currentRunSettings[key] = value;
-                        } else {
-                            console.warn(`Rule tried to force unknown setting: ${key}`);
-                        }
-                    }
-                };
-                
-                const combinedCode = editorData.rule.code + 
-                    `\nreturn { 
-                        onInit: typeof onInit === 'function' ? onInit : undefined,
-                        onPieceLock: typeof onPieceLock === 'function' ? onPieceLock : undefined,
-                        onUpdate: typeof onUpdate === 'function' ? onUpdate : undefined
-                    };`;
-
-                const ruleScript = new Function('api', combinedCode);
-                const returnedFuncs = ruleScript(initApi);
-
-                if (returnedFuncs.onInit) {
-                    returnedFuncs.onInit(initApi);
-                }
-                userFunctions = returnedFuncs;
-
-            } catch (e) {
-                alert('リトライ時にカスタムルールコードの実行でエラーが発生しました:\n' + e.message);
-                console.error("Custom rule script error on retry:", e);
-                return;
-            }
-        }
-        
-        Object.assign(gameSettings, currentRunSettings);
-
-        const createAndSetupPlayer = (id, offsetX, bindings, padIndex, isAi) => {
-            const player = new Player(id, offsetX, bindings, padIndex, isAi);
-            player.holdDisabled = wasHoldDisabled;
-            player.ruleHooks = userFunctions;
-            return player;
-        };
-
-        players = [];
         const p1_isAi_retry = document.getElementById('p1-ai-toggle').checked;
         const p2_isAi_retry = document.getElementById('p2-ai-toggle').checked;
 
+        const tempPlayers = [];
         if (gameMode === '1P') {
-            players.push(createAndSetupPlayer('1', 0, keyBindings.p1, 0, p1_isAi_retry));
+            const p = new Player('1', 0, keyBindings.p1, 0, p1_isAi_retry);
+            p.holdDisabled = wasHoldDisabled;
+            tempPlayers.push(p);
         } else {
-            const p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0, p1_isAi_retry);
-            const p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1, p2_isAi_retry);
+            const p1 = new Player('1', 0, keyBindings.p1, 0, p1_isAi_retry);
+            p1.holdDisabled = wasHoldDisabled;
+            const p2 = new Player('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1, p2_isAi_retry);
+            p2.holdDisabled = wasHoldDisabled;
             p1.opponent = p2;
             p2.opponent = p1;
-            players.push(p1, p2);
+            tempPlayers.push(p1, p2);
         }
 
         const createPlayerProxy = (player) => {
@@ -4150,27 +4161,68 @@ document.getElementById('settingsBtn').addEventListener('click', () => openUnifi
             };
         };
 
-        const p1Proxy = createPlayerProxy(players[0]);
-        const p2Proxy = createPlayerProxy(players[1]);
-
+        const p1Proxy = createPlayerProxy(tempPlayers[0]);
+        const p2Proxy = createPlayerProxy(tempPlayers[1]);
+        
         const gameApi = {
             win: (player) => { if (player instanceof Player) player.gameClear = true; },
             lose: (player) => { if (player instanceof Player) player.gameOver = true; },
+            setCustomUIText: (player, text) => {
+                const targetPlayer = (player === p1Proxy && tempPlayers[0]) ? tempPlayers[0] :
+                                     (player === p2Proxy && tempPlayers[1]) ? tempPlayers[1] : null;
+                if (targetPlayer) {
+                    targetPlayer.customUIText = String(text);
+                }
+            },
             getTime: () => performance.now() - startTime,
             sendAttack: (player, lines) => {
-                const targetPlayer = (player === p1Proxy && players[0]) ? players[0] :
-                                     (player === p2Proxy && players[1]) ? players[1] : null;
-                if (targetPlayer) {
-                    targetPlayer.addGarbage(lines);
+                const targetPlayer = (player === p1Proxy && tempPlayers[0]) ? tempPlayers[0] :
+                                     (player === p2Proxy && tempPlayers[1]) ? tempPlayers[1] : null;
+                if (targetPlayer && targetPlayer.opponent) {
+                    targetPlayer.opponent.addGarbage(lines);
+                }
+            },
+             forceSetting: (key, value) => {
+                if (key in currentRunSettings) {
+                    currentRunSettings[key] = value;
+                } else {
+                    console.warn(`Rule tried to force unknown setting: ${key}`);
                 }
             },
             p1: p1Proxy,
             p2: p2Proxy
         };
+     
+   if (editorData.rule.code) {
+            try {
+                const combinedCode = editorData.rule.code + 
+                    `\nreturn { 
+                      onInit: typeof onInit === 'function' ? onInit : undefined,
+                        onPieceLock: typeof onPieceLock === 'function' ?
+onPieceLock : undefined,
+                        onUpdate: typeof onUpdate === 'function' ?
+onUpdate : undefined
+                    };`;
+const ruleScript = new Function('api', combinedCode);
+                const returnedFuncs = ruleScript(gameApi);
+if (returnedFuncs.onInit) {
+                    returnedFuncs.onInit(gameApi);
+}
+                userFunctions = returnedFuncs;
+} catch (e) {
+                alert('リトライ時にカスタムルールコードの実行でエラーが発生しました:\n' + e.message);
+console.error("Custom rule script error on retry:", e);
+                return;
+            }
+        }
         
-        players.forEach(p => p.gameApi = gameApi);
+        Object.assign(gameSettings, currentRunSettings);
+        players = tempPlayers;
+        players.forEach(p => {
+            p.ruleHooks = userFunctions;
+            p.gameApi = gameApi;
+        });
     });
-
     setupEditors();
 
     loadStateFromURL();
