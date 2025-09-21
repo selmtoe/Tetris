@@ -4258,7 +4258,7 @@ console.error("Custom rule script error on retry:", e);
             p.ruleHooks = userFunctions;
             p.gameApi = gameApi;
         });
-});
+    });
     setupEditors();
 
     loadStateFromURL();
@@ -4269,10 +4269,12 @@ console.error("Custom rule script error on retry:", e);
     window.addEventListener('resize', updateScale);
 
     setTimeout(updateScale, 100);
-document.getElementById('ai-debug-execute').addEventListener('click', () => {
+
+    document.getElementById('ai-debug-execute').addEventListener('click', () => {
         const piece = document.getElementById('ai-debug-piece').value.toUpperCase();
         const x = parseInt(document.getElementById('ai-debug-x').value, 10);
-
+        const y = parseInt(document.getElementById('ai-debug-y').value, 10);
+        const rot = parseInt(document.getElementById('ai-debug-rot').value, 10);
 
         if (!piece || isNaN(x) || isNaN(y) || isNaN(rot)) {
             alert('Invalid debug input.');
