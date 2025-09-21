@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -222,9 +222,8 @@
                 <div class="button active" id="mode-1p">1P</div>
                 <div class="button" id="mode-2p">2P</div>
                 <div class="button" id="mode-ai" style="opacity: 0.5; cursor: not-allowed;" title="実装予定">AI</div>
-                <button id="settingsBtn" class="button" style="margin-left: 15px;">設定</button>
+                 <button id="settingsBtn" class="button" style="margin-left: 15px;">設定</button>
                  <button id="shareBtn" class="button" style="margin-left: 5px;">共有</button>
-                 <button id="ruleBtn" class="button" style="margin-left: 5px;">ルール</button>
             </div>
             <button id="startGameBtn" class="button">START GAME</button>
         </div>
@@ -292,12 +291,9 @@
             </div>
         </div>
     </div>
-
-<div id="game-container">
-<div id="rule-description-display" style="display: none; position: absolute; z-index: 155; color: var(--font-color); background: rgba(26, 26, 46, 0.9); padding: 15px; border-radius: 10px; border: 2px solid #4b4b7c; font-family: var(--font-ui); font-size: 14px; max-width: 200px; max-height: 400px; overflow-y: auto; box-sizing: border-box; word-wrap: break-word; backdrop-filter: blur(4px);"></div>
-<canvas id="mainCanvas"></canvas>
-<div id="scan-instructions" style="display: none;"></div>
-
+    <div id="game-container">
+        <canvas id="mainCanvas"></canvas>
+        <div id="scan-instructions" style="display: none;"></div>
         <div id="scan-controls" style="display: none; margin-top: 15px; gap: 10px; justify-content:center;">
              <button id="scanConfirmBtn" class="button">次へ</button>
              <button id="scanCancelBtn" class="button">キャンセル</button>
@@ -376,23 +372,22 @@
             <div id="advanced-link-options" style="display: none; margin-top: 15px; padding: 10px; background-color: rgba(255,255,255,0.05); border-radius: 5px;">
                 <div class="setting-item">
                     <label>
-                        <input type="checkbox" id="start-sim-checkbox">
+                        <input type="checkbox" id="start-sim-checkbox" checked>
                         <span>シミュレーションを即スタート</span>
                     </label>
                 </div>
-<div class="setting-item">
+                <div class="setting-item">
                     <label>
                         <input type="checkbox" id="no-hold-checkbox">
                         <span>ホールドを禁止</span>
                     </label>
                 </div>
-                <div class="setting-item">
-                    <label>
-                        <input type="checkbox" id="hide-back-btn-checkbox" disabled>
-                        <span>戻るボタンを非表示</span>
-                    </label>
-                </div>
                  <button id="generate-advanced-link-btn" class="button" style="margin-top: 10px;">リンクを再生成</button>
+            </div>
+             <div class="share-item" style="margin-top: 15px;">
+                <span>生データ (JSON)</span>
+                <textarea id="share-raw-data-textarea" readonly style="width: 100%; height: 80px; margin-top: 5px; margin-bottom: 5px; background-color: var(--canvas-bg-color); color: var(--font-color); border: 1px solid var(--border-color); resize: vertical; box-sizing: border-box;"></textarea>
+                <button id="copy-raw-data-btn" class="button">生データをコピー</button>
             </div>
         </div>
         
@@ -408,29 +403,6 @@
 
         <div class="modal-controls">
             <button id="share-close" class="button">閉じる</button>
-        </div>
-    </div>
-</div>
-
-<div id="rule-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.75); display: none; justify-content: center; align-items: center; z-index: 200;">
-    <div class="modal-content" style="width: 90%; max-width: 700px;">
-        <h2>カスタムルール</h2>
-        
-        <div class="rule-section" style="margin-bottom: 20px;">
-            <h3>説明</h3>
-            <p style="font-size: 14px; color: #ccc; margin-top: 5px; margin-bottom: 10px;">ここに記述した内容は、ゲーム画面の左側（ホールドの下）に表示されます。</p>
-            <textarea id="rule-description-input" style="width: 100%; height: 100px; background-color: var(--primary-color); color: var(--font-color); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px; font-family: var(--font-ui); box-sizing: border-box; resize: vertical;"></textarea>
-        </div>
-
-        <div class="rule-section">
-            <h3>コード (JS)</h3>
-            <p style="font-size: 14px; color: #ccc; margin-top: 5px; margin-bottom: 10px;">ゲームのクリア・オーバー条件などをプログラムで定義します。</p>
-            <textarea id="rule-code-input" style="width: 100%; height: 250px; background-color: var(--primary-color); color: var(--font-color); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px; font-family: monospace; box-sizing: border-box; resize: vertical;"></textarea>
-        </div>
-
-        <div class="modal-controls" style="border-top: 1px solid var(--primary-color); padding-top: 15px; margin-top: 20px;">
-            <button id="rule-save-close" class="button">保存して閉じる</button>
-            <button id="rule-close" class="button">キャンセル</button>
         </div>
     </div>
 </div>
@@ -467,7 +439,7 @@ const virtualController = (() => {
             'hardDrop':  { label: '↑', x: 0.175,y: 0.60, r: 0.07 },
             'rotateCCW': { label: 'L',  x: 0.80, y: 0.85, r: 0.10 },
             'rotateCW':  { label: 'R',  x: 0.90, y: 0.65, r: 0.10 },
-            'hold':      { label: 'H',  x: 0.75, y: 0.60, r: 0.09 },
+            'hold':      { label: 'H',  x: 0.08, y: 0.45, r: 0.09 },
         }
     };
     
@@ -812,9 +784,9 @@ let gameSettings = {
     das: 140,
     arr: 30,
     sdf: 20,
-    lineClearDelay: 0,
-    gravity: 9999999,
-    lockDelay: 9999999,
+    lineClearDelay: 500,
+    gravity: 1000,
+    lockDelay: 500,
     garbageGrace: 1000,
     garbageRandomness: 0.3,
     maxNext: 5,
@@ -822,7 +794,7 @@ let gameSettings = {
     touchControlsEnabled: 'ontouchstart' in window,
 };
 
-const COLORS = { 'I': '#00f0f0', 'O': '#f0f000', 'T': '#a000f0', 'L': '#f0a000', 'J': '#0000f0', 'S': '#00f000', 'Z': '#f00000', 'G': '#999999', 'E': '#808080' };
+const COLORS = { 'I': '#00f0f0', 'O': '#f0f000', 'T': '#a000f0', 'L': '#f0a000', 'J': '#0000f0', 'S': '#00f000', 'Z': '#f00000', 'G': '#999999' };
 
 const SCAN_COLOR_PALETTE = {
     'NULL': ['#000000', '#302838'],
@@ -894,8 +866,7 @@ let gamepads = {}, prevGamepads = {};
 
 const editorData = {
     p1: { board: null, nextQueue: [], hold: null, viewY: BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT, activeColor: 'I', nextInsertionIndex: -1 },
-    p2: { board: null, nextQueue: [], hold: null, viewY: BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT, activeColor: 'I', nextInsertionIndex: -1 },
-    rule: { description: '', code: '' }
+    p2: { board: null, nextQueue: [], hold: null, viewY: BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT, activeColor: 'I', nextInsertionIndex: -1 }
 };
 
 let scanState = { image: null, bottomLeft: null, topRight: null, currentMousePos: {x: 0, y: 0}, targetPlayerId: null, parsedColors: null };
@@ -929,8 +900,6 @@ class Player {
         this.minoGenerator = createMinoGenerator(pData.nextQueue);
         this.opponent = null;
         this.holdDisabled = false;
-        this.ruleHooks = {};
-        this.gameApi = null;
         this.reset();
     }
 
@@ -943,16 +912,9 @@ reset() {
         this.holdPiece = this.initialHold; this.canHold = true; this.gravityTimer = gameSettings.gravity; this.lockTimer = 0;
         this.dasTimer = 0; this.arrTimer = 0; this.sdfTimer = 0; this.dasDirection = 0;
         this.isGrounded = false; this.gameOver = false; this.isClearingLine = false; this.lineClearDelayTimer = 0;
-        this.gameClear = false;
-
-        this.stats = {
-            tSpinSingle: 0, tSpinDouble: 0, tSpinTriple: 0,
-            miniTSpinSingle: 0, miniTSpinDouble: 0,
-            perfectClear: 0, tetris: 0, ren: -1
-        };
 
         this.viewY = BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT;
-        this.pendingGarbage = 0;this.garbageQueue = []; this.ren = -1; this.isB2B = false;
+        this.pendingGarbage = 0; this.garbageQueue = []; this.ren = -1; this.isB2B = false;
         this.lastMoveWasRotation = false; this.lastSrsKickIndex = -1;
         this.specialMoveText = [];
         this.specialMoveTextTimer = 0;
@@ -1011,20 +973,8 @@ reset() {
         }
     }
 
-update(dt) {
-        if (this.gameOver || this.gameClear) return;
-
-        if (this.ruleHooks.onUpdate && typeof this.ruleHooks.onUpdate === 'function') {
-            try {
-                this.ruleHooks.onUpdate(this.gameApi, this);
-            } catch (e) {
-                console.error("Rule error onUpdate:", e);
-                this.gameOver = true;
-                return;
-            }
-        }
-        if (this.gameOver || this.gameClear) return;
-
+    update(dt) {
+        if (this.gameOver) return;
         if (this.specialMoveTextTimer > 0) {
             this.specialMoveTextTimer -= dt;
         }
@@ -1067,37 +1017,9 @@ update(dt) {
         }
         this.dasDirection = horizDir;
 
-if (this.isClearingLine) {
+        if (this.isClearingLine) {
             this.lineClearDelayTimer -= dt;
-            if (this.lineClearDelayTimer <= 0) { 
-                this.isClearingLine = false; 
-                this.riseGarbage(); 
-                if (this.nextQueue[0] === 'E') {
-                    if (this.holdPiece) {
-                        this.player.pieceType = this.holdPiece;
-                        this.holdPiece = null;
-                        this.canHold = false;
-                        
-                        this.player.rotation = 0;
-                        this.lockTimer = 0;
-                        this.lastMoveWasRotation = false;
-                        this.player.x = Math.floor(BOARD_WIDTH / 2) - Math.floor(TETROMINOS[this.player.pieceType].center[0]) -1;
-                        const shape = this.getShape(this.player.pieceType, this.player.rotation);
-                        this.player.y = 19;
-                        if (this.checkCollision(this.player.x, this.player.y, shape)) {
-                            this.player.y = 18;
-                            if (this.checkCollision(this.player.x, this.player.y, shape)) {
-                                 this.gameOver = true;
-                            }
-                        }
-                        return;
-                    } else {
-                        this.gameOver = true;
-                        return;
-                    }
-                }
-                this.spawnNewPiece(); 
-            }
+            if (this.lineClearDelayTimer <= 0) { this.isClearingLine = false; this.riseGarbage(); this.spawnNewPiece(); }
             return;
         }
 
@@ -1141,7 +1063,7 @@ if (this.isClearingLine) {
         }
     }
 
-draw() {
+    draw() {
         ctx.save(); ctx.translate(this.offsetX, 0);
         this.drawUI();
 
@@ -1158,10 +1080,9 @@ draw() {
         for (let y = 0; y < BOARD_VISIBLE_HEIGHT; y++) { for (let x = 0; x < BOARD_WIDTH; x++) { const boardY = y + this.viewY; if (this.board[boardY]?.[x]) { this.drawBlock(this.board[boardY][x], x * BLOCK_SIZE, y * BLOCK_SIZE); } } }
 
 
-        if (!this.gameOver && !this.gameClear && !this.isClearingLine && this.player.pieceType) { const shape = this.getShape(this.player.pieceType, this.player.rotation); const ghostY = this.getGhostY(); if (ghostY > this.player.y) this.drawPiece(shape, this.player.x, ghostY, this.player.pieceType, true); this.drawPiece(shape, this.player.x, this.player.y, this.player.pieceType, false); }
+        if (!this.gameOver && !this.isClearingLine && this.player.pieceType) { const shape = this.getShape(this.player.pieceType, this.player.rotation); const ghostY = this.getGhostY(); if (ghostY > this.player.y) this.drawPiece(shape, this.player.x, ghostY, this.player.pieceType, true); this.drawPiece(shape, this.player.x, this.player.y, this.player.pieceType, false); }
         this.drawSpecialMoveText();
         if (this.gameOver) this.drawMessage("GAME OVER");
-        else if (this.gameClear) this.drawMessage("CLEAR!");
         ctx.restore(); ctx.restore();
     }
     
@@ -1183,11 +1104,6 @@ draw() {
     
 hold() {
         if (this.gameOver || !this.canHold || this.holdDisabled) return;
-
-        if (!this.holdPiece && this.nextQueue[0] === 'E') {
-            return;
-        }
-
         this.canHold = false;
         this.lastMoveWasRotation = false;
         if (this.holdPiece) {
@@ -1209,8 +1125,8 @@ hold() {
             this.spawnNewPiece();
         }
     }
-
-lockPiece() {
+    
+    lockPiece() {
         if (!this.player.pieceType) return;
         const tspinResult = this.checkForTSpin();
         const shape = this.getShape(this.player.pieceType, this.player.rotation);
@@ -1225,13 +1141,10 @@ lockPiece() {
         
         let attack = 0;
         let isAction = false;
-        let moveInfo = { name: '', isPerfectClear: false, clearedLines: lines, isB2B: false, ren: this.ren, tSpinType: tspinResult };
         
         if (isPC) {
             attack = 10;
             isAction = true;
-            this.stats.perfectClear++;
-            moveInfo.isPerfectClear = true;
             this.ren++;
             this.isB2B = true;
             this.specialMoveText.push("PERFECT CLEAR");
@@ -1241,21 +1154,12 @@ lockPiece() {
             if (tspinResult === 'TSPIN') {
                 attack = [0, 2, 4, 6][lines];
                 moveText = ['', 'T-Spin Single', 'T-Spin Double', 'T-Spin Triple'][lines];
-                moveInfo.name = moveText;
-                if (lines === 1) this.stats.tSpinSingle++;
-                if (lines === 2) this.stats.tSpinDouble++;
-                if (lines === 3) this.stats.tSpinTriple++;
             } else if (tspinResult === 'MINI_TSPIN') {
                 attack = [0, 0, 1, 2, 4][lines];
                 moveText = ['', 'T-Spin Mini Single', 'T-Spin Mini Double'][lines] || 'T-Spin Mini';
-                moveInfo.name = moveText;
-                if (lines === 1) this.stats.miniTSpinSingle++;
-                if (lines === 2) this.stats.miniTSpinDouble++;
             } else {
                 attack = [0, 0, 1, 2, 4][lines];
                 moveText = ['', 'Single', 'Double', 'Triple', 'Tetris'][lines];
-                moveInfo.name = moveText;
-                if (lines === 4) this.stats.tetris++;
             }
             
             const isB2BEligible = (lines === 4) || (tspinResult && lines > 0);
@@ -1263,7 +1167,6 @@ lockPiece() {
                 if (this.isB2B) {
                     attack++;
                     this.specialMoveText.push("Back-to-Back");
-                    moveInfo.isB2B = true;
                 }
                 this.isB2B = true;
             } else {
@@ -1276,7 +1179,6 @@ lockPiece() {
             if (this.ren >= 1) {
                  this.specialMoveText.push(`${this.ren} REN`);
             }
-            this.stats.ren = this.ren;
         } else if (tspinResult) {
             isAction = false; 
             this.ren = -1;
@@ -1284,10 +1186,7 @@ lockPiece() {
             moveText = (tspinResult === 'MINI_TSPIN') ? 'T-Spin Mini' : 'T-Spin';
         }
         
-        if (!isAction) {
-            this.ren = -1;
-            this.stats.ren = -1;
-        }
+        if (!isAction) this.ren = -1;
         if (moveText) this.specialMoveText.push(moveText);
 
         if (this.opponent && attack > 0) {
@@ -1300,45 +1199,9 @@ lockPiece() {
                 if (remainingAttack > 0) { this.opponent.addGarbage(remainingAttack); }
             }
         }
-        
-        if (this.ruleHooks.onPieceLock && typeof this.ruleHooks.onPieceLock === 'function') {
-             try {
-                this.ruleHooks.onPieceLock(this.gameApi, this, moveInfo);
-            } catch (e) {
-                console.error("Rule error onPieceLock:", e);
-                this.gameOver = true;
-            }
-        }
-        if (this.gameOver || this.gameClear) return;
 
-
-if (this.specialMoveText.length > 0) {
+        if (this.specialMoveText.length > 0) {
             this.specialMoveTextTimer = 1500;
-        }
-
-        if (this.nextQueue[0] === 'E') {    
-            if (this.holdPiece) {
-                this.player.pieceType = this.holdPiece;
-                this.holdPiece = null;
-                this.canHold = false;
-                
-                this.player.rotation = 0;
-                this.lockTimer = 0;
-                this.lastMoveWasRotation = false;
-                this.player.x = Math.floor(BOARD_WIDTH / 2) - Math.floor(TETROMINOS[this.player.pieceType].center[0]) -1;
-                const shape = this.getShape(this.player.pieceType, this.player.rotation);
-                this.player.y = 19;
-                if (this.checkCollision(this.player.x, this.player.y, shape)) {
-                    this.player.y = 18;
-                    if (this.checkCollision(this.player.x, this.player.y, shape)) {
-                         this.gameOver = true;
-                    }
-                }
-                return;
-            } else {
-                this.gameOver = true;
-                return;
-            }
         }
 
         this.lockTimer = 0;
@@ -1409,27 +1272,28 @@ if (this.specialMoveText.length > 0) {
         ctx.globalAlpha=1.0;
     }
 
-drawPiece(s,x,y,p,g) {s.forEach(b=>{const px=Math.floor(x+b[0])*BLOCK_SIZE, py=(Math.floor(y+b[1])-this.viewY)*BLOCK_SIZE; this.drawBlock(p,px,py,g);});}
-    drawUI() {
+    drawPiece(s,x,y,p,g) {s.forEach(b=>{const px=Math.floor(x+b[0])*BLOCK_SIZE, py=(Math.floor(y+b[1])-this.viewY)*BLOCK_SIZE; this.drawBlock(p,px,py,g);});}
+    
+drawUI() {
         ctx.textAlign = 'center'; ctx.fillStyle = '#FFF'; ctx.font = `bold ${BLOCK_SIZE * 0.8}px "Orbitron"`;
         if (!this.holdDisabled) {
             ctx.fillText('HOLD', HOLD_AREA_WIDTH / 2, 40);
             if (this.holdPiece) { const s = this.getShape(this.holdPiece, 0); s.forEach(b => { const px = (HOLD_AREA_WIDTH / 2) - (TETROMINOS[this.holdPiece].center[0] * BLOCK_SIZE) + (b[0] * BLOCK_SIZE), py = 70 - (TETROMINOS[this.holdPiece].center[1] * BLOCK_SIZE) + (b[1] * BLOCK_SIZE); this.drawBlock(this.holdPiece, px, py); }); }
         }
         
-        const meterX = PLAYFIELD_X_OFFSET - 12; const meterWidth = 8; const meterMaxHeight = BOARD_VISIBLE_HEIGHT * BLOCK_SIZE;
-        const pendingHeight = Math.min(this.pendingGarbage, BOARD_VISIBLE_HEIGHT) * BLOCK_SIZE;
-        if (pendingHeight > 0) { ctx.fillStyle = 'red'; ctx.fillRect(meterX, meterMaxHeight - pendingHeight + (0.5 * BLOCK_SIZE), meterWidth, pendingHeight); }
-        const queuedLines = this.garbageQueue.reduce((sum, g) => sum + g.lines, 0);
-        const queuedHeight = Math.min(queuedLines, BOARD_VISIBLE_HEIGHT - this.pendingGarbage) * BLOCK_SIZE;
-        if (queuedHeight > 0) { ctx.fillStyle = 'yellow'; ctx.fillRect(meterX, meterMaxHeight - pendingHeight - queuedHeight + (0.5*BLOCK_SIZE), meterWidth, queuedHeight); }
+        if (this.opponent) {
+            const meterX = PLAYFIELD_X_OFFSET - 12; const meterWidth = 8; const meterMaxHeight = BOARD_VISIBLE_HEIGHT * BLOCK_SIZE;
+            const pendingHeight = Math.min(this.pendingGarbage, BOARD_VISIBLE_HEIGHT) * BLOCK_SIZE;
+            if (pendingHeight > 0) { ctx.fillStyle = 'red'; ctx.fillRect(meterX, meterMaxHeight - pendingHeight + (0.5 * BLOCK_SIZE), meterWidth, pendingHeight); }
+            const queuedLines = this.garbageQueue.reduce((sum, g) => sum + g.lines, 0);
+            const queuedHeight = Math.min(queuedLines, BOARD_VISIBLE_HEIGHT - this.pendingGarbage) * BLOCK_SIZE;
+            if (queuedHeight > 0) { ctx.fillStyle = '#f0f000'; ctx.fillRect(meterX, meterMaxHeight - pendingHeight - queuedHeight + (0.5*BLOCK_SIZE), meterWidth, queuedHeight); }
+        }
 
         ctx.fillStyle = '#FFF'; const rX = PLAYFIELD_X_OFFSET + PLAYFIELD_WIDTH + PADDING + NEXT_AREA_WIDTH / 2;
         ctx.fillText('NEXT', rX, 40);
         for (let i = 0; i < gameSettings.maxNext; i++) {
-            const pT = this.nextQueue[i]; 
-            if (!pT) continue;
-            if (pT === 'E') break;
+            const pT = this.nextQueue[i]; if (!pT) continue;
             const s = this.getShape(pT, 0);
             s.forEach(b => {
                 const px = rX - (TETROMINOS[pT].center[0] * BLOCK_SIZE) + (b[0] * BLOCK_SIZE);
@@ -1472,7 +1336,7 @@ function setupPlayerEditor(playerId) {
     const nextIcons = document.getElementById(`${playerId}-next-icons`);
     Object.keys(TETROMINOS).forEach(key => {
         const icon = document.createElement('div');
-icon.className = 'mino-icon';
+        icon.className = 'mino-icon';
         icon.style.backgroundColor = activeSkin[key];
         icon.addEventListener('click', () => {
             const data = editorData[playerId];
@@ -1490,35 +1354,6 @@ icon.className = 'mino-icon';
         });
         nextIcons.appendChild(icon);
     });
-    
-    const endIcon = document.createElement('div');
-    endIcon.className = 'mino-icon';
-    endIcon.style.backgroundColor = activeSkin['E'];
-    endIcon.style.color = '#FFFFFF';
-    endIcon.style.display = 'flex';
-    endIcon.style.alignItems = 'center';
-    endIcon.style.justifyContent = 'center';
-    endIcon.style.fontFamily = 'var(--font-display)';
-    endIcon.style.fontSize = '14px';
-    endIcon.style.fontWeight = 'bold';
-endIcon.textContent = 'END';
-    endIcon.addEventListener('click', () => {
-        const data = editorData[playerId];
-        if (data.nextInsertionIndex === 'hold' || data.nextQueue.length === 0) {
-            return;
-        }
-        const key = 'E';
-        if (data.nextInsertionIndex === -1) {
-            data.nextQueue.push(key);
-            data.nextInsertionIndex = data.nextQueue.length;
-        } else {
-            data.nextQueue.splice(data.nextInsertionIndex, 0, key);
-            data.nextInsertionIndex++;
-        }
-        updateNextQueueDisplay(playerId);
-    });
-    nextIcons.appendChild(endIcon);
-    
      document.getElementById(`${playerId}-next-delete-left`).addEventListener('click', () => {
         const data = editorData[playerId];
         const index = data.nextInsertionIndex;
@@ -1544,10 +1379,9 @@ endIcon.textContent = 'END';
     });
     const palette = document.getElementById(`${playerId}-palette`);
 
-    Object.keys(EDITOR_COLORS).filter(key => key !== 'E').forEach(key => { const swatch = document.createElement('div'); swatch.className = 'color-swatch'; swatch.style.backgroundColor = key === 'EMPTY' ? '#333' : EDITOR_COLORS[key]; if (key === 'EMPTY') { swatch.style.border = '1px dashed #fff'; swatch.title = 'Eraser'; } if (key === editorData[playerId].activeColor) swatch.classList.add('active'); swatch.addEventListener('click', () => { editorData[playerId].activeColor = key; palette.querySelector('.active')?.classList.remove('active'); swatch.classList.add('active'); }); palette.appendChild(swatch); });
+    Object.keys(EDITOR_COLORS).forEach(key => { const swatch = document.createElement('div'); swatch.className = 'color-swatch'; swatch.style.backgroundColor = key === 'EMPTY' ? '#333' : EDITOR_COLORS[key]; if (key === 'EMPTY') { swatch.style.border = '1px dashed #fff'; swatch.title = 'Eraser'; } if (key === editorData[playerId].activeColor) swatch.classList.add('active'); swatch.addEventListener('click', () => { editorData[playerId].activeColor = key; palette.querySelector('.active')?.classList.remove('active'); swatch.classList.add('active'); }); palette.appendChild(swatch); });
 
-    const canvas = document.getElementById(`field-editor-canvas-${playerId}`);
-    
+   const canvas = document.getElementById(`field-editor-canvas-${playerId}`);
     canvas.width = BOARD_WIDTH * EDITOR_BLOCK_SIZE; canvas.height = BOARD_VISIBLE_HEIGHT * EDITOR_BLOCK_SIZE;
     let isDrawing = false;
     let isEraserMode = false;
@@ -1698,23 +1532,13 @@ function updateNextQueueDisplay(playerId) {
     nextContainer.style.paddingLeft = '8px';
     nextContainer.style.flexWrap = 'wrap';
 
-   nextContainer.appendChild(createGap(0));
+    nextContainer.appendChild(createGap(0));
     data.nextQueue.forEach((key, i) => {
         const icon = document.createElement('div');
         icon.className = 'mino-icon';
         icon.style.backgroundColor = activeSkin[key];
         icon.style.width = '38px';
         icon.style.height = '38px';
-        if (key === 'E') {
-            icon.textContent = 'END';
-            icon.style.color = 'white';
-            icon.style.display = 'flex';
-            icon.style.alignItems = 'center';
-            icon.style.justifyContent = 'center';
-            icon.style.fontFamily = 'var(--font-display)';
-            icon.style.fontSize = '12px';
-            icon.style.fontWeight = 'bold';
-        }
         nextContainer.appendChild(icon);
         nextContainer.appendChild(createGap(i + 1));
     });
@@ -1792,9 +1616,9 @@ function populateGeneralSettingsTab() {
         arr: { label: 'ARR (ms)', min: 0, max: 100, step: 1 },
         sdf: { label: 'SDF (ms)', min: 0, max: 100, step: 1 },
         lineClearDelay: { label: 'Line Clear Delay (ms)', min: 0, max: 2000, step: 50 },
-        gravity: { label: 'Gravity Interval (ms)', min: 0, max: 9999999, step: 50 },
-        lockDelay: { label: 'Lock Delay (ms)', min: 0, max: 9999999, step: 50 },
-        maxNext: { label: 'Max NEXT Display', min: 1, max: 8, step: 1 },
+        gravity: { label: 'Gravity Interval (ms)', min: 0, max: 5000, step: 50 },
+        lockDelay: { label: 'Lock Delay (ms)', min: 0, max: 3000, step: 50 },
+        maxNext: { label: 'Max NEXT Display', min: 1, max: 10, step: 1 },
         garbageGrace: { label: 'Garbage Grace (ms)', min: 0, max: 5000, step: 100 },
         garbageRandomness: { label: 'Garbage Hole Randomness (%)', min: 0, max: 100, step: 1 }
     };
@@ -2180,11 +2004,12 @@ function stringToBoard(str) {
     return board;
 }
 
-let autoStartParams = { ss: false, nh: false, hb: false };
+let autoStartParams = { ss: false, nh: false };
 
 function getGameStateForExport(options = {}) {
     const p1Data = { ...editorData.p1, nextQueue: [...editorData.p1.nextQueue] };
     const p2Data = gameMode === '2P' ? { ...editorData.p2, nextQueue: [...editorData.p2.nextQueue] } : null;
+
     if (options.noHold) {
         if (p1Data.hold) { p1Data.nextQueue.unshift(p1Data.hold); p1Data.hold = null; }
         if (p2Data && p2Data.hold) { p2Data.nextQueue.unshift(p2Data.hold); p2Data.hold = null; }
@@ -2194,18 +2019,15 @@ function getGameStateForExport(options = {}) {
         v: 2, m: gameMode,
         p1: { b: boardToString(p1Data.board), n: p1Data.nextQueue.join(''), h: p1Data.hold || '' }
     };
-if (gameMode === '2P') {
+    if (gameMode === '2P') {
         data.p2 = { b: boardToString(p2Data.board), n: p2Data.nextQueue.join(''), h: p2Data.hold || '' };
     }
     if (options.startSim) data.ss = 1;
     if (options.noHold) data.nh = 1;
-    if (options.hideBack) data.hb = 1;
-    
-    if (editorData.rule.description) data.rd = editorData.rule.description;
-    if (editorData.rule.code) data.rc = editorData.rule.code;
 
     return data;
 }
+
 function applyGameState(data) {
     try {
         if (!data || (data.v !== 1 && data.v !== 2)) {
@@ -2215,10 +2037,6 @@ function applyGameState(data) {
         document.getElementById('mode-1p').classList.toggle('active', gameMode === '1P');
         document.getElementById('mode-2p').classList.toggle('active', gameMode === '2P');
         document.getElementById('p2-editor-col').style.display = (gameMode === '2P') ? 'flex' : 'none';
-        
-        editorData.rule.description = data.rd || '';
-        editorData.rule.code = data.rc || '';
-
         if (data.p1) {
             editorData.p1.board = stringToBoard(data.p1.b);
             editorData.p1.nextQueue = data.p1.n ? data.p1.n.split('') : [];
@@ -2230,13 +2048,6 @@ function applyGameState(data) {
             editorData.p2.nextQueue = data.p2.n ? data.p2.n.split('') : [];
             editorData.p2.hold = data.p2.h || null;
             drawEditorField('p2'); updateNextQueueDisplay('p2');
-        } else if (gameMode !== '2P') {
-            editorData.p2.board = Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill(null));
-            editorData.p2.nextQueue = [];
-            editorData.p2.hold = null;
-            if (document.getElementById('p2-editor-col').style.display !== 'none') {
-                 drawEditorField('p2'); updateNextQueueDisplay('p2');
-            }
         }
         updateScale(); return true;
     } catch (e) {
@@ -2255,10 +2066,9 @@ function loadStateFromURL() {
 
             autoStartParams.ss = !!data.ss;
             autoStartParams.nh = !!data.nh;
-            autoStartParams.hb = !!data.hb;
 
             if (applyGameState(data)) {
-                //alert('URLから盤面を読み込みました。');
+                alert('URLから盤面を読み込みました。');
                 if (autoStartParams.ss) {
                     setTimeout(() => document.getElementById('startGameBtn').click(), 100);
                 }
@@ -2281,6 +2091,7 @@ function generateAndDisplayLink(options = {}) {
     const url = new URL(window.location);
     url.hash = base64Data;
     document.getElementById('share-link-input').value = url.href;
+    document.getElementById('share-raw-data-textarea').value = jsonString;
 }
 
 function openShareModal() {
@@ -2395,20 +2206,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('share-close').addEventListener('click', () => {
         document.getElementById('share-modal').style.display = 'none';
     });
-
-    document.getElementById('ruleBtn').addEventListener('click', () => {
-        document.getElementById('rule-description-input').value = editorData.rule.description;
-        document.getElementById('rule-code-input').value = editorData.rule.code;
-        document.getElementById('rule-modal').style.display = 'flex';
-    });
-    document.getElementById('rule-save-close').addEventListener('click', () => {
-        editorData.rule.description = document.getElementById('rule-description-input').value;
-        editorData.rule.code = document.getElementById('rule-code-input').value;
-        document.getElementById('rule-modal').style.display = 'none';
-    });
-    document.getElementById('rule-close').addEventListener('click', () => {
-        document.getElementById('rule-modal').style.display = 'none';
-    });
     
     document.getElementById('copy-link-btn').addEventListener('click', () => {
         const input = document.getElementById('share-link-input');
@@ -2418,7 +2215,13 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(err => alert('コピーに失敗しました: ' + err));
     });
     
-
+    document.getElementById('copy-raw-data-btn').addEventListener('click', () => {
+        const textarea = document.getElementById('share-raw-data-textarea');
+        textarea.select();
+        navigator.clipboard.writeText(textarea.value)
+            .then(() => alert('生データをクリップボードにコピーしました！'))
+            .catch(err => alert('コピーに失敗しました: ' + err));
+    });
 
         document.getElementById('import-from-data-btn').addEventListener('click', async () => {
         try {
@@ -2466,104 +2269,31 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('p2-editor-col').style.display = 'flex';
         setTimeout(updateScale, 0);
     });
-    document.getElementById('advanced-link-btn').addEventListener('click', () => {
-        document.getElementById('advanced-link-options').style.display = 'block';
-    });
     
-    const startSimCheckbox = document.getElementById('start-sim-checkbox');
-    const hideBackCheckbox = document.getElementById('hide-back-btn-checkbox');
-    startSimCheckbox.addEventListener('change', () => {
-        if (startSimCheckbox.checked) {
-            hideBackCheckbox.disabled = false;
-        } else {
-            hideBackCheckbox.disabled = true;
-            hideBackCheckbox.checked = false;
-        }
+document.getElementById('advanced-link-btn').addEventListener('click', () => {
+        document.getElementById('advanced-link-options').style.display = 'block';
     });
 
     document.getElementById('generate-advanced-link-btn').addEventListener('click', () => {
         generateAndDisplayLink({
             startSim: document.getElementById('start-sim-checkbox').checked,
             noHold: document.getElementById('no-hold-checkbox').checked,
-            hideBack: document.getElementById('hide-back-btn-checkbox').checked
         });
     });
 
-document.getElementById('startGameBtn').addEventListener('click', () => {
-        let currentRunSettings = { ...gameSettings };
-        let userFunctions = {};
-        let startTime = performance.now();
-        
-        if (editorData.rule.code) {
-            try {
-                const initApi = {
-                    forceSetting: (key, value) => {
-                        if (key in currentRunSettings) {
-                            currentRunSettings[key] = value;
-                        } else {
-                            console.warn(`Rule tried to force unknown setting: ${key}`);
-                        }
-                    }
-                };
-                
-                const combinedCode = editorData.rule.code + 
-                    `\nreturn { 
-                        onInit: typeof onInit === 'function' ? onInit : undefined,
-                        onPieceLock: typeof onPieceLock === 'function' ? onPieceLock : undefined,
-                        onUpdate: typeof onUpdate === 'function' ? onUpdate : undefined
-                    };`;
-
-                const ruleScript = new Function('api', combinedCode);
-                const returnedFuncs = ruleScript(initApi);
-
-                if (returnedFuncs.onInit) {
-                    returnedFuncs.onInit(initApi);
-                }
-                userFunctions = returnedFuncs;
-
-            } catch (e) {
-                alert('カスタムルールコードの実行中にエラーが発生しました:\n' + e.message);
-                console.error("Custom rule script error:", e);
-                return;
-            }
-        }
-        
-        const originalSettingsBeforeRun = { ...gameSettings };
-        Object.assign(gameSettings, currentRunSettings);
-
+    document.getElementById('startGameBtn').addEventListener('click', () => {
         gameState = 'PLAYING'; 
         document.getElementById('editor-container').style.display = 'none'; 
         document.getElementById('game-container').style.display = 'block';
         document.getElementById('scan-controls').style.display = 'none';
         document.getElementById('game-controls').style.display = 'flex';
         
-        const ruleDescDisplay = document.getElementById('rule-description-display');
-        if (editorData.rule.description) {
-            ruleDescDisplay.innerText = editorData.rule.description;
-            ruleDescDisplay.style.display = 'block';
-            const p1OffsetX = 0;
-            const leftPos = p1OffsetX + PADDING;
-            const topPos = 160; 
-            ruleDescDisplay.style.left = `${leftPos}px`;
-            ruleDescDisplay.style.top = `${topPos}px`;
-            ruleDescDisplay.style.maxWidth = `${HOLD_AREA_WIDTH - PADDING}px`;
-        } else {
-            ruleDescDisplay.style.display = 'none';
-        }
-        
-        if (autoStartParams.hb) {
-            document.getElementById('backToEditorBtn').style.display = 'none';
-        } else {
-            document.getElementById('backToEditorBtn').style.display = '';
-        }
-
         ctx.setTransform(1, 0, 0, 1, 0, 0);
 
         players = [];
         const createAndSetupPlayer = (id, offsetX, bindings, padIndex) => {
             const player = new Player(id, offsetX, bindings, padIndex);
             player.holdDisabled = autoStartParams.nh;
-            player.ruleHooks = userFunctions;
             return player;
         };
 
@@ -2586,46 +2316,8 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
             p2.opponent = p1;
             players.push(p1, p2);
         }
-
-　　　　　const createPlayerProxy = (player) => {
-            if (!player) return null;
-            return {
-                get stats() { return player.stats; },
-                board: {
-                    hasBlock: (x, y) => {
-                        if (x < 0 || x >= BOARD_WIDTH || y < 0 || y >= BOARD_HEIGHT) return true;
-                        return player.board[y][x] !== null;
-                    },
-                    placeBlock: (x, y, type) => {
-                        if (x >= 0 && x < BOARD_WIDTH && y >= 0 && y < BOARD_HEIGHT) {
-                           player.board[y][x] = Object.keys(COLORS).includes(type) ? type : null;
-                        }
-                    },
-                },
-            };
-        };
-
-        const p1Proxy = createPlayerProxy(players[0]);
-        const p2Proxy = createPlayerProxy(players[1]);
-
-        const gameApi = {
-            win: (player) => { if (player instanceof Player) player.gameClear = true; },
-            lose: (player) => { if (player instanceof Player) player.gameOver = true; },
-            getTime: () => performance.now() - startTime,
-            sendAttack: (player, lines) => {
-                const targetPlayer = (player === p1Proxy && players[0]) ? players[0] :
-                                     (player === p2Proxy && players[1]) ? players[1] : null;
-                if (targetPlayer) {
-                    targetPlayer.addGarbage(lines);
-                }
-            },
-            p1: p1Proxy,
-            p2: p2Proxy
-        };
         
-        players.forEach(p => p.gameApi = gameApi);
-        
-        autoStartParams = { ss: false, nh: false, hb: false };
+        autoStartParams = { ss: false, nh: false };
         ctx.scale(RESOLUTION_SCALE, RESOLUTION_SCALE);
 
         if (gameSettings.touchControlsEnabled) {
@@ -2636,14 +2328,12 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
     });
 
 
-document.getElementById('backToEditorBtn').addEventListener('click', () => {
+    document.getElementById('backToEditorBtn').addEventListener('click', () => {
         gameState = 'EDITING';
         players = [];
-        loadGameSettings();
         document.getElementById('game-container').style.display = 'none';
         document.getElementById('game-controls').style.display = 'none';
         document.getElementById('editor-container').style.display = 'flex';
-        document.getElementById('rule-description-display').style.display = 'none';
         
         virtualController.hide();
         
@@ -2759,53 +2449,11 @@ document.getElementById('settingsBtn').addEventListener('click', () => openUnifi
 document.getElementById('retryBtn').addEventListener('click', () => {
         if (gameState !== 'PLAYING' || !players.length) return;
         
-        loadGameSettings();
-        
-        let currentRunSettings = { ...gameSettings };
-        let userFunctions = {};
-        let startTime = performance.now();
         const wasHoldDisabled = players[0].holdDisabled;
-
-        if (editorData.rule.code) {
-            try {
-                const initApi = {
-                    forceSetting: (key, value) => {
-                        if (key in currentRunSettings) {
-                            currentRunSettings[key] = value;
-                        } else {
-                            console.warn(`Rule tried to force unknown setting: ${key}`);
-                        }
-                    }
-                };
-                
-                const combinedCode = editorData.rule.code + 
-                    `\nreturn { 
-                        onInit: typeof onInit === 'function' ? onInit : undefined,
-                        onPieceLock: typeof onPieceLock === 'function' ? onPieceLock : undefined,
-                        onUpdate: typeof onUpdate === 'function' ? onUpdate : undefined
-                    };`;
-
-                const ruleScript = new Function('api', combinedCode);
-                const returnedFuncs = ruleScript(initApi);
-
-                if (returnedFuncs.onInit) {
-                    returnedFuncs.onInit(initApi);
-                }
-                userFunctions = returnedFuncs;
-
-            } catch (e) {
-                alert('リトライ時にカスタムルールコードの実行でエラーが発生しました:\n' + e.message);
-                console.error("Custom rule script error on retry:", e);
-                return;
-            }
-        }
-        
-        Object.assign(gameSettings, currentRunSettings);
 
         const createAndSetupPlayer = (id, offsetX, bindings, padIndex) => {
             const player = new Player(id, offsetX, bindings, padIndex);
             player.holdDisabled = wasHoldDisabled;
-            player.ruleHooks = userFunctions;
             return player;
         };
 
@@ -2815,48 +2463,10 @@ document.getElementById('retryBtn').addEventListener('click', () => {
         } else {
             const p1 = createAndSetupPlayer('1', 0, keyBindings.p1, 0);
             const p2 = createAndSetupPlayer('2', PLAYER_CANVAS_WIDTH, keyBindings.p2, 1);
-            p1.opponent = p2;
+            p1.opponent = p2; 
             p2.opponent = p1;
             players.push(p1, p2);
         }
-
-        const createPlayerProxy = (player) => {
-            if (!player) return null;
-            return {
-                get stats() { return player.stats; },
-                board: {
-                    hasBlock: (x, y) => {
-                        if (x < 0 || x >= BOARD_WIDTH || y < 0 || y >= BOARD_HEIGHT) return true;
-                        return player.board[y][x] !== null;
-                    },
-                    placeBlock: (x, y, type) => {
-                        if (x >= 0 && x < BOARD_WIDTH && y >= 0 && y < BOARD_HEIGHT) {
-                           player.board[y][x] = Object.keys(COLORS).includes(type) ? type : null;
-                        }
-                    },
-                },
-            };
-        };
-
-        const p1Proxy = createPlayerProxy(players[0]);
-        const p2Proxy = createPlayerProxy(players[1]);
-
-        const gameApi = {
-            win: (player) => { if (player instanceof Player) player.gameClear = true; },
-            lose: (player) => { if (player instanceof Player) player.gameOver = true; },
-            getTime: () => performance.now() - startTime,
-            sendAttack: (player, lines) => {
-                const targetPlayer = (player === p1Proxy && players[0]) ? players[0] :
-                                     (player === p2Proxy && players[1]) ? players[1] : null;
-                if (targetPlayer) {
-                    targetPlayer.addGarbage(lines);
-                }
-            },
-            p1: p1Proxy,
-            p2: p2Proxy
-        };
-        
-        players.forEach(p => p.gameApi = gameApi);
     });
 
     setupEditors();
