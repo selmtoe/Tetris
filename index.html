@@ -4265,10 +4265,6 @@ console.error("Custom rule script error on retry:", e);
 
     lastTime = performance.now(); 
     requestAnimationFrame(gameLoop);
-    
-    window.addEventListener('resize', updateScale);
-
-    setTimeout(updateScale, 100);
 
     document.getElementById('ai-debug-execute').addEventListener('click', () => {
         const piece = document.getElementById('ai-debug-piece').value.toUpperCase();
