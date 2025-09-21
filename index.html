@@ -24,18 +24,19 @@
         overflow: hidden;
         -webkit-tap-highlight-color: transparent;
     }
-    body {
-        background-color: var(--bg-color);
-        color: var(--font-color);
-        font-family: var(--font-ui);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
-    .main-container {
-        text-align: center;
-        transform-origin: center center;
-    }
+body {
+    background-color: var(--bg-color);
+    color: var(--font-color);
+    font-family: var(--font-ui);
+}
+.main-container {
+    text-align: center;
+    transform-origin: center center;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+}
+
     #editor-container {
         display: flex; flex-direction: column; gap: 15px; background-color: rgba(15, 15, 24, 0.8);
         padding: 20px; border-radius: 10px; border: 2px solid var(--border-color);
@@ -3721,28 +3722,23 @@ function updateScale() {
         mainContainer.style.transform = '';
         return;
     }
-
-    mainContainer.style.transform = 'none';
-
     const rect = mainContainer.getBoundingClientRect();
     const nativeWidth = rect.width;
     const nativeHeight = rect.height;
-    
     if (nativeWidth === 0 || nativeHeight === 0) {
-        mainContainer.style.transform = '';
+        mainContainer.style.transform = 'translate(-50%, -50%)'; 
         return;
     }
 
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-
     const scale = Math.min(
         viewportWidth / nativeWidth,
         viewportHeight / nativeHeight
     ) * 0.98;
-
-    mainContainer.style.transform = `scale(${scale})`;
+    mainContainer.style.transform = `translate(-50%, -50%) scale(${scale})`;
 }
+
 
 document.addEventListener('DOMContentLoaded', () => {
     mainCanvas = document.getElementById('mainCanvas'); ctx = mainCanvas.getContext('2d');
