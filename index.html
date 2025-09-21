@@ -4255,9 +4255,9 @@ console.error("Custom rule script error on retry:", e);
         Object.assign(gameSettings, currentRunSettings);
         players = tempPlayers;
         players.forEach(p => {
-            p.ruleHooks = userFunctions;
-            p.gameApi = gameApi;
-        });
+        p.ruleHooks = userFunctions;
+        p.gameApi = gameApi;
+    });
 });
     setupEditors();
 
@@ -4266,17 +4266,21 @@ console.error("Custom rule script error on retry:", e);
     lastTime = performance.now(); 
     requestAnimationFrame(gameLoop);
     
-    window.addEventListener('resize', updateScale);
-    window.addEventListener('orientationchange', () => {
-        setTimeout(updateScale, 100);
+    const delayedUpdateScale = () => setTimeout(updateScale, 150);
+    window.addEventListener('resize', delayedUpdateScale);
+    window.addEventListener('orientationchange', delayedUpdateScale);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            delayedUpdateScale();
+        }
     });
 
     setTimeout(updateScale, 100);
 document.getElementById('ai-debug-execute').addEventListener('click', () => {
         const piece = document.getElementById('ai-debug-piece').value.toUpperCase();
         const x = parseInt(document.getElementById('ai-debug-x').value, 10);
-
         const y = parseInt(document.getElementById('ai-debug-y').value, 10);
+
         const rot = parseInt(document.getElementById('ai-debug-rot').value, 10);
 
         if (!piece || isNaN(x) || isNaN(y) || isNaN(rot)) {
