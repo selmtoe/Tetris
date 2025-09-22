@@ -99,11 +99,20 @@
         background-color: rgba(0, 0, 0, 0.75);
         display: none; justify-content: center; align-items: center; z-index: 200;
     }
-    .modal-content {
-        background-color: var(--bg-color); padding: 25px; border-radius: 10px;
-        border: 2px solid var(--primary-color); width: 90%; max-width: 500px;
-        font-family: var(--font-ui);
-    }
+.modal-content {
+    background-color: var(--bg-color);
+    padding: 25px;
+    border-radius: 10px;
+    border: 2px solid var(--primary-color);
+    width: 90%;
+    max-width: 500px;
+    font-family: var(--font-ui);
+    max-height: 95vh;
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+
     .modal-content h2, .modal-content h3 { font-size: 24px; }
     .modal-content h3 { font-size: 20px; margin-top: 25px; border-top: 1px solid var(--primary-color); padding-top: 15px; }
 #settings-list, .key-config-list-container { display: flex; flex-direction: column; gap: 12px; margin: 20px 0; }
@@ -321,10 +330,13 @@ left: 10px; top: 150px;">
     </div>
 </div>
 
-<div id="game-controls" style="display: none; position: fixed; top: 10px; right: 10px; z-index: 160; gap: 10px;">
+<div id="game-controls" style="display: none;
+position: fixed; top: 10px; right: 10px; z-index: 160; gap: 10px;">
      <button id="retryBtn" class="button">リトライ</button>
+     <button id="gameSettingsBtn" class="button">設定</button>
      <button id="backToEditorBtn" class="button">戻る</button>
 </div>
+
 
 <div id="virtual-controller-container">
 
@@ -3899,19 +3911,25 @@ type : null;
         const p2Proxy = createPlayerProxy(players[1]);
 
         const gameApi = {
-            win: (player) => { if (player instanceof Player) player.gameClear = true;
-},
-            lose: (player) => { if (player instanceof Player) player.gameOver = true;
-},
+            win: (player) => {
+                if (player instanceof Player) {
+                    player.gameClear = true;
+                    const message = 'clear';
+                    const targetOrigin = '*';
+                    window.parent.postMessage(message, targetOrigin);
+                }
+            },
+            lose: (player) => { if (player instanceof Player) player.gameOver = true; },
             setCustomUIText: (player, text) => {
                 const targetPlayer = (player === p1Proxy && players[0]) ?
-players[0] :
+                    players[0] :
                     (player === p2Proxy && players[1]) ?
-players[1] : null;
+                    players[1] : null;
                 if (targetPlayer) {
                     targetPlayer.customUIText = String(text);
-}
+                }
             },
+
             getTime: () => performance.now() - startTime,
             sendAttack: (player, lines) => {
                 const targetPlayer = (player === p1Proxy && players[0]) ?
@@ -4154,7 +4172,7 @@ document.getElementById('settingsBtn').addEventListener('click', () => openUnifi
 document.getElementById('retryBtn').addEventListener('click', () => {
         if (gameState !== 'PLAYING' || !players.length) return;
         
-        loadGameSettings();
+        //loadGameSettings();
         
         let currentRunSettings = { ...gameSettings };
         let userFunctions = {};
@@ -4201,15 +4219,25 @@ document.getElementById('retryBtn').addEventListener('click', () => {
         const p2Proxy = createPlayerProxy(tempPlayers[1]);
         
         const gameApi = {
-            win: (player) => { if (player instanceof Player) player.gameClear = true; },
+            win: (player) => {
+                if (player instanceof Player) {
+                    player.gameClear = true;
+                    const message = 'clear';
+                    const targetOrigin = '*';
+                    window.parent.postMessage(message, targetOrigin);
+                }
+            },
             lose: (player) => { if (player instanceof Player) player.gameOver = true; },
             setCustomUIText: (player, text) => {
-                const targetPlayer = (player === p1Proxy && tempPlayers[0]) ? tempPlayers[0] :
-                                     (player === p2Proxy && tempPlayers[1]) ? tempPlayers[1] : null;
+                const targetPlayer = (player === p1Proxy && tempPlayers[0]) ?
+                    tempPlayers[0] :
+                                     (player === p2Proxy && tempPlayers[1]) ?
+                    tempPlayers[1] : null;
                 if (targetPlayer) {
                     targetPlayer.customUIText = String(text);
                 }
             },
+
             getTime: () => performance.now() - startTime,
             sendAttack: (player, lines) => {
                 const targetPlayer = (player === p1Proxy && tempPlayers[0]) ? tempPlayers[0] :
@@ -4258,6 +4286,9 @@ console.error("Custom rule script error on retry:", e);
             p.ruleHooks = userFunctions;
             p.gameApi = gameApi;
         });
+});
+    document.getElementById('gameSettingsBtn').addEventListener('click', () => {
+        openUnifiedSettingsModal('general');
     });
     setupEditors();
 
@@ -4265,6 +4296,10 @@ console.error("Custom rule script error on retry:", e);
 
     lastTime = performance.now(); 
     requestAnimationFrame(gameLoop);
+
+    
+    window.addEventListener('resize', updateScale);
+
     setTimeout(updateScale, 100);
 
     document.getElementById('ai-debug-execute').addEventListener('click', () => {
