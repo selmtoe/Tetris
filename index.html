@@ -1995,7 +1995,9 @@ let gameSettings = {
     showEffects: true,
     touchControlsEnabled: 'ontouchstart' in window,
     aiThinkingTime: 500,
+    aiMoveInterval: 16,
 };
+
 
 const COLORS = { 'I': '#00f0f0', 'O': '#f0f000', 'T': '#a000f0', 'L': '#f0a000', 'J': '#0000f0', 'S': '#00f000', 'Z': '#f00000', 'G': '#999999', 'E': '#808080' };
 
@@ -2157,9 +2159,13 @@ this.aiWorker.onmessage = (e) => {
         this.ruleHooks = {};
         this.gameApi = null;
         this.reset();
+        this.aiMoveSequence = [];
+        this.aiMoveTimer = 0;
     }
 
 reset() {
+        this.aiMoveSequence = [];
+        this.aiMoveTimer = 0;
         this.player = { x: 0, y: 0, pieceType: null, rotation: 0 };
         this.nextQueue = [];
         for (let i = 0; i < gameSettings.maxNext; i++) {
@@ -2315,14 +2321,29 @@ return;
 }
 
         if (this.isAi) {
-            if (!this.isAiThinking) {
+            if (this.aiMoveSequence.length > 0) {
+                this.aiMoveTimer += dt;
+                if (this.aiMoveTimer >= gameSettings.aiMoveInterval) {
+                    const action = this.aiMoveSequence.shift();
+                    switch (action) {
+                        case '←': this.move(-1, 0, true); break;
+                        case '→': this.move(1, 0, true); break;
+                        case '↓': this.move(0, 1, true); break;
+                        case 'R': this.rotate(1); break;
+                        case 'L': this.rotate(-1); break;
+                        case '↑': this.hardDrop(); break;
+                    }
+                    this.aiMoveTimer = 0;
+                }
+            } else if (!this.isAiThinking) {
                 this.requestAiMove();
-}
+            }
             return;
 }
 
         if (this.ruleHooks.onUpdate && typeof this.ruleHooks.onUpdate === 'function') {
             try {
+
                 this.ruleHooks.onUpdate(this.gameApi, this);
 } catch (e) {
                 console.error("Rule error onUpdate:", e);
@@ -2940,26 +2961,18 @@ return;
         const sequence = this.findPathToTarget(startState, targetState, this.player.pieceType);
 
         if (sequence) {
-            for (const action of sequence) {
-                switch (action) {
-                    case '←': this.move(-1, 0, true); break;
-                    case '→': this.move(1, 0, true); break;
-                    case '↓': this.move(0, 1, true); break;
-                    case 'R': this.rotate(1); break;
-                    case 'L': this.rotate(-1); break;
-                }
-            }
+            sequence.push('↑'); 
+            this.aiMoveSequence = sequence;
+        } else {
+            this.player.rotation = move.rotation;
+this.player.x = move.x;
+            this.player.y = move.y;
+            this.lockPiece();
         }
         
-        this.player.rotation = move.rotation;
-this.player.x = move.x;
-        this.player.y = move.y;
-        
-        this.lockPiece();
-
         this.isAiThinking = false;
     }
-}
+
 
 function setupEditors() { ['p1', 'p2'].forEach(setupPlayerEditor);
 }
