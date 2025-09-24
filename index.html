@@ -2774,26 +2774,185 @@ requestAiMove() {
                     this.aiWorker.postMessage({ type: 'stop' });
                 }
             }, gameSettings.aiThinkingTime);
-        }
+}
     }
 
-executeAiMove(move) {
+    _pathfindingSrsOffsets = {
+        common: {
+            '0->1': [[0,0], [-1,0], [-1,1], [0,-2], [-1,-2]],
+            '1->0': [[0,0], [1,0], [1,-1], [0,2], [1,2]],
+            '1->2': [[0,0], [1,0], [1,-1], [0,2], [1,2]],
+            '2->1': [[0,0], [-1,0], [-1,1], [0,-2], [-1,-2]],
+            '2->3': [[0,0], [1,0], [1,1], [0,-2], [1,-2]],
+            '3->2': [[0,0], [-1,0], [-1,-1], [0,2], [-1,2]],
+            '3->0': [[0,0], [-1,0], [-1,-1], [0,2], [-1,2]],
+            '0->3': [[0,0], [1,0], [1,1], [0,-2], [1,-2]],
+        },
+        I: {
+            '0->1': [[0,0], [-2,0], [1,0], [-2,-1], [1,2]],
+            '1->0': [[0,0], [2,0], [-1,0], [2,1], [-1,-2]],
+            '1->2': [[0,0], [-1,0], [2,0], [-1,2], [2,-1]],
+            '2->1': [[0,0], [1,0], [-2,0], [1,-2], [-2,1]],
+            '2->3': [[0,0], [2,0], [-1,0], [2,1], [-1,-2]],
+            '3->2': [[0,0], [-2,0], [1,0], [-2,-1], [1,2]],
+            '3->0': [[0,0], [-1,0], [2,0], [-1,2], [2,-1]],
+            '0->3': [[0,0], [1,0], [-2,0], [1,-2], [-2,1]],
+        }
+    };
+
+    _getPathfindingMinoShape(type, rotation) {
+        rotation = rotation % 4;
+        switch (type) {
+            case 'I':
+                if (rotation == 0) return [[0,0], [-1,0], [1,0], [2,0]];
+                if (rotation == 1) return [[1,0], [1,-1], [1,1], [1,2]];
+                if (rotation == 2) return [[0,1], [-1,1], [1,1], [2,1]];
+                if (rotation == 3) return [[0,0], [0,-1], [0,1], [0,2]];
+                break;
+            case 'O':
+                return [[0,0], [1,0], [0,1], [1,1]];
+            case 'T':
+                if (rotation == 0) return [[0,0], [-1,0], [1,0], [0,-1]];
+                if (rotation == 1) return [[0,0], [0,-1], [1,0], [0,1]];
+                if (rotation == 2) return [[0,0], [1,0], [-1,0], [0,1]];
+                if (rotation == 3) return [[0,0], [0,1], [-1,0], [0,-1]];
+                break;
+            case 'S':
+                if (rotation == 0) return [[0,0], [-1,0], [0,-1], [1,-1]];
+                if (rotation == 1) return [[0,0], [0,-1], [1,0], [1,1]];
+                if (rotation == 2) return [[0,0], [1,0], [0,1], [-1,1]];
+                if (rotation == 3) return [[0,0], [0,1], [-1,0], [-1,-1]];
+                break;
+            case 'Z':
+                if (rotation == 0) return [[0,0], [1,0], [0,-1], [-1,-1]];
+                if (rotation == 1) return [[0,0], [0,1], [1,0], [1,-1]];
+                if (rotation == 2) return [[0,0], [-1,0], [0,1], [1,1]];
+                if (rotation == 3) return [[0,0], [0,-1], [-1,0], [-1,1]];
+                break;
+            case 'J':
+                if (rotation == 0) return [[0,0], [-1,0], [1,0], [-1,-1]];
+                if (rotation == 1) return [[0,0], [0,-1], [0,1], [1,-1]];
+                if (rotation == 2) return [[0,0], [1,0], [-1,0], [1,1]];
+                if (rotation == 3) return [[0,0], [0,1], [0,-1], [-1,1]];
+                break;
+            case 'L':
+                if (rotation == 0) return [[0,0], [1,0], [-1,0], [1,-1]];
+                if (rotation == 1) return [[0,0], [0,1], [0,-1], [1,1]];
+                if (rotation == 2) return [[0,0], [-1,0], [1,0], [-1,1]];
+                if (rotation == 3) return [[0,0], [0,-1], [0,1], [-1,-1]];
+                break;
+        }
+        return [[0,0]];
+    }
+    
+    _pathfindingCheckCollision(type, x, y, r, currentBoard) {
+        const shape = this._getPathfindingMinoShape(type, r);
+        for (const [dx, dy] of shape) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx < 0 || nx >= BOARD_WIDTH || ny < 0 || ny >= BOARD_HEIGHT || (ny >= 0 && currentBoard[ny][nx] !== null)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    _pathfindingTryRotate(type, x, y, r, direction, currentBoard) {
+        const newR = (r + direction + 4) % 4;
+        const offsetTable = (type === 'I' ? this._pathfindingSrsOffsets.I : this._pathfindingSrsOffsets.common);
+        const offsetData = offsetTable[`${r}->${newR}`];
+
+        for (const [ox, oy] of offsetData) {
+            const newX = x + ox;
+            const newY = y - oy;
+            if (!this._pathfindingCheckCollision(type, newX, newY, newR, currentBoard)) {
+                return { x: newX, y: newY, r: newR };
+            }
+        }
+        return null;
+    }
+    
+    findPathToTarget(start, target, minoType) {
+        const queue = [[start.x, start.y, start.r, []]];
+        const visited = new Set();
+        visited.add(`${start.x},${start.y},${start.r}`);
+
+        while (queue.length > 0) {
+            const [x, y, r, path] = queue.shift();
+
+            if (x === target.x && y === target.y && r === target.r) {
+                return path;
+            }
+
+            const actions = ['R', 'L', '←', '→', '↓'];
+
+            for (const action of actions) {
+                let nextState = null;
+                let newPath = [...path, action];
+
+                switch (action) {
+                    case '←':
+                        nextState = { x: x - 1, y: y, r: r };
+                        break;
+                    case '→':
+                        nextState = { x: x + 1, y: y, r: r };
+                        break;
+                    case '↓':
+                        nextState = { x: x, y: y + 1, r: r };
+                        break;
+                    case 'R':
+                        nextState = this._pathfindingTryRotate(minoType, x, y, r, 1, this.board);
+                        break;
+                    case 'L':
+                        nextState = this._pathfindingTryRotate(minoType, x, y, r, -1, this.board);
+                        break;
+                }
+
+                if (nextState) {
+                    const stateKey = `${nextState.x},${nextState.y},${nextState.r}`;
+                    if (!visited.has(stateKey) && !this._pathfindingCheckCollision(minoType, nextState.x, nextState.y, nextState.r, this.board)) {
+                        visited.add(stateKey);
+                        queue.push([nextState.x, nextState.y, nextState.r, newPath]);
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    executeAiMove(move) {
         if (this.gameOver || !move) {
             this.isAiThinking = false;
-            return;
+return;
         }
 
         if (this.player.pieceType !== move.piece) {
             if (this.canHold) {
                 this.hold();
-            } else {
+} else {
                 this.isAiThinking = false;
-                return;
+return;
             }
         }
 
+        const startState = { x: this.player.x, y: this.player.y, r: this.player.rotation };
+        const targetState = { x: move.x, y: move.y, r: move.rotation };
+        const sequence = this.findPathToTarget(startState, targetState, this.player.pieceType);
+
+        if (sequence) {
+            for (const action of sequence) {
+                switch (action) {
+                    case '←': this.move(-1, 0, true); break;
+                    case '→': this.move(1, 0, true); break;
+                    case '↓': this.move(0, 1, true); break;
+                    case 'R': this.rotate(1); break;
+                    case 'L': this.rotate(-1); break;
+                }
+            }
+        }
+        
         this.player.rotation = move.rotation;
-        this.player.x = move.x;
+this.player.x = move.x;
         this.player.y = move.y;
         
         this.lockPiece();
@@ -2802,7 +2961,8 @@ executeAiMove(move) {
     }
 }
 
-function setupEditors() { ['p1', 'p2'].forEach(setupPlayerEditor); }
+function setupEditors() { ['p1', 'p2'].forEach(setupPlayerEditor);
+}
 
 function setupPlayerEditor(playerId) {
     editorData[playerId].board = Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill(null));
