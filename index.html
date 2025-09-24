@@ -2774,154 +2774,105 @@ requestAiMove() {
                     this.aiWorker.postMessage({ type: 'stop' });
                 }
             }, gameSettings.aiThinkingTime);
-        }
+}
     }
 
-executeAiMove(move) {
-        if (this.gameOver || !move) {
-            this.isAiThinking = false;
-return;
+    getMinoShape_forAI(type, rotation) {
+        rotation = rotation % 4;
+        switch (type) {
+            case 'I':
+                if (rotation == 0) return [[0,0], [-1,0], [1,0], [2,0]];
+                if (rotation == 1) return [[1,0], [1,-1], [1,1], [1,2]];
+                if (rotation == 2) return [[0,1], [-1,1], [1,1], [2,1]];
+                if (rotation == 3) return [[0,0], [0,-1], [0,1], [0,2]];
+                break;
+            case 'O':
+                return [[0,0], [1,0], [0,-1], [1,-1]];
+            case 'T':
+                if (rotation == 0) return [[0,0], [-1,0], [1,0], [0,-1]];
+                if (rotation == 1) return [[0,0], [0,-1], [1,0], [0,1]];
+                if (rotation == 2) return [[0,0], [1,0], [-1,0], [0,1]];
+                if (rotation == 3) return [[0,0], [0,1], [-1,0], [0,-1]];
+                break;
+            case 'S':
+                if (rotation == 0) return [[0,0], [-1,0], [0,-1], [1,-1]];
+                if (rotation == 1) return [[0,0], [0,-1], [1,0], [1,1]];
+                if (rotation == 2) return [[0,0], [1,0], [0,1], [-1,1]];
+                if (rotation == 3) return [[0,0], [0,1], [-1,0], [-1,-1]];
+                break;
+            case 'Z':
+                if (rotation == 0) return [[0,0], [1,0], [0,-1], [-1,-1]];
+                if (rotation == 1) return [[0,0], [0,1], [1,0], [1,-1]];
+                if (rotation == 2) return [[0,0], [-1,0], [0,1], [1,1]];
+                if (rotation == 3) return [[0,0], [0,-1], [-1,0], [-1,1]];
+                break;
+            case 'J':
+                if (rotation == 0) return [[0,0], [-1,0], [1,0], [-1,-1]];
+                if (rotation == 1) return [[0,0], [0,-1], [0,1], [1,-1]];
+                if (rotation == 2) return [[0,0], [1,0], [-1,0], [1,1]];
+                if (rotation == 3) return [[0,0], [0,1], [0,-1], [-1,1]];
+                break;
+            case 'L':
+                if (rotation == 0) return [[0,0], [1,0], [-1,0], [1,-1]];
+                if (rotation == 1) return [[0,0], [0,1], [0,-1], [1,1]];
+                if (rotation == 2) return [[0,0], [-1,0], [1,0], [-1,1]];
+                if (rotation == 3) return [[0,0], [0,-1], [0,1], [-1,-1]];
+                break;
         }
-
-        if (this.player.pieceType !== move.piece) {
-            if (this.canHold) {
-                this.hold();
-} else {
-                this.isAiThinking = false;
-return;
-            }
-        }
-        
-        this.isAiThinking = true;
-        
-        const path = this.findPathToTarget(
-            { x: this.player.x, y: this.player.y, r: this.player.rotation },
-            { x: move.x, y: move.y, r: move.rotation },
-            this.player.pieceType
-        );
-
-        if (path) {
-            this.executeMoveSequence(path, move);
-        } else {
-            // パスが見つからない場合は直接移動してロック
-            this.player.rotation = move.rotation;
-            this.player.x = move.x;
-            this.player.y = move.y;
-            this.lockPiece();
-            this.isAiThinking = false;
-        }
+        return [[0,0]];
     }
 
-    async executeMoveSequence(path, targetMove) {
-        const moveInterval = 30; // 1操作あたりの待機時間(ms)
-        for (const action of path) {
-            switch (action) {
-                case '←': this.move(-1, 0); break;
-                case '→': this.move(1, 0); break;
-                case '↓': this.move(0, 1); break;
-                case 'R': this.rotate(1); break;
-                case 'L': this.rotate(-1); break;
-            }
-            await new Promise(resolve => setTimeout(resolve, moveInterval));
+    srsOffsets_forAI = {
+        common: {
+            '0->1': [[0,0], [-1,0], [-1,1], [0,-2], [-1,-2]],
+            '1->0': [[0,0], [1,0], [1,-1], [0,2], [1,2]],
+            '1->2': [[0,0], [1,0], [1,-1], [0,2], [1,2]],
+            '2->1': [[0,0], [-1,0], [-1,1], [0,-2], [-1,-2]],
+            '2->3': [[0,0], [1,0], [1,1], [0,-2], [1,-2]],
+            '3->2': [[0,0], [-1,0], [-1,-1], [0,2], [-1,2]],
+            '3->0': [[0,0], [-1,0], [-1,-1], [0,2], [-1,2]],
+            '0->3': [[0,0], [1,0], [1,1], [0,-2], [1,-2]],
+        },
+        I: {
+            '0->1': [[0,0], [-2,0], [1,0], [-2,-1], [1,2]],
+            '1->0': [[0,0], [2,0], [-1,0], [2,1], [-1,-2]],
+            '1->2': [[0,0], [-1,0], [2,0], [-1,2], [2,-1]],
+            '2->1': [[0,0], [1,0], [-2,0], [1,-2], [-2,1]],
+            '2->3': [[0,0], [2,0], [-1,0], [2,1], [-1,-2]],
+            '3->2': [[0,0], [-2,0], [1,0], [-2,-1], [1,2]],
+            '3->0': [[0,0], [-1,0], [2,0], [-1,2], [2,-1]],
+            '0->3': [[0,0], [1,0], [-2,0], [1,-2], [-2,1]],
         }
-        
-        // 最終的な位置合わせとロック
-        this.player.rotation = targetMove.rotation;
-        this.player.x = targetMove.x;
-        this.player.y = targetMove.y;
-        this.lockPiece();
-        this.isAiThinking = false;
+    };
+
+    checkCollision_forAI(type, x, y, r, currentBoard) {
+        const shape = this.getMinoShape_forAI(type, r);
+        for (const [dx, dy] of shape) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx < 0 || nx >= BOARD_WIDTH || ny < 0 || ny >= BOARD_HEIGHT || (ny >= 0 && currentBoard[ny][nx])) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    findPathToTarget(start, target, minoType) {
-        const getMinoShape = (type, rotation) => {
-            rotation = rotation % 4;
-            switch (type) {
-                case 'I':
-                    if (rotation == 0) return [[0,0], [-1,0], [1,0], [2,0]];
-                    if (rotation == 1) return [[1,0], [1,-1], [1,1], [1,2]];
-                    if (rotation == 2) return [[0,1], [-1,1], [1,1], [2,1]];
-                    if (rotation == 3) return [[0,0], [0,-1], [0,1], [0,2]];
-                    break;
-                case 'O':
-                    return [[0,0], [1,0], [0,1], [1,1]];
-                case 'T':
-                    if (rotation == 0) return [[0,0], [-1,0], [1,0], [0,-1]];
-                    if (rotation == 1) return [[0,0], [0,-1], [1,0], [0,1]];
-                    if (rotation == 2) return [[0,0], [1,0], [-1,0], [0,1]];
-                    if (rotation == 3) return [[0,0], [0,1], [-1,0], [0,-1]];
-                    break;
-                case 'S':
-                    if (rotation == 0) return [[0,0], [-1,0], [0,-1], [1,-1]];
-                    if (rotation == 1) return [[0,0], [0,-1], [1,0], [1,1]];
-                    if (rotation == 2) return [[0,0], [1,0], [0,1], [-1,1]];
-                    if (rotation == 3) return [[0,0], [0,1], [-1,0], [-1,-1]];
-                    break;
-                case 'Z':
-                    if (rotation == 0) return [[0,0], [1,0], [0,-1], [-1,-1]];
-                    if (rotation == 1) return [[0,0], [0,1], [1,0], [1,-1]];
-                    if (rotation == 2) return [[0,0], [-1,0], [0,1], [1,1]];
-                    if (rotation == 3) return [[0,0], [0,-1], [-1,0], [-1,1]];
-                    break;
-                case 'J':
-                    if (rotation == 0) return [[0,0], [-1,0], [1,0], [-1,-1]];
-                    if (rotation == 1) return [[0,0], [0,-1], [0,1], [1,-1]];
-                    if (rotation == 2) return [[0,0], [1,0], [-1,0], [1,1]];
-                    if (rotation == 3) return [[0,0], [0,1], [0,-1], [-1,1]];
-                    break;
-                case 'L':
-                    if (rotation == 0) return [[0,0], [1,0], [-1,0], [1,-1]];
-                    if (rotation == 1) return [[0,0], [0,1], [0,-1], [1,1]];
-                    if (rotation == 2) return [[0,0], [-1,0], [1,0], [-1,1]];
-                    if (rotation == 3) return [[0,0], [0,-1], [0,1], [-1,-1]];
-                    break;
+    tryRotate_forAI(type, x, y, r, direction, currentBoard) {
+        const newR = (r + direction + 4) % 4;
+        const offsetTable = (type === 'I' ? this.srsOffsets_forAI.I : this.srsOffsets_forAI.common);
+        const offsetData = offsetTable[`${r}->${newR}`];
+
+        for (const [ox, oy] of offsetData) {
+            const newX = x + ox;
+            const newY = y - oy;
+            if (!this.checkCollision_forAI(type, newX, newY, newR, currentBoard)) {
+                return { x: newX, y: newY, r: newR };
             }
-            return [[0,0]];
         }
+        return null;
+    }
 
-        const srsOffsets = {
-            common: {
-                '0->1': [[0,0], [-1,0], [-1,1], [0,-2], [-1,-2]], '1->0': [[0,0], [1,0], [1,-1], [0,2], [1,2]],
-                '1->2': [[0,0], [1,0], [1,-1], [0,2], [1,2]], '2->1': [[0,0], [-1,0], [-1,1], [0,-2], [-1,-2]],
-                '2->3': [[0,0], [1,0], [1,1], [0,-2], [1,-2]], '3->2': [[0,0], [-1,0], [-1,-1], [0,2], [-1,2]],
-                '3->0': [[0,0], [-1,0], [-1,-1], [0,2], [-1,2]], '0->3': [[0,0], [1,0], [1,1], [0,-2], [1,-2]],
-            },
-            I: {
-                '0->1': [[0,0], [-2,0], [1,0], [-2,-1], [1,2]], '1->0': [[0,0], [2,0], [-1,0], [2,1], [-1,-2]],
-                '1->2': [[0,0], [-1,0], [2,0], [-1,2], [2,-1]], '2->1': [[0,0], [1,0], [-2,0], [1,-2], [-2,1]],
-                '2->3': [[0,0], [2,0], [-1,0], [2,1], [-1,-2]], '3->2': [[0,0], [-2,0], [1,0], [-2,-1], [1,2]],
-                '3->0': [[0,0], [-1,0], [2,0], [-1,2], [-2,1]], '0->3': [[0,0], [1,0], [-2,0], [1,-2], [-2,1]],
-            }
-        };
-
-        const checkCollision = (type, x, y, r, currentBoard) => {
-            const shape = getMinoShape(type, r);
-            for (const [dx, dy] of shape) {
-                const nx = x + dx;
-                const ny = y + dy;
-                if (nx < 0 || nx >= BOARD_WIDTH || ny >= BOARD_HEIGHT || (ny >= 0 && currentBoard[ny]?.[nx])) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        const tryRotate = (type, x, y, r, direction, currentBoard) => {
-            const newR = (r + direction + 4) % 4;
-            const offsetTable = (type === 'I' ? srsOffsets.I : srsOffsets.common);
-            const offsetData = offsetTable[`${r}->${newR}`];
-            if (!offsetData) return null;
-
-            for (const [ox, oy] of offsetData) {
-                const newX = x + ox;
-                const newY = y - oy;
-                if (!checkCollision(type, newX, newY, newR, currentBoard)) {
-                    return { x: newX, y: newY, r: newR };
-                }
-            }
-            return null;
-        }
-
+    findShortestPath_forAI(start, target, minoType, currentBoard) {
         const queue = [[start.x, start.y, start.r, []]];
         const visited = new Set();
         visited.add(`${start.x},${start.y},${start.r}`);
@@ -2929,8 +2880,14 @@ return;
         while (queue.length > 0) {
             const [x, y, r, path] = queue.shift();
 
-            if (x === target.x && y === target.y && r === target.r) {
-                return path;
+            if (x === target.x && r === target.r) {
+                let finalY = y;
+                while (!this.checkCollision_forAI(minoType, x, finalY + 1, r, currentBoard)) {
+                    finalY++;
+                }
+                if (finalY === target.y) {
+                    return [...path, '↑'];
+                }
             }
 
             const actions = ['R', 'L', '←', '→', '↓'];
@@ -2940,28 +2897,161 @@ return;
                 let newPath = [...path, action];
 
                 switch (action) {
-                    case '←': nextState = { x: x - 1, y: y, r: r }; break;
-                    case '→': nextState = { x: x + 1, y: y, r: r }; break;
-                    case '↓': nextState = { x: x, y: y + 1, r: r }; break;
-                    case 'R': nextState = tryRotate(minoType, x, y, r, 1, this.board); break;
-                    case 'L': nextState = tryRotate(minoType, x, y, r, -1, this.board); break;
+                    case '←':
+                        nextState = { x: x - 1, y: y, r: r };
+                        break;
+                    case '→':
+                        nextState = { x: x + 1, y: y, r: r };
+                        break;
+                    case '↓':
+                        nextState = { x: x, y: y + 1, r: r };
+                        break;
+                    case 'R':
+                        nextState = this.tryRotate_forAI(minoType, x, y, r, 1, currentBoard);
+                        break;
+                    case 'L':
+                        nextState = this.tryRotate_forAI(minoType, x, y, r, -1, currentBoard);
+                        break;
                 }
 
                 if (nextState) {
                     const stateKey = `${nextState.x},${nextState.y},${nextState.r}`;
-                    if (!visited.has(stateKey) && !checkCollision(minoType, nextState.x, nextState.y, nextState.r, this.board)) {
+                    if (!visited.has(stateKey) && !this.checkCollision_forAI(minoType, nextState.x, nextState.y, nextState.r, currentBoard)) {
                         visited.add(stateKey);
                         queue.push([nextState.x, nextState.y, nextState.r, newPath]);
                     }
                 }
             }
         }
-        return null; // Path not found
+        
+        let alternativeTarget = null;
+        if (minoType === 'I' || minoType === 'S' || minoType === 'Z') {
+            const { x: tx, y: ty, r: tr } = target;
+            if (minoType === 'I') {
+                if (tr === 0) alternativeTarget = { x: tx, y: ty - 1, r: 2 };
+                else if (tr === 2) alternativeTarget = { x: tx, y: ty + 1, r: 0 };
+                else if (tr === 1) alternativeTarget = { x: tx + 1, y: ty, r: 3 };
+                else if (tr === 3) alternativeTarget = { x: tx - 1, y: ty, r: 1 };
+            } else if (minoType === 'S') {
+                if (tr === 0) alternativeTarget = { x: tx, y: ty - 1, r: 2 };
+                else if (tr === 2) alternativeTarget = { x: tx, y: ty + 1, r: 0 };
+                else if (tr === 1) alternativeTarget = { x: tx + 1, y: ty, r: 3 };
+                else if (tr === 3) alternativeTarget = { x: tx - 1, y: ty, r: 1 };
+            } else if (minoType === 'Z') {
+                if (tr === 0) alternativeTarget = { x: tx, y: ty - 1, r: 2 };
+                else if (tr === 2) alternativeTarget = { x: tx, y: ty + 1, r: 0 };
+                else if (tr === 1) alternativeTarget = { x: tx + 1, y: ty, r: 3 };
+                else if (tr === 3) alternativeTarget = { x: tx - 1, y: ty, r: 1 };
+            }
+        }
+
+        if (alternativeTarget) {
+            const queue2 = [[start.x, start.y, start.r, []]];
+            const visited2 = new Set([`${start.x},${start.y},${start.r}`]);
+            while (queue2.length > 0) {
+                 const [x, y, r, path] = queue2.shift();
+                 if (x === alternativeTarget.x && r === alternativeTarget.r) {
+                     let finalY = y;
+                     while (!this.checkCollision_forAI(minoType, x, finalY + 1, r, currentBoard)) {
+                         finalY++;
+                     }
+                     if (finalY === alternativeTarget.y) {
+                         return [...path, '↑'];
+                     }
+                 }
+                 const actions = ['R', 'L', '←', '→', '↓'];
+                 for (const action of actions) {
+                     let nextState = null;
+                     let newPath = [...path, action];
+                     switch (action) {
+                         case '←': nextState = { x: x - 1, y: y, r: r }; break;
+                         case '→': nextState = { x: x + 1, y: y, r: r }; break;
+                         case '↓': nextState = { x: x, y: y + 1, r: r }; break;
+                         case 'R': nextState = this.tryRotate_forAI(minoType, x, y, r, 1, currentBoard); break;
+                         case 'L': nextState = this.tryRotate_forAI(minoType, x, y, r, -1, currentBoard); break;
+                     }
+                     if (nextState) {
+                         const stateKey = `${nextState.x},${nextState.y},${nextState.r}`;
+                         if (!visited2.has(stateKey) && !this.checkCollision_forAI(minoType, nextState.x, nextState.y, nextState.r, currentBoard)) {
+                             visited2.add(stateKey);
+                             queue2.push([nextState.x, nextState.y, nextState.r, newPath]);
+                         }
+                     }
+                 }
+            }
+        }
+
+        return null;
+    }
+
+    async executeAiMove(move) {
+        if (this.gameOver || !move) {
+            this.isAiThinking = false;
+            return;
+        }
+
+        if (this.player.pieceType !== move.piece) {
+            if (this.canHold) {
+                this.hold();
+                await new Promise(resolve => setTimeout(resolve, 30));
+            } else {
+                this.isAiThinking = false;
+                return;
+            }
+        }
+
+        const startState = { x: this.player.x, y: this.player.y, r: this.player.rotation };
+        const targetState = { x: move.x, y: move.y, r: move.rotation };
+        const minoType = this.player.pieceType;
+        const pathfinderBoard = this.board.map(row => row.map(cell => (cell === null ? 0 : 1)));
+
+        const path = this.findShortestPath_forAI(startState, targetState, minoType, pathfinderBoard);
+
+        if (path) {
+            for (const action of path) {
+                switch (action) {
+                    case '←': this.player.x--; break;
+                    case '→': this.player.x++; break;
+                    case '↓': this.player.y++; break;
+                    case 'R': {
+                        const newState = this.tryRotate_forAI(minoType, this.player.x, this.player.y, this.player.rotation, 1, pathfinderBoard);
+                        if (newState) {
+                            this.player.x = newState.x;
+                            this.player.y = newState.y;
+                            this.player.rotation = newState.r;
+                        }
+                        break;
+                    }
+                    case 'L': {
+                        const newState = this.tryRotate_forAI(minoType, this.player.x, this.player.y, this.player.rotation, -1, pathfinderBoard);
+                        if (newState) {
+                            this.player.x = newState.x;
+                            this.player.y = newState.y;
+                            this.player.rotation = newState.r;
+                        }
+                        break;
+                    }
+                    case '↑':
+                        this.player.y = this.getGhostY();
+                        break;
+                }
+                await new Promise(resolve => setTimeout(resolve, 30));
+            }
+        }
+
+        this.player.rotation = move.rotation;
+        this.player.x = move.x;
+        this.player.y = move.y;
+        
+        this.lockPiece();
+
+        this.isAiThinking = false;
     }
 }
 
 function setupEditors() { ['p1', 'p2'].forEach(setupPlayerEditor);
 }
+
 
 function setupPlayerEditor(playerId) {
     editorData[playerId].board = Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill(null));
