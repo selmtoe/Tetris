@@ -4345,15 +4345,19 @@ document.getElementById('backToEditorBtn').addEventListener('click', () => {
         document.getElementById('editor-container').style.display = 'flex';
         document.getElementById('rule-description-display').style.display = 'none';
         
-        virtualController.hide();
+                virtualController.hide();
         
-        const aiDebugDisplay = document.getElementById('ai-debug-display');
+     
+           const aiDebugDisplay = document.getElementById('ai-debug-display');
         const aiDebugControls = document.getElementById('ai-debug-controls');
+        const aiPathDebugDisplay = document.getElementById('ai-path-debug-display');
         if(aiDebugDisplay) aiDebugDisplay.style.display = 'none';
         if(aiDebugControls) aiDebugControls.style.display = 'none';
+        if(aiPathDebugDisplay) aiPathDebugDisplay.style.display = 'none';
 
         setTimeout(updateScale, 0);
     });
+
     
     ['p1', 'p2'].forEach(pId => { 
         document.getElementById(`imageLoader-${pId}`).addEventListener('change', e => { 
