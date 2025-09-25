@@ -1554,6 +1554,7 @@ self.onmessage = (e) => {
         thinkingLoop();
 
     } else if (type === 'stop') {
+        isThinking = false;
         
         let bestMove = null;
         if (bestNodeIDAtDepth1 !== "" && nodeMap.has(bestNodeIDAtDepth1)) {
