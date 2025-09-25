@@ -1994,8 +1994,7 @@ let gameSettings = {
     maxNext: 8,
     showEffects: true,
     touchControlsEnabled: 'ontouchstart' in window,
-    aiActionInterval: 30,
-    aiSdfInterval: 20,
+    aiThinkingTime: 500,
 };
 
 const COLORS = { 'I': '#00f0f0', 'O': '#f0f000', 'T': '#a000f0', 'L': '#f0a000', 'J': '#0000f0', 'S': '#00f000', 'Z': '#f00000', 'G': '#999999', 'E': '#808080' };
@@ -2129,28 +2128,24 @@ function* createMinoGenerator(customQueue) {
 
 class Player {
     constructor(id, offsetX, keyBindings, padIndex, isAi = false) {
-        this.id = id;
-        this.offsetX = offsetX; this.keyBindings = keyBindings; this.padIndex = padIndex;
+        this.id = id; this.offsetX = offsetX; this.keyBindings = keyBindings; this.padIndex = padIndex;
         this.isAi = isAi;
         this.isAiThinking = false;
-        this.isAiExecuting = false;
-        this.linesRisenSinceLastMove = 0;
-        this.nextAiMove = null;
         this.aiWorker = null;
+
         if (this.isAi) {
             this.aiWorker = new Worker(URL.createObjectURL(aiWorkerBlob));
-            this.aiWorker.onmessage = (e) => {
+this.aiWorker.onmessage = (e) => {
                 if (e.data && e.data.type === 'debug') {
                     const debugDisplay = document.getElementById('ai-tree-debug-display');
                     if (debugDisplay) {
                         debugDisplay.textContent = e.data.message;
                     }
-                } else if (gameState === 'PLAYING') {
-                    this.nextAiMove = e.data;
-                    this.isAiThinking = false;
-                }
+                } else if (gameState === 'PLAYING' && this.isAiThinking) {
+                    this.executeAiMove(e.data);
+}
             };
-        }
+}
 
         this.keys = {};
         const pData = editorData[`p${id}`];
@@ -2165,7 +2160,6 @@ class Player {
     }
 
 reset() {
-
         this.player = { x: 0, y: 0, pieceType: null, rotation: 0 };
         this.nextQueue = [];
         for (let i = 0; i < gameSettings.maxNext; i++) {
@@ -2204,16 +2198,14 @@ reset() {
 
         const shape = this.getShape(this.player.pieceType, this.player.rotation);
         this.player.y = 19;
-if (this.checkCollision(this.player.x, this.player.y, shape)) {
+        if (this.checkCollision(this.player.x, this.player.y, shape)) {
+            this.player.y = 18;
+            if (this.checkCollision(this.player.x, this.player.y, shape)) {
 
                  this.gameOver = true;
             }
         }
-        if (this.isAi && !this.gameOver) {
-            this.requestAiMove();
-        }
     }
-
 
     isActionPressed(action) {
         const binding = this.keyBindings[action];
@@ -2323,12 +2315,11 @@ return;
 }
 
         if (this.isAi) {
-            if (this.nextAiMove && !this.isAiExecuting) {
-                this.executeAiMove(this.nextAiMove);
-                this.nextAiMove = null;
-            }
+            if (!this.isAiThinking) {
+                this.requestAiMove();
+}
             return;
-        }
+}
 
         if (this.ruleHooks.onUpdate && typeof this.ruleHooks.onUpdate === 'function') {
             try {
@@ -2647,17 +2638,15 @@ if (this.specialMoveText.length > 0) {
             }
             if (Math.random() < gameSettings.garbageRandomness) {
                 this.lastGarbageHoleX = Math.floor(Math.random() * BOARD_WIDTH);
-}
+            }
             
             this.board.shift();
             const newRow = Array(BOARD_WIDTH).fill('G');
             newRow[this.lastGarbageHoleX] = null;
             this.board.push(newRow);
         }
-        this.linesRisenSinceLastMove += this.pendingGarbage;
         this.pendingGarbage = 0;
     }
-
 
     drawBlock(p,x,y,isGhost=false) {
         if(y<-BLOCK_SIZE)return;
@@ -2776,13 +2765,17 @@ requestAiMove() {
             isB2B: this.isB2B,
             ren: this.ren + 1,
         };
-
-    if (this.aiWorker) {
+        
+        if (this.aiWorker) {
             this.aiWorker.postMessage(aiWorkerStartPayload);
-            this.aiWorker.postMessage({ type: 'stop' });
-        }
-    }
 
+            setTimeout(() => {
+                if (this.isAiThinking) {
+                    this.aiWorker.postMessage({ type: 'stop' });
+                }
+            }, gameSettings.aiThinkingTime);
+}
+    }
 
     getMinoShape_forAI(type, rotation) {
         rotation = rotation % 4;
@@ -2989,74 +2982,72 @@ requestAiMove() {
         }
 
         return null;
-}
+    }
 
     async executeAiMove(move) {
-        if (this.gameOver || this.isAiExecuting) return;
-
-        this.isAiExecuting = true;
-
-        if (!move) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-            this.isAiExecuting = false;
-            if (this.nextAiMove) {
-                this.executeAiMove(this.nextAiMove);
-                this.nextAiMove = null;
-            }
+        if (this.gameOver || !move) {
+            this.isAiThinking = false;
             return;
         }
 
-        move.y -= this.linesRisenSinceLastMove;
-        this.linesRisenSinceLastMove = 0;
-        
         if (this.player.pieceType !== move.piece) {
             if (this.canHold) {
                 this.hold();
-                await new Promise(resolve => setTimeout(resolve, gameSettings.aiActionInterval));
+                await new Promise(resolve => setTimeout(resolve, 30));
             } else {
-                this.isAiExecuting = false;
+                this.isAiThinking = false;
                 return;
             }
         }
-        
+
         const startState = { x: this.player.x, y: this.player.y, r: this.player.rotation };
         const targetState = { x: move.x, y: move.y, r: move.rotation };
         const minoType = this.player.pieceType;
         const pathfinderBoard = this.board.map(row => row.map(cell => (cell === null ? 0 : 1)));
-        
+
         const path = this.findShortestPath_forAI(startState, targetState, minoType, pathfinderBoard);
 
         if (path) {
             for (const action of path) {
-                if (this.gameOver) { this.isAiExecuting = false; return; }
                 switch (action) {
-                    case '←': this.move(-1, 0); break;
-                    case '→': this.move(1, 0); break;
-                    case 'R': this.rotate(1); break;
-                    case 'L': this.rotate(-1); break;
-                    case '↑': this.hardDrop(); this.isAiExecuting = false; return;
+                    case '←': this.player.x--; break;
+                    case '→': this.player.x++; break;
+                    case '↓': this.player.y++; break;
+                    case 'R': {
+                        const newState = this.tryRotate_forAI(minoType, this.player.x, this.player.y, this.player.rotation, 1, pathfinderBoard);
+                        if (newState) {
+                            this.player.x = newState.x;
+                            this.player.y = newState.y;
+                            this.player.rotation = newState.r;
+                        }
+                        break;
+                    }
+                    case 'L': {
+                        const newState = this.tryRotate_forAI(minoType, this.player.x, this.player.y, this.player.rotation, -1, pathfinderBoard);
+                        if (newState) {
+                            this.player.x = newState.x;
+                            this.player.y = newState.y;
+                            this.player.rotation = newState.r;
+                        }
+                        break;
+                    }
+                    case '↑':
+                        this.player.y = this.getGhostY();
+                        break;
                 }
-                await new Promise(resolve => setTimeout(resolve, gameSettings.aiActionInterval));
+                await new Promise(resolve => setTimeout(resolve, 30));
             }
-        } else {
-            this.player.rotation = move.rotation;
-            this.player.x = move.x;
-            this.player.y = this.getGhostY();
-        }
-        
-        while(this.player.y < move.y && !this.gameOver) {
-            this.move(0, 1);
-            await new Promise(resolve => setTimeout(resolve, gameSettings.aiSdfInterval));
         }
 
-        if(!this.gameOver) {
-            this.hardDrop();
-        }
+        this.player.rotation = move.rotation;
+        this.player.x = move.x;
+        this.player.y = move.y;
         
-        this.isAiExecuting = false;
+        this.lockPiece();
+
+        this.isAiThinking = false;
     }
 }
-
 
 function setupEditors() { ['p1', 'p2'].forEach(setupPlayerEditor);
 }
@@ -3459,30 +3450,22 @@ function populateAiSettingsTab() {
     itemType.append(labelType, selectType);
     list.appendChild(itemType);
 
-    const settings = {
-        aiActionInterval: { label: 'AIの操作間隔 (ms)', min: 0, max: 200, step: 10 },
-        aiSdfInterval: { label: 'AIのSFD (ms)', min: 0, max: 200, step: 10 }
+    const itemTime = document.createElement('div');
+    itemTime.className = 'setting-item';
+    const labelTime = document.createElement('span');
+    labelTime.textContent = 'AIの思考時間 (ms)';
+    const inputTime = document.createElement('input');
+    inputTime.type = 'number';
+    inputTime.min = 50;
+    inputTime.max = 5000;
+    inputTime.step = 50;
+    inputTime.value = gameSettings.aiThinkingTime;
+    inputTime.onchange = e => {
+        gameSettings.aiThinkingTime = Math.max(50, Math.min(5000, parseInt(e.target.value, 10)));
     };
-
-    Object.entries(settings).forEach(([key, details]) => {
-        const item = document.createElement('div');
-        item.className = 'setting-item';
-        const label = document.createElement('span');
-        label.textContent = details.label;
-        const input = document.createElement('input');
-        input.type = 'number';
-        input.min = details.min;
-        input.max = details.max;
-        input.step = details.step;
-        input.value = gameSettings[key];
-        input.onchange = e => {
-            gameSettings[key] = Math.max(details.min, Math.min(details.max, parseInt(e.target.value, 10)));
-        };
-        item.append(label, input);
-        list.appendChild(item);
-    });
+    itemTime.append(labelTime, inputTime);
+    list.appendChild(itemTime);
 }
-
 
 function openUnifiedSettingsModal(initialTab = 'general') {
     const modal = document.getElementById('settings-modal');
