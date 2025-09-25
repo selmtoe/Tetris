@@ -1504,7 +1504,6 @@ function thinkingLoop() {
 
 self.onmessage = (e) => {
     const { type, boardString, nextString, isB2B, ren } = e.data;
-
     if (type === 'start') {
         const createBoardFromLayout = (layout) => {
             const board = new TetrisBoard();
@@ -1552,10 +1551,7 @@ self.onmessage = (e) => {
         
         isThinking = true;
         thinkingLoop();
-
     } else if (type === 'stop') {
-        isThinking = false;
-        
         let bestMove = null;
         if (bestNodeIDAtDepth1 !== "" && nodeMap.has(bestNodeIDAtDepth1)) {
             bestMove = nodeMap.get(bestNodeIDAtDepth1).place;
@@ -1609,6 +1605,7 @@ self.onmessage = (e) => {
         }
     }
 };
+
 `;
 
 const virtualController = (() => {
@@ -1994,8 +1991,8 @@ let gameSettings = {
     maxNext: 8,
     showEffects: true,
     touchControlsEnabled: 'ontouchstart' in window,
-    aiThinkingTime: 500,
 };
+
 
 const COLORS = { 'I': '#00f0f0', 'O': '#f0f000', 'T': '#a000f0', 'L': '#f0a000', 'J': '#0000f0', 'S': '#00f000', 'Z': '#f00000', 'G': '#999999', 'E': '#808080' };
 
@@ -2756,8 +2753,7 @@ requestAiMove() {
         } else {
             nextPiecesForWorker = [this.player.pieceType, ...this.nextQueue];
         }
-        const nextString = nextPiecesForWorker.join('');
-        
+                const nextString = nextPiecesForWorker.join('');
         const aiWorkerStartPayload = {
             type: 'start',
             boardString: boardString,
@@ -2765,17 +2761,16 @@ requestAiMove() {
             isB2B: this.isB2B,
             ren: this.ren + 1,
         };
-        
         if (this.aiWorker) {
             this.aiWorker.postMessage(aiWorkerStartPayload);
-
             setTimeout(() => {
                 if (this.isAiThinking) {
                     this.aiWorker.postMessage({ type: 'stop' });
                 }
-            }, gameSettings.aiThinkingTime);
-}
+            }, 100);
+        }
     }
+
 
     getMinoShape_forAI(type, rotation) {
         rotation = rotation % 4;
@@ -3453,23 +3448,8 @@ function populateAiSettingsTab() {
     selectType.innerHTML = '<option value="default">Cold Clear (Strongly Simplified)</option>';
     itemType.append(labelType, selectType);
     list.appendChild(itemType);
-
-    const itemTime = document.createElement('div');
-    itemTime.className = 'setting-item';
-    const labelTime = document.createElement('span');
-    labelTime.textContent = 'AIの思考時間 (ms)';
-    const inputTime = document.createElement('input');
-    inputTime.type = 'number';
-    inputTime.min = 50;
-    inputTime.max = 5000;
-    inputTime.step = 50;
-    inputTime.value = gameSettings.aiThinkingTime;
-    inputTime.onchange = e => {
-        gameSettings.aiThinkingTime = Math.max(50, Math.min(5000, parseInt(e.target.value, 10)));
-    };
-    itemTime.append(labelTime, inputTime);
-    list.appendChild(itemTime);
 }
+
 
 function openUnifiedSettingsModal(initialTab = 'general') {
     const modal = document.getElementById('settings-modal');
