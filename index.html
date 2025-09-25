@@ -2990,10 +2990,32 @@ requestAiMove() {
             return;
         }
 
+        const pieceUsed = move.piece;
+        let availableNow = [];
+        if (this.canHold && this.holdPiece) {
+            availableNow.push(this.holdPiece);
+        }
+        availableNow.push(this.player.pieceType);
+        availableNow.push(...this.nextQueue);
+
+        const usedPieceIndex = availableNow.indexOf(pieceUsed);
+        if (usedPieceIndex > -1) {
+            availableNow.splice(usedPieceIndex, 1);
+        }
+
+        const nextStringForWorker = availableNow.join('');
+
+        if (this.aiWorker) {
+            this.aiWorker.postMessage({
+                type: 'continue',
+                nextString: nextStringForWorker
+            });
+        }
+
         if (this.player.pieceType !== move.piece) {
             if (this.canHold) {
                 this.hold();
-                await new Promise(resolve => setTimeout(resolve, 30));
+                if (gameSettings.aiMoveInterval > 0) await new Promise(resolve => setTimeout(resolve, gameSettings.aiMoveInterval));
             } else {
                 this.isAiThinking = false;
                 return;
@@ -3008,13 +3030,13 @@ requestAiMove() {
             startState.x += 1;
         }
         const pathfinderBoard = this.board.map(row => row.map(cell => (cell === null ? 0 : 1)));
-
         const path = this.findShortestPath_forAI(startState, targetState, minoType, pathfinderBoard);
 
         if (path) {
             for (const action of path) {
                 switch (action) {
-                    case '←': this.player.x--; break;
+                    case '←': this.player.x--;
+                        break;
                     case '→': this.player.x++; break;
                     case '↓': this.player.y++; break;
                     case 'R': {
@@ -3039,7 +3061,7 @@ requestAiMove() {
                         this.player.y = this.getGhostY();
                         break;
                 }
-                await new Promise(resolve => setTimeout(resolve, 30));
+                if (gameSettings.aiMoveInterval > 0) await new Promise(resolve => setTimeout(resolve, gameSettings.aiMoveInterval));
             }
         }
 
@@ -3453,6 +3475,22 @@ function populateAiSettingsTab() {
     selectType.innerHTML = '<option value="default">Cold Clear (Strongly Simplified)</option>';
     itemType.append(labelType, selectType);
     list.appendChild(itemType);
+
+    const itemInterval = document.createElement('div');
+    itemInterval.className = 'setting-item';
+    const labelInterval = document.createElement('span');
+    labelInterval.textContent = 'AIの操作間隔 (ms)';
+    const inputInterval = document.createElement('input');
+    inputInterval.type = 'number';
+    inputInterval.min = 0;
+    inputInterval.max = 200;
+    inputInterval.step = 10;
+    inputInterval.value = gameSettings.aiMoveInterval;
+    inputInterval.onchange = e => {
+        gameSettings.aiMoveInterval = Math.max(0, Math.min(200, parseInt(e.target.value, 10)));
+    };
+    itemInterval.append(labelInterval, inputInterval);
+    list.appendChild(itemInterval);
 
     const itemTime = document.createElement('div');
     itemTime.className = 'setting-item';
