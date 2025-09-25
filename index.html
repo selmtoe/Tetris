@@ -3010,6 +3010,9 @@ requestAiMove() {
         const startState = { x: this.player.x, y: this.player.y, r: this.player.rotation };
         const targetState = { x: move.x, y: move.y, r: move.rotation };
         const minoType = this.player.pieceType;
+        if (minoType === 'I') {
+            targetState.x += 1;
+        }
         
         if(debugDisplay) {
             debugDisplay.textContent += `AI Best Move: ${JSON.stringify(move, null, 2)}\n\n`;
