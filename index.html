@@ -1501,8 +1501,10 @@ function thinkingLoop() {
 
     setTimeout(thinkingLoop, 0);
 }
+
 self.onmessage = (e) => {
     const { type, boardString, nextString, isB2B, ren } = e.data;
+
     if (type === 'start') {
         const createBoardFromLayout = (layout) => {
             const board = new TetrisBoard();
@@ -1550,14 +1552,10 @@ self.onmessage = (e) => {
         
         isThinking = true;
         thinkingLoop();
-    } else if (type === 'continue') {
-        if (!isThinking) {
-            currentMinoSequence = nextString.split('');
-            isThinking = true;
-            thinkingLoop();
-        }
+
     } else if (type === 'stop') {
         isThinking = false;
+        
         let bestMove = null;
         if (bestNodeIDAtDepth1 !== "" && nodeMap.has(bestNodeIDAtDepth1)) {
             bestMove = nodeMap.get(bestNodeIDAtDepth1).place;
@@ -1996,7 +1994,7 @@ let gameSettings = {
     maxNext: 8,
     showEffects: true,
     touchControlsEnabled: 'ontouchstart' in window,
-    aiMoveInterval: 30,
+    aiThinkingTime: 500,
 };
 
 const COLORS = { 'I': '#00f0f0', 'O': '#f0f000', 'T': '#a000f0', 'L': '#f0a000', 'J': '#0000f0', 'S': '#00f000', 'Z': '#f00000', 'G': '#999999', 'E': '#808080' };
@@ -2129,13 +2127,12 @@ function* createMinoGenerator(customQueue) {
 }
 
 class Player {
-constructor(id, offsetX, keyBindings, padIndex, isAi = false) {
-        this.id = id;
-        this.offsetX = offsetX; this.keyBindings = keyBindings; this.padIndex = padIndex;
+    constructor(id, offsetX, keyBindings, padIndex, isAi = false) {
+        this.id = id; this.offsetX = offsetX; this.keyBindings = keyBindings; this.padIndex = padIndex;
         this.isAi = isAi;
         this.isAiThinking = false;
-        this.aiBoardStateDirty = true;
         this.aiWorker = null;
+
         if (this.isAi) {
             this.aiWorker = new Worker(URL.createObjectURL(aiWorkerBlob));
 this.aiWorker.onmessage = (e) => {
@@ -2649,8 +2646,8 @@ if (this.specialMoveText.length > 0) {
             this.board.push(newRow);
         }
         this.pendingGarbage = 0;
-        this.aiBoardStateDirty = true;
     }
+
     drawBlock(p,x,y,isGhost=false) {
         if(y<-BLOCK_SIZE)return;
         ctx.fillStyle=activeSkin[p]||'#FFF';
@@ -2732,56 +2729,52 @@ drawMessage(t) { const cX = PLAYFIELD_WIDTH / 2; const cY = CANVAS_HEIGHT / 2; c
 
 requestAiMove() {
         this.isAiThinking = true;
+        const debugPayload = {
+            playerId: this.id,
+            board: this.board,
+            minoSequence: [this.player.pieceType, ...this.nextQueue],
+            holdPiece: this.holdPiece,
+            canHold: this.canHold,
+            isB2B: this.isB2B,
+            ren: this.ren
+        };
+        updateAiDebugDisplay(debugPayload);
 
-        if (this.aiBoardStateDirty) {
-            const debugPayload = {
-                playerId: this.id,
-                board: this.board,
-                minoSequence: [this.player.pieceType, ...this.nextQueue],
-                holdPiece: this.holdPiece,
-                canHold: this.canHold,
-                isB2B: this.isB2B,
-                ren: this.ren
-            };
-            updateAiDebugDisplay(debugPayload);
-
-            let boardString = '[\n';
-            for (let y = 0; y < this.board.length; y++) {
-                const row = this.board[y];
-                const rowString = row.map(cell => cell === null ? 'null' : `"${cell}"`).join(', ');
-                boardString += `  [${rowString}]`;
-                if (y < this.board.length - 1) {
-                    boardString += ',\n';
-                }
+        let boardString = '[\n';
+        for (let y = 0; y < this.board.length; y++) {
+            const row = this.board[y];
+            const rowString = row.map(cell => cell === null ? 'null' : `"${cell}"`).join(', ');
+            boardString += `  [${rowString}]`;
+            if (y < this.board.length - 1) {
+                boardString += ',\n';
             }
-            boardString += '\n]';
-            let nextPiecesForWorker;
-            if (this.holdPiece) {
-                nextPiecesForWorker = [this.holdPiece, this.player.pieceType, ...this.nextQueue];
-            } else {
-                nextPiecesForWorker = [this.player.pieceType, ...this.nextQueue];
-            }
-            const nextString = nextPiecesForWorker.join('');
-
-            const aiWorkerStartPayload = {
-                type: 'start',
-                boardString: boardString,
-                nextString: nextString,
-                isB2B: this.isB2B,
-                ren: this.ren + 1,
-            };
-
-            if (this.aiWorker) {
-                this.aiWorker.postMessage(aiWorkerStartPayload);
-            }
-            this.aiBoardStateDirty = false;
         }
+        boardString += '\n]';
+        let nextPiecesForWorker;
+        if (this.holdPiece) {
+            nextPiecesForWorker = [this.holdPiece, this.player.pieceType, ...this.nextQueue];
+        } else {
+            nextPiecesForWorker = [this.player.pieceType, ...this.nextQueue];
+        }
+        const nextString = nextPiecesForWorker.join('');
         
-        setTimeout(() => {
-            if (this.isAiThinking && this.aiWorker) {
-                this.aiWorker.postMessage({ type: 'stop' });
-            }
-        }, 100);
+        const aiWorkerStartPayload = {
+            type: 'start',
+            boardString: boardString,
+            nextString: nextString,
+            isB2B: this.isB2B,
+            ren: this.ren + 1,
+        };
+        
+        if (this.aiWorker) {
+            this.aiWorker.postMessage(aiWorkerStartPayload);
+
+            setTimeout(() => {
+                if (this.isAiThinking) {
+                    this.aiWorker.postMessage({ type: 'stop' });
+                }
+            }, gameSettings.aiThinkingTime);
+}
     }
 
     getMinoShape_forAI(type, rotation) {
@@ -2990,38 +2983,17 @@ requestAiMove() {
 
         return null;
     }
-async executeAiMove(move) {
+
+    async executeAiMove(move) {
         if (this.gameOver || !move) {
             this.isAiThinking = false;
             return;
         }
 
-        const pieceUsed = move.piece;
-        let availableNow = [];
-        if (this.canHold && this.holdPiece) {
-            availableNow.push(this.holdPiece);
-        }
-        availableNow.push(this.player.pieceType);
-        availableNow.push(...this.nextQueue);
-
-        const usedPieceIndex = availableNow.indexOf(pieceUsed);
-        if (usedPieceIndex > -1) {
-            availableNow.splice(usedPieceIndex, 1);
-        }
-
-        const nextStringForWorker = availableNow.join('');
-
-        if (this.aiWorker) {
-            this.aiWorker.postMessage({
-                type: 'continue',
-                nextString: nextStringForWorker
-            });
-        }
-
         if (this.player.pieceType !== move.piece) {
             if (this.canHold) {
                 this.hold();
-                if (gameSettings.aiMoveInterval > 0) await new Promise(resolve => setTimeout(resolve, gameSettings.aiMoveInterval));
+                await new Promise(resolve => setTimeout(resolve, 30));
             } else {
                 this.isAiThinking = false;
                 return;
@@ -3036,13 +3008,13 @@ async executeAiMove(move) {
             startState.x += 1;
         }
         const pathfinderBoard = this.board.map(row => row.map(cell => (cell === null ? 0 : 1)));
+
         const path = this.findShortestPath_forAI(startState, targetState, minoType, pathfinderBoard);
 
         if (path) {
             for (const action of path) {
                 switch (action) {
-                    case '←': this.player.x--;
-                        break;
+                    case '←': this.player.x--; break;
                     case '→': this.player.x++; break;
                     case '↓': this.player.y++; break;
                     case 'R': {
@@ -3067,7 +3039,7 @@ async executeAiMove(move) {
                         this.player.y = this.getGhostY();
                         break;
                 }
-                if (gameSettings.aiMoveInterval > 0) await new Promise(resolve => setTimeout(resolve, gameSettings.aiMoveInterval));
+                await new Promise(resolve => setTimeout(resolve, 30));
             }
         }
 
@@ -3482,22 +3454,23 @@ function populateAiSettingsTab() {
     itemType.append(labelType, selectType);
     list.appendChild(itemType);
 
-    const itemInterval = document.createElement('div');
-    itemInterval.className = 'setting-item';
-    const labelInterval = document.createElement('span');
-    labelInterval.textContent = 'AIの操作間隔 (ms)';
-    const inputInterval = document.createElement('input');
-    inputInterval.type = 'number';
-    inputInterval.min = 0;
-    inputInterval.max = 200;
-    inputInterval.step = 10;
-    inputInterval.value = gameSettings.aiMoveInterval;
-    inputInterval.onchange = e => {
-        gameSettings.aiMoveInterval = Math.max(0, Math.min(200, parseInt(e.target.value, 10)));
+    const itemTime = document.createElement('div');
+    itemTime.className = 'setting-item';
+    const labelTime = document.createElement('span');
+    labelTime.textContent = 'AIの思考時間 (ms)';
+    const inputTime = document.createElement('input');
+    inputTime.type = 'number';
+    inputTime.min = 50;
+    inputTime.max = 5000;
+    inputTime.step = 50;
+    inputTime.value = gameSettings.aiThinkingTime;
+    inputTime.onchange = e => {
+        gameSettings.aiThinkingTime = Math.max(50, Math.min(5000, parseInt(e.target.value, 10)));
     };
-    itemInterval.append(labelInterval, inputInterval);
-    list.appendChild(itemInterval);
+    itemTime.append(labelTime, inputTime);
+    list.appendChild(itemTime);
 }
+
 function openUnifiedSettingsModal(initialTab = 'general') {
     const modal = document.getElementById('settings-modal');
     
