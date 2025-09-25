@@ -2128,12 +2128,11 @@ function* createMinoGenerator(customQueue) {
 
 class Player {
     constructor(id, offsetX, keyBindings, padIndex, isAi = false) {
-        this.id = id;
-        this.offsetX = offsetX; this.keyBindings = keyBindings; this.padIndex = padIndex;
+        this.id = id; this.offsetX = offsetX; this.keyBindings = keyBindings; this.padIndex = padIndex;
         this.isAi = isAi;
         this.isAiThinking = false;
-        this.isExecutingAiMove = false;
         this.aiWorker = null;
+
         if (this.isAi) {
             this.aiWorker = new Worker(URL.createObjectURL(aiWorkerBlob));
 this.aiWorker.onmessage = (e) => {
@@ -2179,11 +2178,8 @@ reset() {
 
         this.viewY = BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT;
         this.pendingGarbage = 0;this.garbageQueue = []; this.ren = -1; this.isB2B = false;
-        this.isExecutingAiMove = false;
-        this.garbageSinceLastThink = 0;
         this.lastMoveWasRotation = false;
         this.lastSrsKickIndex = -1;
-
         this.specialMoveText = [];
         this.specialMoveTextTimer = 0;
         this.customUIText = null;
@@ -2319,14 +2315,13 @@ return;
 }
 
         if (this.isAi) {
-            if (!this.isAiThinking && !this.isExecutingAiMove) {
-                this.requestAiMove(true);
-            }
+            if (!this.isAiThinking) {
+                this.requestAiMove();
+}
             return;
-        }
+}
 
         if (this.ruleHooks.onUpdate && typeof this.ruleHooks.onUpdate === 'function') {
-
             try {
                 this.ruleHooks.onUpdate(this.gameApi, this);
 } catch (e) {
@@ -2445,15 +2440,10 @@ hold() {
     }
 
 lockPiece() {
-        if (this.isAi) {
-            this.isExecutingAiMove = false;
-            if (this.aiWorker) this.aiWorker.postMessage({ type: 'stop' });
-        }
         if (!this.player.pieceType) return;
         let tspinResult = this.checkForTSpin();
 
         // AI操作の場合の独立したTスピン判定 (一時的なもので、後で削除する予定)
-
         if (this.isAi && this.player.pieceType === 'T' ) {
             const shape = this.getShape(this.player.pieceType, this.player.rotation);
             let isCoveredFromAbove = false;
@@ -2636,9 +2626,7 @@ if (this.specialMoveText.length > 0) {
     
     riseGarbage() {
         if (this.pendingGarbage <= 0) return;
-        if (this.isAi) {
-            this.garbageSinceLastThink += this.pendingGarbage;
-        }
+        
         if (this.lastGarbageHoleX === -1) {
             this.lastGarbageHoleX = Math.floor(Math.random() * BOARD_WIDTH);
         }
@@ -2739,43 +2727,37 @@ const rX = PLAYFIELD_X_OFFSET + PLAYFIELD_WIDTH + PADDING + NEXT_AREA_WIDTH / 2;
 
 drawMessage(t) { const cX = PLAYFIELD_WIDTH / 2; const cY = CANVAS_HEIGHT / 2; ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(0, -0.5*BLOCK_SIZE, PLAYFIELD_WIDTH, CANVAS_HEIGHT); ctx.fillStyle = '#FFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `bold ${BLOCK_SIZE * 1.5}px "Orbitron"`; ctx.fillText(t, cX, cY); ctx.textBaseline = 'alphabetic'; }
 
-requestAiMove(isShortThink, hypotheticalState = null) {
+requestAiMove() {
         this.isAiThinking = true;
-
-        const board = hypotheticalState ? hypotheticalState.board : this.board;
-        const minoSequence = hypotheticalState ? hypotheticalState.minoSequence : [this.player.pieceType, ...this.nextQueue];
-        const holdPiece = hypotheticalState ? hypotheticalState.holdPiece : this.holdPiece;
-        const canHold = hypotheticalState ? hypotheticalState.canHold : this.canHold;
-
         const debugPayload = {
             playerId: this.id,
-            board: board,
-            minoSequence: minoSequence,
-            holdPiece: holdPiece,
-            canHold: canHold,
+            board: this.board,
+            minoSequence: [this.player.pieceType, ...this.nextQueue],
+            holdPiece: this.holdPiece,
+            canHold: this.canHold,
             isB2B: this.isB2B,
             ren: this.ren
         };
         updateAiDebugDisplay(debugPayload);
 
         let boardString = '[\n';
-        for (let y = 0; y < board.length; y++) {
-            const row = board[y];
+        for (let y = 0; y < this.board.length; y++) {
+            const row = this.board[y];
             const rowString = row.map(cell => cell === null ? 'null' : `"${cell}"`).join(', ');
             boardString += `  [${rowString}]`;
-            if (y < board.length - 1) {
+            if (y < this.board.length - 1) {
                 boardString += ',\n';
             }
         }
         boardString += '\n]';
-
         let nextPiecesForWorker;
-        if (holdPiece) {
-            nextPiecesForWorker = [holdPiece, ...minoSequence];
+        if (this.holdPiece) {
+            nextPiecesForWorker = [this.holdPiece, this.player.pieceType, ...this.nextQueue];
         } else {
-            nextPiecesForWorker = minoSequence;
+            nextPiecesForWorker = [this.player.pieceType, ...this.nextQueue];
         }
         const nextString = nextPiecesForWorker.join('');
+        
         const aiWorkerStartPayload = {
             type: 'start',
             boardString: boardString,
@@ -2783,18 +2765,17 @@ requestAiMove(isShortThink, hypotheticalState = null) {
             isB2B: this.isB2B,
             ren: this.ren + 1,
         };
+        
         if (this.aiWorker) {
             this.aiWorker.postMessage(aiWorkerStartPayload);
-            if (isShortThink) {
-                setTimeout(() => {
-                    if (this.isAiThinking) {
-                        this.aiWorker.postMessage({ type: 'stop' });
-                    }
-                }, 100);
-            }
-        }
-    }
 
+            setTimeout(() => {
+                if (this.isAiThinking) {
+                    this.aiWorker.postMessage({ type: 'stop' });
+                }
+            }, gameSettings.aiThinkingTime);
+}
+    }
 
     getMinoShape_forAI(type, rotation) {
         rotation = rotation % 4;
@@ -3003,70 +2984,33 @@ requestAiMove(isShortThink, hypotheticalState = null) {
         return null;
     }
 
-        async executeAiMove(move) {
-        this.isAiThinking = false;
+    async executeAiMove(move) {
         if (this.gameOver || !move) {
-            this.isExecutingAiMove = false;
+            this.isAiThinking = false;
             return;
         }
-
-        this.isExecutingAiMove = true;
 
         if (this.player.pieceType !== move.piece) {
             if (this.canHold) {
                 this.hold();
                 await new Promise(resolve => setTimeout(resolve, 30));
-                if (this.player.pieceType !== move.piece) {
-                    this.isExecutingAiMove = false; 
-                    return;
-                }
             } else {
-                this.isExecutingAiMove = false;
+                this.isAiThinking = false;
                 return;
             }
         }
-        
-        move.y -= this.garbageSinceLastThink;
-        this.garbageSinceLastThink = 0;
-
-        const tempBoard = JSON.parse(JSON.stringify(this.board));
-        const shape = this.getShape(this.player.pieceType, move.rotation);
-        for (const b of shape) {
-            const bx = Math.floor(move.x + b[0]);
-            const by = Math.floor(move.y + b[1]);
-            if (by >= 0 && by < BOARD_HEIGHT && bx >= 0 && bx < BOARD_WIDTH) {
-                tempBoard[by][bx] = this.player.pieceType;
-            }
-        }
-        let linesCleared = 0;
-        for(let y = tempBoard.length - 1; y >= 0; y--){
-            if(tempBoard[y].every(c=>c!==null)){
-                tempBoard.splice(y,1);
-                linesCleared++;
-            }
-        }
-        for(let i=0; i<linesCleared; i++){
-            tempBoard.unshift(Array(BOARD_WIDTH).fill(null));
-        }
-        const hypotheticalState = {
-            board: tempBoard,
-            minoSequence: [...this.nextQueue],
-            holdPiece: this.holdPiece,
-            canHold: true
-        };
-        this.requestAiMove(false, hypotheticalState);
 
         const startState = { x: this.player.x, y: this.player.y, r: this.player.rotation };
         const targetState = { x: move.x, y: move.y, r: move.rotation };
         const minoType = this.player.pieceType;
         const pathfinderBoard = this.board.map(row => row.map(cell => (cell === null ? 0 : 1)));
+
         const path = this.findShortestPath_forAI(startState, targetState, minoType, pathfinderBoard);
 
         if (path) {
             for (const action of path) {
                 switch (action) {
-                    case '←': this.player.x--;
-                        break;
+                    case '←': this.player.x--; break;
                     case '→': this.player.x++; break;
                     case '↓': this.player.y++; break;
                     case 'R': {
@@ -3097,10 +3041,13 @@ requestAiMove(isShortThink, hypotheticalState = null) {
 
         this.player.rotation = move.rotation;
         this.player.x = move.x;
-        this.player.y = this.getGhostY();
+        this.player.y = move.y;
         
         this.lockPiece();
+
+        this.isAiThinking = false;
     }
+}
 
 function setupEditors() { ['p1', 'p2'].forEach(setupPlayerEditor);
 }
