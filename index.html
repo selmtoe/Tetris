@@ -2987,24 +2987,25 @@ requestAiMove() {
     async executeAiMove(move) {
         if (this.gameOver || !move) {
             this.isAiThinking = false;
-return;
+            return;
         }
 
         if (this.player.pieceType !== move.piece) {
             if (this.canHold) {
                 this.hold();
-await new Promise(resolve => setTimeout(resolve, 30));
+                await new Promise(resolve => setTimeout(resolve, 30));
             } else {
                 this.isAiThinking = false;
-return;
+                return;
             }
         }
 
-        const startState = { x: Math.floor(this.player.x), y: Math.floor(this.player.y), r: this.player.rotation };
-const targetState = { x: move.x, y: move.y, r: move.rotation };
+        const startState = { x: this.player.x, y: this.player.y, r: this.player.rotation };
+        const targetState = { x: move.x, y: move.y, r: move.rotation };
         const minoType = this.player.pieceType;
-const pathfinderBoard = this.board.map(row => row.map(cell => (cell === null ? 0 : 1)));
-const path = this.findShortestPath_forAI(startState, targetState, minoType, pathfinderBoard);
+        const pathfinderBoard = this.board.map(row => row.map(cell => (cell === null ? 0 : 1)));
+
+        const path = this.findShortestPath_forAI(startState, targetState, minoType, pathfinderBoard);
 
         if (path) {
             for (const action of path) {
