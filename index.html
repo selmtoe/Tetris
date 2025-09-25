@@ -1504,72 +1504,73 @@ function thinkingLoop() {
 
 self.onmessage = (e) => {
     const { type, boardString, nextString, isB2B, ren } = e.data;
-    if (type === 'start') {
+if (type === 'start') {
         const createBoardFromLayout = (layout) => {
             const board = new TetrisBoard();
-            const layoutHeight = layout.length;
+const layoutHeight = layout.length;
             const boardHeight = TetrisBoard.HEIGHT;
             const width = TetrisBoard.WIDTH;
-            for (let layoutY = 0; layoutY < layoutHeight; layoutY++) {
+for (let layoutY = 0; layoutY < layoutHeight; layoutY++) {
                 const boardY = (boardHeight - 1) - layoutY;
-                if (boardY < 0) continue;
+if (boardY < 0) continue;
 
                 let rowValue = 0;
                 const layoutRow = layout[layoutY];
-                if (!layoutRow || !Array.isArray(layoutRow)) {
+if (!layoutRow || !Array.isArray(layoutRow)) {
                     continue;
-                }
+}
 
                 for (let x = 0; x < width; x++) {
                     if (layoutRow[x] !== null) {
                         rowValue |= (1 << x);
-                    }
+}
                 }
                 board.rows[boardY] = rowValue;
-            }
+}
             return board;
         };
         
         let initialLayout;
-        try {
+try {
             initialLayout = JSON.parse(boardString);
-        } catch (e) {
+} catch (e) {
             console.error("Failed to parse boardString:", e);
-            initialLayout = Array(TetrisBoard.HEIGHT).fill(null).map(() => Array(TetrisBoard.WIDTH).fill(null));
+initialLayout = Array(TetrisBoard.HEIGHT).fill(null).map(() => Array(TetrisBoard.WIDTH).fill(null));
         }
         
         const board = createBoardFromLayout(initialLayout);
-        const rootNode = nodeMap.get("");
+const rootNode = nodeMap.get("");
         if (rootNode && rootNode.board && boardsAreEqual(rootNode.board, board)) {
             self.postMessage({type: 'debug', message: '探索木を引き継ぎました'});
-        } else {
+} else {
             nodeMap.clear();
             self.postMessage({type: 'debug', message: '探索木をリセットしました'});
-        }
+}
         currentMinoSequence = nextString.split('');
         runAI(board, currentMinoSequence, isB2B, ren);
         
         isThinking = true;
         thinkingLoop();
-    } else if (type === 'stop') {
+} else if (type === 'stop') {
         let bestMove = null;
         if (bestNodeIDAtDepth1 !== "" && nodeMap.has(bestNodeIDAtDepth1)) {
             bestMove = nodeMap.get(bestNodeIDAtDepth1).place;
-        } else {
+} else {
             const rootNode = nodeMap.get("");
-            if (rootNode && rootNode.childrenIDs.length > 0) {
+if (rootNode && rootNode.childrenIDs.length > 0) {
                 let bestFallbackID = "";
-                let maxEvalFallback = -Number.MAX_VALUE;
+let maxEvalFallback = -Number.MAX_VALUE;
                 for(const childID of rootNode.childrenIDs){
                     if(nodeMap.has(childID)){
                         const child_node = nodeMap.get(childID);
-                        const current_total_eval = child_node.acc_eval + child_node.transient_eval;
+const current_total_eval = child_node.acc_eval + child_node.transient_eval;
                         if(current_total_eval > maxEvalFallback){
                             maxEvalFallback = current_total_eval;
-                            bestFallbackID = childID;
+bestFallbackID = childID;
                         }
                     }
                 }
+
                 if(bestFallbackID !== ""){
                     bestMove = nodeMap.get(bestFallbackID).place;
                 }
