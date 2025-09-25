@@ -1504,73 +1504,76 @@ function thinkingLoop() {
 
 self.onmessage = (e) => {
     const { type, boardString, nextString, isB2B, ren } = e.data;
-if (type === 'start') {
+
+    if (type === 'start') {
         const createBoardFromLayout = (layout) => {
             const board = new TetrisBoard();
-const layoutHeight = layout.length;
+            const layoutHeight = layout.length;
             const boardHeight = TetrisBoard.HEIGHT;
             const width = TetrisBoard.WIDTH;
-for (let layoutY = 0; layoutY < layoutHeight; layoutY++) {
+            for (let layoutY = 0; layoutY < layoutHeight; layoutY++) {
                 const boardY = (boardHeight - 1) - layoutY;
-if (boardY < 0) continue;
+                if (boardY < 0) continue;
 
                 let rowValue = 0;
                 const layoutRow = layout[layoutY];
-if (!layoutRow || !Array.isArray(layoutRow)) {
+                if (!layoutRow || !Array.isArray(layoutRow)) {
                     continue;
-}
+                }
 
                 for (let x = 0; x < width; x++) {
                     if (layoutRow[x] !== null) {
                         rowValue |= (1 << x);
-}
+                    }
                 }
                 board.rows[boardY] = rowValue;
-}
+            }
             return board;
         };
         
         let initialLayout;
-try {
+        try {
             initialLayout = JSON.parse(boardString);
-} catch (e) {
+        } catch (e) {
             console.error("Failed to parse boardString:", e);
-initialLayout = Array(TetrisBoard.HEIGHT).fill(null).map(() => Array(TetrisBoard.WIDTH).fill(null));
+            initialLayout = Array(TetrisBoard.HEIGHT).fill(null).map(() => Array(TetrisBoard.WIDTH).fill(null));
         }
         
         const board = createBoardFromLayout(initialLayout);
-const rootNode = nodeMap.get("");
+        const rootNode = nodeMap.get("");
         if (rootNode && rootNode.board && boardsAreEqual(rootNode.board, board)) {
             self.postMessage({type: 'debug', message: '探索木を引き継ぎました'});
-} else {
+        } else {
             nodeMap.clear();
             self.postMessage({type: 'debug', message: '探索木をリセットしました'});
-}
+        }
         currentMinoSequence = nextString.split('');
         runAI(board, currentMinoSequence, isB2B, ren);
         
         isThinking = true;
         thinkingLoop();
-} else if (type === 'stop') {
+
+    } else if (type === 'stop') {
+        isThinking = false;
+        
         let bestMove = null;
         if (bestNodeIDAtDepth1 !== "" && nodeMap.has(bestNodeIDAtDepth1)) {
             bestMove = nodeMap.get(bestNodeIDAtDepth1).place;
-} else {
+        } else {
             const rootNode = nodeMap.get("");
-if (rootNode && rootNode.childrenIDs.length > 0) {
+            if (rootNode && rootNode.childrenIDs.length > 0) {
                 let bestFallbackID = "";
-let maxEvalFallback = -Number.MAX_VALUE;
+                let maxEvalFallback = -Number.MAX_VALUE;
                 for(const childID of rootNode.childrenIDs){
                     if(nodeMap.has(childID)){
                         const child_node = nodeMap.get(childID);
-const current_total_eval = child_node.acc_eval + child_node.transient_eval;
+                        const current_total_eval = child_node.acc_eval + child_node.transient_eval;
                         if(current_total_eval > maxEvalFallback){
                             maxEvalFallback = current_total_eval;
-bestFallbackID = childID;
+                            bestFallbackID = childID;
                         }
                     }
                 }
-
                 if(bestFallbackID !== ""){
                     bestMove = nodeMap.get(bestFallbackID).place;
                 }
@@ -1606,7 +1609,6 @@ bestFallbackID = childID;
         }
     }
 };
-
 `;
 
 const virtualController = (() => {
@@ -1992,8 +1994,8 @@ let gameSettings = {
     maxNext: 8,
     showEffects: true,
     touchControlsEnabled: 'ontouchstart' in window,
+    aiThinkingTime: 500,
 };
-
 
 const COLORS = { 'I': '#00f0f0', 'O': '#f0f000', 'T': '#a000f0', 'L': '#f0a000', 'J': '#0000f0', 'S': '#00f000', 'Z': '#f00000', 'G': '#999999', 'E': '#808080' };
 
@@ -2754,7 +2756,8 @@ requestAiMove() {
         } else {
             nextPiecesForWorker = [this.player.pieceType, ...this.nextQueue];
         }
-                const nextString = nextPiecesForWorker.join('');
+        const nextString = nextPiecesForWorker.join('');
+        
         const aiWorkerStartPayload = {
             type: 'start',
             boardString: boardString,
@@ -2762,16 +2765,17 @@ requestAiMove() {
             isB2B: this.isB2B,
             ren: this.ren + 1,
         };
+        
         if (this.aiWorker) {
             this.aiWorker.postMessage(aiWorkerStartPayload);
+
             setTimeout(() => {
                 if (this.isAiThinking) {
                     this.aiWorker.postMessage({ type: 'stop' });
                 }
-            }, 100);
-        }
+            }, gameSettings.aiThinkingTime);
+}
     }
-
 
     getMinoShape_forAI(type, rotation) {
         rotation = rotation % 4;
@@ -3449,8 +3453,23 @@ function populateAiSettingsTab() {
     selectType.innerHTML = '<option value="default">Cold Clear (Strongly Simplified)</option>';
     itemType.append(labelType, selectType);
     list.appendChild(itemType);
-}
 
+    const itemTime = document.createElement('div');
+    itemTime.className = 'setting-item';
+    const labelTime = document.createElement('span');
+    labelTime.textContent = 'AIの思考時間 (ms)';
+    const inputTime = document.createElement('input');
+    inputTime.type = 'number';
+    inputTime.min = 50;
+    inputTime.max = 5000;
+    inputTime.step = 50;
+    inputTime.value = gameSettings.aiThinkingTime;
+    inputTime.onchange = e => {
+        gameSettings.aiThinkingTime = Math.max(50, Math.min(5000, parseInt(e.target.value, 10)));
+    };
+    itemTime.append(labelTime, inputTime);
+    list.appendChild(itemTime);
+}
 
 function openUnifiedSettingsModal(initialTab = 'general') {
     const modal = document.getElementById('settings-modal');
