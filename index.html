@@ -1400,13 +1400,20 @@ function pruneAndReroot(chosenNodeID) {
         return;
     }
 
+    const chosenNode = nodeMap.get(chosenNodeID);
+    const usedPiece = chosenNode.place.pieceType;
+    const pieceIndex = currentMinoSequence.indexOf(usedPiece);
+    if (pieceIndex > -1) {
+        currentMinoSequence.splice(pieceIndex, 1);
+    }
+
     const new_nodeMap = new Map();
-    const q = [chosenNodeID]; // Queue simulation
+    const q = [chosenNodeID];
+    // Queue simulation
 
     const newRootNode = { ...nodeMap.get(chosenNodeID) };
     const newRootID = "";
-    newRootNode.parentID = undefined; 
-    
+    newRootNode.parentID = undefined;
     const newChildrenIDs = [];
     for (const oldChildID of newRootNode.childrenIDs) {
         if (nodeMap.has(oldChildID)) {
@@ -1415,11 +1422,9 @@ function pruneAndReroot(chosenNodeID) {
     }
     newRootNode.childrenIDs = newChildrenIDs;
     new_nodeMap.set(newRootID, newRootNode);
-
     while (q.length > 0) {
         const oldParentID = q.shift();
         const oldParentNode = nodeMap.get(oldParentID);
-
         for (const oldChildID of oldParentNode.childrenIDs) {
             if (!nodeMap.has(oldChildID)) {
                 continue;
@@ -1435,10 +1440,9 @@ function pruneAndReroot(chosenNodeID) {
             for(const oldGrandChildID of newNode.childrenIDs) {
                  if (nodeMap.has(oldGrandChildID)) {
                     newGrandChildrenIDs.push(oldGrandChildID.substring(chosenNodeID.length));
-                }
+                 }
             }
             newNode.childrenIDs = newGrandChildrenIDs;
-            
             new_nodeMap.set(newChildID, newNode);
             
             q.push(oldChildID);
@@ -1448,6 +1452,7 @@ function pruneAndReroot(chosenNodeID) {
 
     nodeMap = new_nodeMap;
 }
+
 
 function boardsAreEqual(board1, board2) {
     if (!board1 || !board2) return false;
