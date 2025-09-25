@@ -320,8 +320,10 @@ left: 10px; top: 150px;">
     <button id="ai-debug-execute">Execute</button>
 </div>
 <div id="ai-tree-debug-display" style="display: none; position: fixed; z-index: 157; color: white; background: rgba(0,0,0,0.7); padding: 5px; font-family: monospace; font-size: 12px; left: 10px; top: 10px;"></div>
+<pre id="ai-path-debug-display" style="display: none; position: fixed; z-index: 158; color: white; background: rgba(0,0,0,0.8); padding: 10px; font-family: monospace; font-size: 14px; left: 10px; top: 70px; max-height: 400px; overflow: auto; border: 1px solid white; margin: 0;"></pre>
 <canvas id="mainCanvas"></canvas>
 <div id="scan-instructions" style="display: none;"></div>
+
 
         <div id="scan-controls" style="display: none; margin-top: 15px; gap: 10px; justify-content:center;">
              <button id="scanConfirmBtn" class="button">次へ</button>
@@ -2985,6 +2987,11 @@ requestAiMove() {
     }
 
     async executeAiMove(move) {
+        const debugDisplay = document.getElementById('ai-path-debug-display');
+        if(debugDisplay) {
+            debugDisplay.style.display = 'block';
+            debugDisplay.innerHTML = ''; 
+        }
         if (this.gameOver || !move) {
             this.isAiThinking = false;
             return;
@@ -3003,9 +3010,18 @@ requestAiMove() {
         const startState = { x: this.player.x, y: this.player.y, r: this.player.rotation };
         const targetState = { x: move.x, y: move.y, r: move.rotation };
         const minoType = this.player.pieceType;
+        
+        if(debugDisplay) {
+            debugDisplay.textContent += `AI Best Move: ${JSON.stringify(move, null, 2)}\n\n`;
+            debugDisplay.textContent += `Pathfinder Start: ${JSON.stringify(startState, null, 2)}\n\n`;
+        }
+        
         const pathfinderBoard = this.board.map(row => row.map(cell => (cell === null ? 0 : 1)));
-
         const path = this.findShortestPath_forAI(startState, targetState, minoType, pathfinderBoard);
+
+        if(debugDisplay) {
+            debugDisplay.textContent += `Pathfinder Result: ${JSON.stringify(path)}\n`;
+        }
 
         if (path) {
             for (const action of path) {
