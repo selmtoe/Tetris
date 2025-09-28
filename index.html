@@ -1539,7 +1539,11 @@ self.onmessage = (e) => {
             initialLayout = Array(TetrisBoard.HEIGHT).fill(null).map(() => Array(TetrisBoard.WIDTH).fill(null));
         }
         
-        const board = createBoardFromLayout(initialLayout);
+                const board = createBoardFromLayout(initialLayout);
+        
+        const chosenNodeID = bestNodeIDAtDepth1;
+        pruneAndReroot(chosenNodeID);
+
         const rootNode = nodeMap.get("");
         if (rootNode && rootNode.board && boardsAreEqual(rootNode.board, board)) {
             self.postMessage({type: 'debug', message: '探索木を引き継ぎました'});
@@ -1550,15 +1554,30 @@ self.onmessage = (e) => {
         currentMinoSequence = nextString.split('');
         runAI(board, currentMinoSequence, isB2B, ren);
         
-        isThinking = true;
-        thinkingLoop();
+        if (!isThinking) {
+            isThinking = true;
+            thinkingLoop();
+        }
 
-    } else if (type === 'stop') {
-        isThinking = false;
-        
+
+} else if (type === 'stop') {
         let bestMove = null;
         if (bestNodeIDAtDepth1 !== "" && nodeMap.has(bestNodeIDAtDepth1)) {
             bestMove = nodeMap.get(bestNodeIDAtDepth1).place;
+            
+            const rootNode = nodeMap.get("");
+            if (rootNode) {
+                for (const childId of rootNode.childrenIDs) {
+                    if (nodeMap.has(childId)) {
+                        const childNode = nodeMap.get(childId);
+                        if (childId === bestNodeIDAtDepth1) {
+                            childNode.acc_eval += 999999;
+                        } else {
+                            childNode.acc_eval -= 999999;
+                        }
+                    }
+                }
+            }
         } else {
             const rootNode = nodeMap.get("");
             if (rootNode && rootNode.childrenIDs.length > 0) {
@@ -1579,9 +1598,6 @@ self.onmessage = (e) => {
                 }
             }
         }
-        
-        const chosenNodeID = bestNodeIDAtDepth1;
-        pruneAndReroot(chosenNodeID);
         
         if (bestMove && bestMove.pieceType !== ' ') {
             let finalX;
@@ -1608,6 +1624,7 @@ self.onmessage = (e) => {
             self.postMessage(null);
         }
     }
+
 };
 `;
 
@@ -3462,7 +3479,7 @@ function populateAiSettingsTab() {
     inputTime.type = 'number';
     inputTime.min = 50;
     inputTime.max = 5000;
-    inputTime.step = 50;
+    inputTime.step = 0;
     inputTime.value = gameSettings.aiThinkingTime;
     inputTime.onchange = e => {
         gameSettings.aiThinkingTime = Math.max(50, Math.min(5000, parseInt(e.target.value, 10)));
@@ -4326,6 +4343,15 @@ if (gameSettings.touchControlsEnabled) {
 
 document.getElementById('backToEditorBtn').addEventListener('click', () => {
         gameState = 'EDITING';
+        
+        if (players.length > 0) {
+            players.forEach(p => {
+                if (p.aiWorker) {
+                    p.aiWorker.terminate();
+                }
+            });
+        }
+        
         players = [];
         loadGameSettings();
         document.getElementById('game-container').style.display = 'none';
@@ -4335,7 +4361,8 @@ document.getElementById('backToEditorBtn').addEventListener('click', () => {
         
         virtualController.hide();
         
-        const aiDebugDisplay = document.getElementById('ai-debug-display');
+     
+   const aiDebugDisplay = document.getElementById('ai-debug-display');
         const aiDebugControls = document.getElementById('ai-debug-controls');
         if(aiDebugDisplay) aiDebugDisplay.style.display = 'none';
         if(aiDebugControls) aiDebugControls.style.display = 'none';
@@ -4448,10 +4475,15 @@ document.getElementById('settingsBtn').addEventListener('click', () => openUnifi
             .catch(err => console.error('Service Worker registration failed:', err));
     }
     
-
 document.getElementById('retryBtn').addEventListener('click', () => {
         if (gameState !== 'PLAYING' || !players.length) return;
         
+        players.forEach(p => {
+            if (p.aiWorker) {
+                p.aiWorker.terminate();
+            }
+        });
+
         loadGameSettings();
         
         let currentRunSettings = { ...gameSettings };
