@@ -2785,14 +2785,10 @@ requestAiMove() {
         
         if (this.aiWorker) {
             this.aiWorker.postMessage(aiWorkerStartPayload);
-
-            setTimeout(() => {
-                if (this.isAiThinking) {
-                    this.aiWorker.postMessage({ type: 'stop' });
-                }
-            }, gameSettings.aiThinkingTime);
-}
+            this.aiWorker.postMessage({ type: 'stop' });
+        }
     }
+
 
     getMinoShape_forAI(type, rotation) {
         rotation = rotation % 4;
