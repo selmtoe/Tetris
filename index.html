@@ -1493,19 +1493,19 @@ function thinkingLoop() {
                 if (availableMinosForExpand.length > 0) {
                     for (const pieceForExpansion of availableMinosForExpand) {
                         expand(selectedNodeID, boardStateForExpansion, pieceForExpansion, placementsToSelectedNode);
-                    }
+}
                 }
             }
         }
     }
 
+    self.postMessage({ type: 'nodeCount', count: nodeMap.size });
     setTimeout(thinkingLoop, 0);
 }
 
 self.onmessage = (e) => {
     const { type, boardString, nextString, isB2B, ren } = e.data;
-
-    if (type === 'start') {
+if (type === 'start') {
         const createBoardFromLayout = (layout) => {
             const board = new TetrisBoard();
             const layoutHeight = layout.length;
@@ -2150,13 +2150,19 @@ class Player {
         this.isAiThinking = false;
         this.aiWorker = null;
 
-        if (this.isAi) {
+if (this.isAi) {
             this.aiWorker = new Worker(URL.createObjectURL(aiWorkerBlob));
 this.aiWorker.onmessage = (e) => {
                 if (e.data && e.data.type === 'debug') {
                     const debugDisplay = document.getElementById('ai-tree-debug-display');
-                    if (debugDisplay) {
+if (debugDisplay) {
                         debugDisplay.textContent = e.data.message;
+}
+                } else if (e.data && e.data.type === 'nodeCount') {
+                    const debugDisplay = document.getElementById('ai-tree-debug-display');
+                    if (debugDisplay) {
+                        debugDisplay.style.display = 'block';
+                        debugDisplay.textContent = `Nodes: ${e.data.count}`;
                     }
                 } else if (gameState === 'PLAYING' && this.isAiThinking) {
                     this.executeAiMove(e.data);
@@ -2166,6 +2172,7 @@ this.aiWorker.onmessage = (e) => {
 
         this.keys = {};
         const pData = editorData[`p${id}`];
+
         this.initialHold = pData.hold;
         this.board = pData.board.map(row => [...row]);
         this.minoGenerator = createMinoGenerator(pData.nextQueue);
@@ -2460,28 +2467,7 @@ lockPiece() {
         if (!this.player.pieceType) return;
         let tspinResult = this.checkForTSpin();
 
-        // AI操作の場合の独立したTスピン判定 (一時的なもので、後で削除する予定)
-        if (this.isAi && this.player.pieceType === 'T' ) {
-            const shape = this.getShape(this.player.pieceType, this.player.rotation);
-            let isCoveredFromAbove = false;
-            for (const block of shape) {
-                const blockX = Math.floor(this.player.x + block[0]);
-                const blockY = Math.floor(this.player.y + block[1]);
-
-                // 設置ミノの上が埋まっている→Tspin
-                if (blockY - 1 < 0 || (this.board[blockY - 1] && this.board[blockY - 1][blockX] !== null)) {
-                    isCoveredFromAbove = true;
-                    break;
-                }
-            }
-            // 1つでも上が埋まっていれば、他の条件に関わらずT-Spinとする
-            if (isCoveredFromAbove) {
-                tspinResult = 'TSPIN';
-            }
-        }
-
         const shape = this.getShape(this.player.pieceType, this.player.rotation);
-
         this.specialMoveText = [];
         let moveText = '';
 
@@ -3027,7 +3013,8 @@ requestAiMove() {
         if (path) {
             for (const action of path) {
                 switch (action) {
-                    case '←': this.player.x--; break;
+                    case '←': this.player.x--;
+                    break;
                     case '→': this.player.x++; break;
                     case '↓': this.player.y++; break;
                     case 'R': {
@@ -3054,6 +3041,13 @@ requestAiMove() {
                 }
                 await new Promise(resolve => setTimeout(resolve, 30));
             }
+        }
+
+        if (path && path.length > 0) {
+            const lastMeaningfulAction = path.at(-1) === '↑' && path.length > 1 ? path.at(-2) : path.at(-1);
+            this.lastMoveWasRotation = lastMeaningfulAction === 'R' || lastMeaningfulAction === 'L';
+        } else {
+            this.lastMoveWasRotation = false;
         }
 
         this.player.rotation = move.rotation;
