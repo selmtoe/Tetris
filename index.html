@@ -1465,7 +1465,7 @@ let currentMinoSequence = [];
 function thinkingLoop() {
     if (!isThinking) return;
 
-    for (let i = 0; i < 500; i++) {
+    for (let i = 0; i < 100; i++) {
         const rootID = "";
         let selectedNodeID = rootID;
         let depthOfSelectedNode = 0;
@@ -2011,7 +2011,8 @@ let gameSettings = {
     maxNext: 8,
     showEffects: true,
     touchControlsEnabled: 'ontouchstart' in window,
-    aiThinkingTime: 500,
+    aiMoveDelay: 30,
+    aiSdfDelay: 30,
 };
 
 const COLORS = { 'I': '#00f0f0', 'O': '#f0f000', 'T': '#a000f0', 'L': '#f0a000', 'J': '#0000f0', 'S': '#00f000', 'Z': '#f00000', 'G': '#999999', 'E': '#808080' };
@@ -2160,15 +2161,15 @@ if (debugDisplay) {
 }
                 } else if (e.data && e.data.type === 'nodeCount') {
                     const debugDisplay = document.getElementById('ai-tree-debug-display');
-                    if (debugDisplay) {
-                        debugDisplay.style.display = 'block';
-                        debugDisplay.textContent = `Nodes: ${e.data.count}`;
+if (debugDisplay) {
+                        
                     }
-                } else if (gameState === 'PLAYING' && this.isAiThinking) {
+} else if (gameState === 'PLAYING' && this.isAiThinking) {
+                    
                     this.executeAiMove(e.data);
-}
+                }
             };
-}
+        }
 
         this.keys = {};
         const pData = editorData[`p${id}`];
@@ -2465,6 +2466,7 @@ hold() {
 
 lockPiece() {
         if (!this.player.pieceType) return;
+        
         let tspinResult = this.checkForTSpin();
 
         const shape = this.getShape(this.player.pieceType, this.player.rotation);
@@ -2731,7 +2733,7 @@ const rX = PLAYFIELD_X_OFFSET + PLAYFIELD_WIDTH + PADDING + NEXT_AREA_WIDTH / 2;
 drawMessage(t) { const cX = PLAYFIELD_WIDTH / 2; const cY = CANVAS_HEIGHT / 2; ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(0, -0.5*BLOCK_SIZE, PLAYFIELD_WIDTH, CANVAS_HEIGHT); ctx.fillStyle = '#FFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `bold ${BLOCK_SIZE * 1.5}px "Orbitron"`; ctx.fillText(t, cX, cY); ctx.textBaseline = 'alphabetic'; }
 
 requestAiMove() {
-        this.isAiThinking = true;
+        this.isAiThinking = true; 
         const debugPayload = {
             playerId: this.id,
             board: this.board,
@@ -2982,8 +2984,8 @@ requestAiMove() {
 
         return null;
     }
-
-    async executeAiMove(move) {
+async executeAiMove(move) {
+        
         if (this.gameOver || !move) {
             this.isAiThinking = false;
             return;
@@ -2992,7 +2994,7 @@ requestAiMove() {
         if (this.player.pieceType !== move.piece) {
             if (this.canHold) {
                 this.hold();
-                await new Promise(resolve => setTimeout(resolve, 30));
+                await new Promise(resolve => setTimeout(resolve, gameSettings.aiMoveDelay));
             } else {
                 this.isAiThinking = false;
                 return;
@@ -3007,14 +3009,13 @@ requestAiMove() {
             startState.x += 1;
         }
         const pathfinderBoard = this.board.map(row => row.map(cell => (cell === null ? 0 : 1)));
-
         const path = this.findShortestPath_forAI(startState, targetState, minoType, pathfinderBoard);
 
         if (path) {
             for (const action of path) {
                 switch (action) {
                     case '←': this.player.x--;
-                    break;
+                        break;
                     case '→': this.player.x++; break;
                     case '↓': this.player.y++; break;
                     case 'R': {
@@ -3039,7 +3040,11 @@ requestAiMove() {
                         this.player.y = this.getGhostY();
                         break;
                 }
-                await new Promise(resolve => setTimeout(resolve, 30));
+                let delay = gameSettings.aiMoveDelay;
+                if (action === '↓') {
+                    delay = gameSettings.aiSdfDelay;
+                }
+                await new Promise(resolve => setTimeout(resolve, delay));
             }
         }
 
@@ -3048,18 +3053,17 @@ requestAiMove() {
             this.lastMoveWasRotation = lastMeaningfulAction === 'R' || lastMeaningfulAction === 'L';
         } else {
             this.lastMoveWasRotation = false;
-        }
+}
 
         this.player.rotation = move.rotation;
         this.player.x = move.x;
         this.player.y = move.y;
         
         this.lockPiece();
-
+        
         this.isAiThinking = false;
     }
 }
-
 function setupEditors() { ['p1', 'p2'].forEach(setupPlayerEditor);
 }
 
@@ -3461,21 +3465,26 @@ function populateAiSettingsTab() {
     itemType.append(labelType, selectType);
     list.appendChild(itemType);
 
-    const itemTime = document.createElement('div');
-    itemTime.className = 'setting-item';
-    const labelTime = document.createElement('span');
-    labelTime.textContent = 'AIの思考時間 (ms)';
-    const inputTime = document.createElement('input');
-    inputTime.type = 'number';
-    inputTime.min = 50;
-    inputTime.max = 5000;
-    inputTime.step = 0;
-    inputTime.value = gameSettings.aiThinkingTime;
-    inputTime.onchange = e => {
-        gameSettings.aiThinkingTime = Math.max(50, Math.min(5000, parseInt(e.target.value, 10)));
+    const settingDetails = {
+        aiMoveDelay: { label: 'AIの操作入力間隔 (ms)', min: 20, max: 500, step: 1 },
+        aiSdfDelay: { label: 'AI SDF (ms)', min: 0, max: 500, step: 1 }
     };
-    itemTime.append(labelTime, inputTime);
-    list.appendChild(itemTime);
+    
+    Object.keys(settingDetails).forEach(key => {
+        const item = document.createElement('div');
+        item.className = 'setting-item';
+        const label = document.createElement('span');
+        label.textContent = settingDetails[key].label;
+        const input = document.createElement('input');
+        input.type = 'number';
+        Object.assign(input, settingDetails[key]);
+        input.value = gameSettings[key];
+        input.onchange = e => {
+            gameSettings[key] = Math.max(settingDetails[key].min, Math.min(settingDetails[key].max, parseInt(e.target.value, 10)));
+        };
+        item.append(label, input);
+        list.appendChild(item);
+    });
 }
 
 function openUnifiedSettingsModal(initialTab = 'general') {
