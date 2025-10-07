@@ -4604,7 +4604,7 @@ document.getElementById('backToEditorBtn').addEventListener('click', () => {
         e.preventDefault();
         players[0].isDrawingOnBoard = true;
         const coords = getDrawCoordsFromEvent(e);
-        if (coords && coords.x >= 0 && coords.x < BOARD_WIDTH && coords.y >= 0 && coords.y < BOARD_HEIGHT) {
+        if (coords && coords.x >= 0 && coords.x < BOARD_WIDTH && coords.y >= 0 && coords.y < BOARD_HEIGHT && !players[0].board[coords.y][coords.x]) {
             players[0].drawnBlocks.set(`${coords.x},${coords.y}`, true);
         }
     };
@@ -4613,7 +4613,7 @@ document.getElementById('backToEditorBtn').addEventListener('click', () => {
         if (gameState !== 'PLAYING' || !gameSettings.touchControlsEnabled || gameSettings.touchControlType !== 'draw' || !players[0] || !players[0].isDrawingOnBoard) return;
         e.preventDefault();
         const coords = getDrawCoordsFromEvent(e);
-        if (coords && coords.x >= 0 && coords.x < BOARD_WIDTH && coords.y >= 0 && coords.y < BOARD_HEIGHT) {
+        if (coords && coords.x >= 0 && coords.x < BOARD_WIDTH && coords.y >= 0 && coords.y < BOARD_HEIGHT && !players[0].board[coords.y][coords.x]) {
             if (players[0].drawnBlocks.size < 4) {
                  players[0].drawnBlocks.set(`${coords.x},${coords.y}`, true);
             }
