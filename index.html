@@ -3132,37 +3132,22 @@ async executeAiMove(move) {
         const relativeCoords = blocks.slice(1).map(b => `${b.x - anchor.x},${b.y - anchor.y}`);
         const key = relativeCoords.sort().join(';');
 
-        const shapeInfo = DRAW_SHAPE_MAP[key];
+                const shapeInfo = DRAW_SHAPE_MAP[key];
         this.drawnBlocks.clear();
-        if (!shapeInfo) return;
+if (!shapeInfo) return;
 
         const targetPieceType = shapeInfo.type;
-        const availablePieces = [this.player.pieceType, this.holdPiece, ...this.nextQueue.slice(0, 5)];
-        const pieceIndex = availablePieces.indexOf(targetPieceType);
 
-        if (pieceIndex === -1) return;
-
-        if (pieceIndex === 0) {
-        } else if (pieceIndex === 1) {
+        if (targetPieceType === this.player.pieceType) {
+        } else if (targetPieceType === this.holdPiece) {
             this.hold();
         } else {
-            const nextIndex = pieceIndex - 2;
-            if (this.holdPiece) {
-                this.hold(); 
-                for (let i = 0; i < nextIndex; i++) {
-                    this.hold();
-                }
-            } else {
-                 this.hold();
-                 for (let i = 0; i < nextIndex; i++) {
-                     this.hold();
-                 }
-            }
+            return;
         }
         
         if (this.player.pieceType !== targetPieceType) {
             return;
-        }
+}
 
         this.player.x = anchor.x - shapeInfo.offset[0];
         this.player.y = anchor.y - shapeInfo.offset[1];
