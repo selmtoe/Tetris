@@ -3137,14 +3137,23 @@ async executeAiMove(move) {
 if (!shapeInfo) return;
 
         const targetPieceType = shapeInfo.type;
-
-        if (targetPieceType === this.player.pieceType) {
-        } else if (targetPieceType === this.holdPiece) {
-            this.hold();
-        } else {
-            return;
-        }
         
+        if (this.holdPiece) {
+            if (targetPieceType === this.player.pieceType) {
+            } else if (targetPieceType === this.holdPiece) {
+                this.hold();
+            } else {
+                return;
+            }
+        } else {
+            if (targetPieceType === this.player.pieceType) {
+            } else if (targetPieceType === this.nextQueue[0]) {
+                this.hold();
+            } else {
+                return;
+            }
+        }
+
         if (this.player.pieceType !== targetPieceType) {
             return;
 }
