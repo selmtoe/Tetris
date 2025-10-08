@@ -3148,7 +3148,7 @@ this.isAiThinking = false;
         }
 
         this.isExecutingSequence = false;
-    }
+}
     
     async processDrawing() {
         if (this.drawnBlocks.size !== 4) {
@@ -3171,34 +3171,51 @@ const relativeCoords = blocks.slice(1).map(b => `${b.x - anchor.x},${b.y - ancho
 if (!shapeInfo) return;
 
         const targetPieceType = shapeInfo.type;
-
-        if (this.player.pieceType !== targetPieceType) {
-            if (this.canHold && (this.holdPiece === targetPieceType || (!this.holdPiece && this.nextQueue[0] === targetPieceType))) {
-                this.hold();
-await new Promise(resolve => setTimeout(resolve, gameSettings.drawMoveDelay));
-            } else {
-                return;
-}
-        }
-
-        
-        if (this.player.pieceType !== targetPieceType) {
-            return;
-}
-
-        const startState = { x: this.player.x, y: this.player.y, r: this.player.rotation };
         const targetState = {
             x: anchor.x - shapeInfo.offset[0],
             y: anchor.y - shapeInfo.offset[1],
             r: shapeInfo.rot
         };
-const pathfinderBoard = this.board.map(row => row.map(cell => (cell === null ? 0 : 1)));
-        
-        const path = this.findShortestPath_forAI(startState, targetState, this.player.pieceType, pathfinderBoard);
 
+        let path = null;
+        let startState = null;
+        let pieceForPathfinding = null;
+        let holdIsNeeded = false;
+
+        if (this.player.pieceType === targetPieceType) {
+            pieceForPathfinding = this.player.pieceType;
+            startState = { x: this.player.x, y: this.player.y, r: this.player.rotation };
+            holdIsNeeded = false;
+        } else if (this.canHold && (this.holdPiece === targetPieceType || (!this.holdPiece && this.nextQueue[0] === targetPieceType))) {
+            pieceForPathfinding = targetPieceType;
+            holdIsNeeded = true;
+            
+            const spawnX = Math.floor(BOARD_WIDTH / 2) - Math.floor(TETROMINOS[pieceForPathfinding].center[0]) - 1;
+            const tempShape = this.getShape(pieceForPathfinding, 0);
+            let spawnY = 19;
+            if (this.checkCollision(spawnX, spawnY, tempShape)) {
+                spawnY = 18;
+            }
+            startState = { x: spawnX, y: spawnY, r: 0 };
+        }
+        
+        if (startState) {
+            if (pieceForPathfinding === 'I') {
+                startState.x += 1;
+                targetState.x += 1;
+            }
+            
+            const pathfinderBoard = this.board.map(row => row.map(cell => (cell === null ? 0 : 1)));
+            path = this.findShortestPath_forAI(startState, targetState, pieceForPathfinding, pathfinderBoard);
+        }
+        
         if (path) {
+            if (holdIsNeeded) {
+                this.hold();
+                await new Promise(resolve => setTimeout(resolve, gameSettings.drawMoveDelay));
+            }
             await this.executeDrawMove(path);
-}
+        }
     }
 }
 function setupEditors() { ['p1', 'p2'].forEach(setupPlayerEditor);
