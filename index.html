@@ -3201,6 +3201,7 @@ if (!shapeInfo) return;
         
         if (startState) {
             if (pieceForPathfinding === 'I') {
+                startState.x += 1;
                 targetState.x += 1;
             }
             
