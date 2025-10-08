@@ -374,13 +374,22 @@ position: fixed; top: 10px; right: 10px; z-index: 160; gap: 10px;">
             
             <h3><br>タッチ操作設定 (P1)</h3>
             <p></p>
-            <div id="p1-touch-mode-selection" style="display: flex; justify-content: center; gap: 10px; margin-bottom: 15px;">
+                        <div id="p1-touch-mode-selection" style="display: flex;
+justify-content: center; gap: 10px; margin-bottom: 15px;">
                 <button class="button active" data-touch-mode="button">Button</button>
                 <button class="button" data-touch-mode="draw">Draw</button>
             </div>
-            <div class="modal-controls" id="p1-touch-button-controls" style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+            <div id="p1-touch-draw-controls" style="display: none; margin-top: 15px; justify-content: center;">
+                 <div class="setting-item" style="padding: 5px 15px; max-width: 300px;">
+                    <label for="draw-move-delay-input">操作間隔 (ms)</label>
+                    <input type="number" id="draw-move-delay-input" min="0" max="200" step="1" style="width: 80px; min-width: 80px;">
+                </div>
+            </div>
+            <div class="modal-controls" id="p1-touch-button-controls" style="display: flex;
+justify-content: center; gap: 10px; flex-wrap: wrap;">
                 <button id="vc-edit-layout-btn" class="button">ボタン配置モードへ</button>
                 <button id="vc-copy-layout-btn" class="button">配置をコピー</button>
+
                 <button id="vc-paste-layout-btn" class="button">配置をインポート</button>
             </div>
         </div>
@@ -2024,7 +2033,9 @@ let gameSettings = {
     touchControlType: 'button',
     aiMoveDelay: 30,
     aiSdfDelay: 30,
+    drawMoveDelay: 30,
 };
+
 const DRAW_SHAPE_MAP = {
     "1,0;2,0;3,0": { type: "I", rot: 0, offset: [0, 0] },
     "0,1;0,2;0,3": { type: "I", rot: 1, offset: [2, -1] },
@@ -3125,7 +3136,7 @@ this.isAiThinking = false;
 
         for (const action of path) {
             if (this.gameOver || this.gameClear) break;
-            switch (action) {
+                        switch (action) {
                 case '←': this.move(-1, 0); break;
                 case '→': this.move(1, 0); break;
                 case '↓': this.move(0, 1); break;
@@ -3133,7 +3144,7 @@ this.isAiThinking = false;
                 case 'L': this.rotate(-1); break;
                 case '↑': this.hardDrop(); break;
             }
-            await new Promise(resolve => setTimeout(resolve, 30));
+            await new Promise(resolve => setTimeout(resolve, gameSettings.drawMoveDelay));
         }
 
         this.isExecutingSequence = false;
@@ -3164,11 +3175,12 @@ if (!shapeInfo) return;
         if (this.player.pieceType !== targetPieceType) {
             if (this.canHold && (this.holdPiece === targetPieceType || (!this.holdPiece && this.nextQueue[0] === targetPieceType))) {
                 this.hold();
-await new Promise(resolve => setTimeout(resolve, 30));
+await new Promise(resolve => setTimeout(resolve, gameSettings.drawMoveDelay));
             } else {
                 return;
 }
         }
+
         
         if (this.player.pieceType !== targetPieceType) {
             return;
@@ -3652,16 +3664,34 @@ function populateKeyConfigTab(playerId) {
         btn.textContent = keyBindings[playerId][action].label;
         btn.onclick = () => {
             isBindingKey = true; bindingPlayer = playerId; bindingAction = action;
-            btn.textContent = '入力待機中...';
+            btn.textContent = 
+'入力待機中...';
             list.querySelectorAll('button').forEach(b => { if (b !== btn) b.disabled = true; });
         };
         item.appendChild(label); item.appendChild(btn); list.appendChild(item);
     });
+    if (playerId === 'p1') {
+        const drawMoveDelayInput = document.getElementById('draw-move-delay-input');
+        if (drawMoveDelayInput) {
+            drawMoveDelayInput.value = gameSettings.drawMoveDelay;
+            drawMoveDelayInput.onchange = e => {
+                const val = parseInt(e.target.value, 10);
+                if (!isNaN(val)) gameSettings.drawMoveDelay = Math.max(0, Math.min(200, val));
+            };
+        }
+        const touchModeButtons = document.querySelectorAll('#p1-touch-mode-selection .button');
+        touchModeButtons.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.touchMode === gameSettings.touchControlType);
+        });
+        document.getElementById('p1-touch-button-controls').style.display = gameSettings.touchControlType === 'button' ? 'flex' : 'none';
+        document.getElementById('p1-touch-draw-controls').style.display = gameSettings.touchControlType === 'draw' ? 'flex' : 'none';
+    }
 }
 
 
 
 function populateAiSettingsTab() {
+
     const list = document.getElementById('ai-settings-list');
     list.innerHTML = '';
 
@@ -4670,17 +4700,20 @@ e.preventDefault();
     });
 
     const touchModeButtons = document.querySelectorAll('#p1-touch-mode-selection .button');
-    touchModeButtons.forEach(button => {
+        touchModeButtons.forEach(button => {
         button.addEventListener('click', () => {
             const newMode = button.dataset.touchMode;
             gameSettings.touchControlType = newMode;
             touchModeButtons.forEach(btn => btn.classList.remove('active'));
             button.classList.add('active');
             document.getElementById('p1-touch-button-controls').style.display = newMode === 'button' ? 'flex' : 'none';
-        });
+            document.getElementById('p1-touch-draw-controls').style.display = newMode === 'draw' ? 'flex' : 'none';
+       
+ });
     });
 
     document.getElementById('vc-save-and-close-btn').addEventListener('click', () => {
+
         virtualController.endEditMode();
     });
     document.getElementById('vc-copy-layout-btn').addEventListener('click', virtualController.copyLayoutsToClipboard);
