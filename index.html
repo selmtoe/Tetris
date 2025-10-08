@@ -3203,6 +3203,7 @@ if (!shapeInfo) return;
             if (pieceForPathfinding === 'I') {
                 startState.x += 1;
                 targetState.x += 1;
+                startState.y += 1;
             }
             
             const pathfinderBoard = this.board.map(row => row.map(cell => (cell === null ? 0 : 1)));
