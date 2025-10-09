@@ -2940,13 +2940,42 @@ requestAiMove() {
         return null;
     }
 
+    checkTSpinCondition_forAI(target, minoType, currentBoard) {
+        if (minoType !== 'T') {
+            return false;
+        }
+        const { x, y } = target;
+        const offsets = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
+        let filledCorners = 0;
+        for (const [dx, dy] of offsets) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx < 0 || nx >= BOARD_WIDTH || ny < 0 || ny >= BOARD_HEIGHT || (ny >= 0 && currentBoard[ny][nx])) {
+                filledCorners++;
+            }
+        }
+        return filledCorners >= 3;
+    }
+
     findShortestPath_forAI(start, target, minoType, currentBoard) {
         const queue = [[start.x, start.y, start.r, []]];
         const visited = new Set();
         visited.add(`${start.x},${start.y},${start.r}`);
 
+        let shortestPath = null;
+        let preferredPath = null;
+
+        const isTSpinPriority = this.checkTSpinCondition_forAI(target, minoType, currentBoard);
+
         while (queue.length > 0) {
             const [x, y, r, path] = queue.shift();
+
+            if (preferredPath && path.length >= preferredPath.length) {
+                continue;
+            }
+            if (!isTSpinPriority && shortestPath && path.length >= shortestPath.length) {
+                continue;
+            }
 
             if (x === target.x && r === target.r) {
                 let finalY = y;
@@ -2954,12 +2983,25 @@ requestAiMove() {
                     finalY++;
                 }
                 if (finalY === target.y) {
-                    return [...path, '↑'];
+                    const finalPath = [...path, '↑'];
+                    if (!shortestPath) {
+                        shortestPath = finalPath;
+                    }
+
+                    if (isTSpinPriority && !preferredPath) {
+                        const isGrounded = this.checkCollision_forAI(minoType, x, y + 1, r, currentBoard);
+                        if (path.length > 0) {
+                            const lastMove = path[path.length - 1];
+                            if ((lastMove === 'R' || lastMove === 'L') && isGrounded) {
+                                preferredPath = finalPath;
+                            }
+                        }
+                    }
+                    continue;
                 }
             }
 
             const actions = ['R', 'L', '←', '→', '↓'];
-
             for (const action of actions) {
                 let nextState = null;
                 let newPath = [...path, action];
@@ -2991,6 +3033,11 @@ requestAiMove() {
                 }
             }
         }
+
+        const foundPath = preferredPath || shortestPath;
+        if (foundPath) {
+            return foundPath;
+        }
         
         let alternativeTarget = null;
         if (minoType === 'I' || minoType === 'S' || minoType === 'Z') {
@@ -3003,13 +3050,20 @@ requestAiMove() {
             } else if (minoType === 'S') {
                 if (tr === 0) alternativeTarget = { x: tx, y: ty - 1, r: 2 };
                 else if (tr === 2) alternativeTarget = { x: tx, y: ty + 1, r: 0 };
+
                 else if (tr === 1) alternativeTarget = { x: tx + 1, y: ty, r: 3 };
+
                 else if (tr === 3) alternativeTarget = { x: tx - 1, y: ty, r: 1 };
+
             } else if (minoType === 'Z') {
                 if (tr === 0) alternativeTarget = { x: tx, y: ty - 1, r: 2 };
+
                 else if (tr === 2) alternativeTarget = { x: tx, y: ty + 1, r: 0 };
+
                 else if (tr === 1) alternativeTarget = { x: tx + 1, y: ty, r: 3 };
+
                 else if (tr === 3) alternativeTarget = { x: tx - 1, y: ty, r: 1 };
+ 
             }
         }
 
@@ -3018,30 +3072,44 @@ requestAiMove() {
             const visited2 = new Set([`${start.x},${start.y},${start.r}`]);
             while (queue2.length > 0) {
                  const [x, y, r, path] = queue2.shift();
+
                  if (x === alternativeTarget.x && r === alternativeTarget.r) {
                      let finalY = y;
+
                      while (!this.checkCollision_forAI(minoType, x, finalY + 1, r, currentBoard)) {
                          finalY++;
+
                      }
                      if (finalY === alternativeTarget.y) {
                          return [...path, '↑'];
+
                      }
                  }
                  const actions = ['R', 'L', '←', '→', '↓'];
+
                  for (const action of actions) {
                      let nextState = null;
+
                      let newPath = [...path, action];
                      switch (action) {
-                         case '←': nextState = { x: x - 1, y: y, r: r }; break;
+                         case '←': nextState = { x: x - 1, y: y, r: r };
+
+                         break;
                          case '→': nextState = { x: x + 1, y: y, r: r }; break;
+
                          case '↓': nextState = { x: x, y: y + 1, r: r }; break;
+
                          case 'R': nextState = this.tryRotate_forAI(minoType, x, y, r, 1, currentBoard); break;
+
                          case 'L': nextState = this.tryRotate_forAI(minoType, x, y, r, -1, currentBoard); break;
+
                      }
                      if (nextState) {
                          const stateKey = `${nextState.x},${nextState.y},${nextState.r}`;
+
                          if (!visited2.has(stateKey) && !this.checkCollision_forAI(minoType, nextState.x, nextState.y, nextState.r, currentBoard)) {
                              visited2.add(stateKey);
+
                              queue2.push([nextState.x, nextState.y, nextState.r, newPath]);
                          }
                      }
@@ -3050,8 +3118,11 @@ requestAiMove() {
         }
 
         return null;
+
     }
 async executeAiMove(move) {
+
+
         
         if (this.gameOver || !move) {
             this.isAiThinking = false;
