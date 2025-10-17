@@ -2238,14 +2238,17 @@ class Player {
 reset() {
         this.player = { x: 0, y: 0, pieceType: null, rotation: 0 };
 this.nextQueue = [];
+        this.fullMinoSequence = [];
         for (let i = 0; i < gameSettings.maxNext; i++) {
-            this.nextQueue.push(this.minoGenerator.next().value);
+            const newMino = this.minoGenerator.next().value;
+            this.nextQueue.push(newMino);
+            this.fullMinoSequence.push(newMino);
 }
         this.isExecutingSequence = false;
         this.drawnBlocks.clear();
         this.isDrawingOnBoard = false;
         this.customGhosts = [];
-        this.holdPiece = this.initialHold;this.canHold = true;
+this.holdPiece = this.initialHold;this.canHold = true;
 this.gravityTimer = gameSettings.gravity; this.lockTimer = 0;
 
         this.dasTimer = 0; this.arrTimer = 0; this.sdfTimer = 0; this.dasDirection = 0;
@@ -2271,9 +2274,13 @@ this.gravityTimer = gameSettings.gravity; this.lockTimer = 0;
     }
 
     
+        
     spawnNewPiece() {
         this.player.pieceType = this.nextQueue.shift();
-        this.nextQueue.push(this.minoGenerator.next().value);
+        const newMino = this.minoGenerator.next().value;
+        this.nextQueue.push(newMino);
+        this.fullMinoSequence.push(newMino);
+
         
         this.player.rotation = 0;
         this.canHold = true;
@@ -2496,7 +2503,7 @@ const ghostY = this.getGhostY(); if (ghostY > this.player.y) this.drawPiece(shap
                     const [x, y] = key.split(',').map(Number);
                     const screenY = y - this.viewY;
                     if (screenY >= 0 && screenY < BOARD_VISIBLE_HEIGHT) {
-                        ctx.globalAlpha = 0.3;
+                        ctx.globalAlpha = 0.15;
                         ctx.fillStyle = activeSkin[pieceType] || '#FFF';
                         ctx.fillRect(x * BLOCK_SIZE, screenY * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
                         ctx.globalAlpha = 1.0;
@@ -4706,17 +4713,46 @@ players[1] : null;
                     console.warn(`Rule tried to force unknown setting: ${key}`);
                 }
             },
-            p1: p1Proxy,
-            p2: p2Proxy
-        };
+                        p1: p1Proxy,
+            p2: p2Proxy,
+            getPiece: (player, type, index = 0) => {
+                const targetPlayer = (player === p1Proxy && players[0]) ? players[0] : (player === p2Proxy && players[1]) ? players[1] : null;
+                if (!targetPlayer) return undefined;
+                if (type === 'hold') {
+                    return targetPlayer.holdPiece;
+                }
+                if (type === 'next') {
+                    return targetPlayer.nextQueue[index];
+                }
+                return undefined;
+            },
+            getFullSequence: (player) => {
+                const targetPlayer = (player === p1Proxy && players[0]) ? players[0] : (player === p2Proxy && players[1]) ? players[1] : null;
+                if (!targetPlayer) return [];
+                return [...targetPlayer.fullMinoSequence];
+            },
+            setPiece: (player, type, piece, index = 0) => {
+                const targetPlayer = (player === p1Proxy && players[0]) ? players[0] : (player === p2Proxy && players[1]) ? players[1] : null;
+                if (!targetPlayer) return;
+                const isValidPiece = Object.keys(TETROMINOS).includes(piece) || piece === null;
+                if (!isValidPiece) return;
 
-        
-        if (editorData.rule.code) {
+                if (type === 'hold') {
+                    targetPlayer.holdPiece = piece;
+                } else if (type === 'next' && index >= 0 && index < targetPlayer.nextQueue.length) {
+                    targetPlayer.nextQueue[index] = piece;
+                }
+            }
+        };
+if (editorData.rule.code) {
             try {
                 const combinedCode = editorData.rule.code + 
-                    `\nreturn { 
-                        onInit: typeof onInit === 'function' ? onInit : undefined,
-     onPieceLock: typeof onPieceLock === 'function' ? onPieceLock : undefined,
+                    `
+return { 
+                        onInit: typeof onInit === 'function' ?
+onInit : undefined,
+     onPieceLock: typeof onPieceLock === 'function' ?
+onPieceLock : undefined,
                         onUpdate: typeof onUpdate === 'function' ?
 onUpdate : undefined
                     };`;
@@ -5136,17 +5172,45 @@ tempPlayers[1] : null;
                     console.warn(`Rule tried to force unknown setting: ${key}`);
                 }
             },
-            p1: p1Proxy,
-            p2: p2Proxy
-        };
+                        p1: p1Proxy,
+            p2: p2Proxy,
+            getPiece: (player, type, index = 0) => {
+                const targetPlayer = (player === p1Proxy && players[0]) ? players[0] : (player === p2Proxy && players[1]) ? players[1] : null;
+                if (!targetPlayer) return undefined;
+                if (type === 'hold') {
+                    return targetPlayer.holdPiece;
+                }
+                if (type === 'next') {
+                    return targetPlayer.nextQueue[index];
+                }
+                return undefined;
+            },
+            getFullSequence: (player) => {
+                const targetPlayer = (player === p1Proxy && players[0]) ? players[0] : (player === p2Proxy && players[1]) ? players[1] : null;
+                if (!targetPlayer) return [];
+                return [...targetPlayer.fullMinoSequence];
+            },
+            setPiece: (player, type, piece, index = 0) => {
+                const targetPlayer = (player === p1Proxy && players[0]) ? players[0] : (player === p2Proxy && players[1]) ? players[1] : null;
+                if (!targetPlayer) return;
+                const isValidPiece = Object.keys(TETROMINOS).includes(piece) || piece === null;
+                if (!isValidPiece) return;
 
-     
-   if (editorData.rule.code) {
+                if (type === 'hold') {
+                    targetPlayer.holdPiece = piece;
+                } else if (type === 'next' && index >= 0 && index < targetPlayer.nextQueue.length) {
+                    targetPlayer.nextQueue[index] = piece;
+                }
+            }
+        };
+if (editorData.rule.code) {
             try {
                 const combinedCode = editorData.rule.code + 
-                    `\nreturn { 
-                      onInit: typeof onInit === 'function' ? onInit : undefined,
-                        onPieceLock: typeof onPieceLock === 'function' ?
+                    `
+return { 
+                        onInit: typeof onInit === 'function' ?
+onInit : undefined,
+     onPieceLock: typeof onPieceLock === 'function' ?
 onPieceLock : undefined,
                         onUpdate: typeof onUpdate === 'function' ?
 onUpdate : undefined
