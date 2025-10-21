@@ -2087,7 +2087,7 @@ for (const key in SCAN_COLOR_PALETTE) {
 const SCAN_COLORS = { ...COLORS, 'O': '#999A02', 'L': '#f0a000' };
 const activeSkinColors = { ...COLORS };
 const MINO_SKINS = { default: {} };
-['I', 'O', 'T', 'L', 'J', 'S', 'Z', 'G', 'E'].forEach(k => MINO_SKINS.default[k] = new Image());
+['I', 'O', 'T', 'L', 'J', 'S', 'Z', 'G', 'E', 'BG'].forEach(k => MINO_SKINS.default[k] = new Image());
 let activeSkin = MINO_SKINS.default;
 
 const EDITOR_COLORS = {...COLORS, 'EMPTY': '#000000'};
@@ -2483,13 +2483,27 @@ if (this.isActionPressed('softDrop')) {
         }
     }
 draw() {
-        ctx.save(); ctx.translate(this.offsetX, 0);
+        ctx.save();
+ctx.translate(this.offsetX, 0);
         this.drawUI();
 
         ctx.save(); ctx.translate(PLAYFIELD_X_OFFSET, 0.5 * BLOCK_SIZE);
-        ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, PLAYFIELD_WIDTH, CANVAS_HEIGHT);
+        if (activeSkin['BG'] && activeSkin['BG'].src) {
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(0, 0, PLAYFIELD_WIDTH, CANVAS_HEIGHT);
+            
+            for (let y = 0; y < BOARD_VISIBLE_HEIGHT; y++) {
+                for (let x = 0; x < BOARD_WIDTH; x++) {
+                    ctx.drawImage(activeSkin['BG'], x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                }
+            }
+        } else {
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+
+            ctx.fillRect(0, 0, PLAYFIELD_WIDTH, CANVAS_HEIGHT);
+        }
         ctx.strokeStyle = '#444';
-        ctx.lineWidth = 0.5;
+ctx.lineWidth = 0.5;
         for (let y = 0; y < BOARD_VISIBLE_HEIGHT; y++) {
             for (let x = 0; x < BOARD_WIDTH; x++) {
                 ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
@@ -2675,13 +2689,13 @@ this.specialMoveText.push("PERFECT CLEAR");
 
         if (this.opponent && attack > 0) {
             let remainingAttack = attack;
-             if (isPC) {
-                this.opponent.addGarbage(remainingAttack);
-            } else {
-                if (this.pendingGarbage > 0) { const offset = Math.min(this.pendingGarbage, remainingAttack); this.pendingGarbage -= offset; remainingAttack -= offset; }
-                if (remainingAttack > 0) { for (let i=0; i < this.garbageQueue.length && remainingAttack > 0; i++) { const offset = Math.min(this.garbageQueue[i].lines, remainingAttack); this.garbageQueue[i].lines -= offset; remainingAttack -= offset; } this.garbageQueue = this.garbageQueue.filter(g => g.lines > 0); }
-                if (remainingAttack > 0) { this.opponent.addGarbage(remainingAttack); }
-            }
+                if (this.pendingGarbage > 0) { const offset = Math.min(this.pendingGarbage, remainingAttack);
+this.pendingGarbage -= offset; remainingAttack -= offset; }
+                if (remainingAttack > 0) { for (let i=0; i < this.garbageQueue.length && remainingAttack > 0; i++) { const offset = Math.min(this.garbageQueue[i].lines, remainingAttack);
+this.garbageQueue[i].lines -= offset; remainingAttack -= offset; } this.garbageQueue = this.garbageQueue.filter(g => g.lines > 0);
+}
+                if (remainingAttack > 0) { this.opponent.addGarbage(remainingAttack);
+}
 }
         
         if (this.activeRuleHooks.onPieceLock) {
@@ -3591,10 +3605,16 @@ endIcon.addEventListener('click', () => {
 
     const autoSwatch = document.createElement('div');
     autoSwatch.className = 'color-swatch';
-autoSwatch.style.alignItems = 'center';
+    autoSwatch.style.display = 'flex';
+    autoSwatch.style.alignItems = 'center';
     autoSwatch.style.justifyContent = 'center';
     autoSwatch.style.fontFamily = 'var(--font-display)';
-autoSwatch.addEventListener('click', () => {
+    autoSwatch.style.backgroundColor = '#FFFFFF';
+    autoSwatch.style.color = '#000000';
+    autoSwatch.style.fontSize = '12px';
+    autoSwatch.style.fontWeight = 'bold';
+    autoSwatch.textContent = 'AUTO';
+    autoSwatch.addEventListener('click', () => {
         editorData[playerId].activeColor = 'AUTO';
         palette.querySelector('.active')?.classList.remove('active');
         autoSwatch.classList.add('active');
@@ -3882,10 +3902,21 @@ function drawEditorField(playerId) {
     const canvas = document.getElementById(`field-editor-canvas-${playerId}`),
         ctx = canvas.getContext('2d'),
         data = editorData[playerId];
-    ctx.fillStyle = '#0f0f18';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = '#444'; 
-    ctx.lineWidth = 1;
+if (activeSkin['BG'] && activeSkin['BG'].src) {
+        ctx.fillStyle = '#0f0f18';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        for (let y = 0; y < BOARD_VISIBLE_HEIGHT; y++) {
+            for (let x = 0; x < BOARD_WIDTH; x++) {
+                ctx.drawImage(activeSkin['BG'], x * EDITOR_BLOCK_SIZE, y * EDITOR_BLOCK_SIZE, EDITOR_BLOCK_SIZE, EDITOR_BLOCK_SIZE);
+            }
+        }
+} else {
+        ctx.fillStyle = '#0f0f18';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    ctx.strokeStyle = '#444';
+ctx.lineWidth = 1;
     for (let y = 0; y < BOARD_VISIBLE_HEIGHT; y++) {
         for (let x = 0; x < BOARD_WIDTH; x++) {
             const pieceType = data.board[y + data.viewY]?.[x];
@@ -3931,15 +3962,74 @@ function saveGameSettings() {
         localStorage.setItem('tetrisGameSettings', JSON.stringify(gameSettings));
     } catch (e) { console.error("Failed to save game settings to localStorage:", e); }
 }
-
+    
 function loadGameSettings() {
     try {
         const saved = localStorage.getItem('tetrisGameSettings');
-        if (saved) {
+if (saved) {
             const parsed = JSON.parse(saved);
             Object.assign(gameSettings, parsed);
+}
+    } catch(e) { console.error('Failed to load settings from localStorage:', e);
+}
+}
+
+const SKIN_STORAGE_KEY = 'tetrisCustomSkins';
+
+function saveSkinsToLocalStorage() {
+    try {
+        const skinsToSave = {};
+        const validTypes = ['I', 'O', 'T', 'L', 'J', 'S', 'Z', 'G', 'E', 'BG'];
+        validTypes.forEach(key => {
+            if (activeSkin[key] && activeSkin[key].src) {
+                skinsToSave[key] = activeSkin[key].src;
+            }
+        });
+        localStorage.setItem(SKIN_STORAGE_KEY, JSON.stringify(skinsToSave));
+    } catch (e) {
+        console.error("Failed to save skins to localStorage:", e);
+    }
+}
+
+function loadSkinsFromLocalStorage() {
+    try {
+        const savedSkins = localStorage.getItem(SKIN_STORAGE_KEY);
+        if (savedSkins) {
+            const parsedSkins = JSON.parse(savedSkins);
+            const validTypes = ['I', 'O', 'T', 'L', 'J', 'S', 'Z', 'G', 'E', 'BG'];
+            let skinsLoaded = false;
+            Object.keys(parsedSkins).forEach(key => {
+                if (validTypes.includes(key) && parsedSkins[key]) {
+                    activeSkin[key] = new Image();
+                    activeSkin[key].src = parsedSkins[key];
+                    skinsLoaded = true;
+                }
+            });
+            return skinsLoaded;
         }
-    } catch(e) { console.error('Failed to load settings from localStorage:', e); }
+    } catch (e) {
+        console.error("Failed to load skins from localStorage:", e);
+    }
+    return false;
+}
+
+function resetSkins() {
+    if (!confirm('保存されているカスタムスキンをすべて削除し、デフォルトに戻しますか？')) return;
+    try {
+        localStorage.removeItem(SKIN_STORAGE_KEY);
+        activeSkin = MINO_SKINS.default;
+        ['I', 'O', 'T', 'L', 'J', 'S', 'Z', 'G', 'E', 'BG'].forEach(k => MINO_SKINS.default[k] = new Image());
+        activeSkin = MINO_SKINS.default;
+        
+        ['p1', 'p2'].forEach(setupPlayerEditor);
+        ['p1', 'p2'].forEach(updateNextQueueDisplay);
+        ['p1', 'p2'].forEach(drawEditorField);
+        
+        alert('スキンをリセットしました。');
+    } catch (e) {
+        console.error("Failed to reset skins:", e);
+        alert('スキンのリセットに失敗しました。');
+    }
 }
 
 function populateGeneralSettingsTab() {
@@ -3990,7 +4080,7 @@ Object.entries(checkboxSettings).forEach(([key, text], index) => {
     skinItem.style.cssText = 'margin-top:20px; border-top:1px solid var(--primary-color); padding-top:15px; flex-direction: column; align-items: flex-start; gap: 10px;';
     
     const skinLabel = document.createElement('label');
-    skinLabel.textContent = 'カスタムスキン (I,O,T,L,J,S,Z,G,E.png)';
+skinLabel.textContent = 'カスタムスキン (I,O,T,L,J,S,Z,G,BG.png)';
     
     const skinInput = document.createElement('input');
     skinInput.type = 'file';
@@ -4017,26 +4107,38 @@ Object.entries(checkboxSettings).forEach(([key, text], index) => {
         
         for (const file of files) {
             const pieceType = file.name.split('.')[0].toUpperCase();
-            const validTypes = ['I', 'O', 'T', 'L', 'J', 'S', 'Z', 'G', 'E'];
+            const validTypes = ['I', 'O', 'T', 'L', 'J', 'S', 'Z', 'G', 'E', 'BG'];
             
             if (validTypes.includes(pieceType)) {
                 const reader = new FileReader();
-                reader.onload = (re) => {
+              
+  reader.onload = (re) => {
                     activeSkin[pieceType].src = re.target.result;
-                    activeSkin[pieceType].onload = redrawEditors;
-                    activeSkin[pieceType].onerror = redrawEditors;
+                    activeSkin[pieceType].onload = () => {
+                        redrawEditors();
+                        saveSkinsToLocalStorage();
+                    };
+activeSkin[pieceType].onerror = () => {
+                        redrawEditors();
+                        saveSkinsToLocalStorage();
+                    };
                 };
                 reader.onerror = redrawEditors;
                 reader.readAsDataURL(file);
             } else {
-                redrawEditors(); 
-            }
+                redrawEditors();
+}
         }
     });
     
-    skinItem.append(skinLabel, skinInput);
-    list.appendChild(skinItem);
+    const skinResetButton = document.createElement('button');
+    skinResetButton.className = 'button';
+    skinResetButton.textContent = 'カスタムスキンをリセット';
+    skinResetButton.style.marginTop = '10px';
+    skinResetButton.onclick = resetSkins;
     
+    skinItem.append(skinLabel, skinInput, skinResetButton);
+    list.appendChild(skinItem);
 }
 
 
@@ -4155,7 +4257,7 @@ function openUnifiedSettingsModal(initialTab = 'general') {
 function startScanProcess(file, playerId) { const reader = new FileReader(); reader.onload = e => { scanState.image = new Image(); scanState.image.onload = () => { scanState.targetPlayerId = playerId; scanState.bottomLeft = null; scanState.topRight = null; gameState = 'SCAN_BL'; document.getElementById('editor-container').style.display = 'none'; document.getElementById('game-container').style.display = 'block'; document.getElementById('scan-controls').style.display = 'flex'; 
 const ar = scanState.image.naturalWidth / scanState.image.naturalHeight; const displayMaxWidth = window.innerWidth * 0.9; const displayMaxHeight = window.innerHeight * 0.8; let displayWidth = displayMaxWidth; let displayHeight = displayWidth / ar; if (displayHeight > displayMaxHeight) { displayHeight = displayMaxHeight; displayWidth = displayHeight * ar; } const canvasWidth = Math.min(2048, scanState.image.naturalWidth); mainCanvas.width = canvasWidth; mainCanvas.height = canvasWidth / ar; mainCanvas.style.width = `${displayWidth}px`; mainCanvas.style.height = `${displayHeight}px`; updateScanUI(); setTimeout(updateScale, 0);}; scanState.image.src = e.target.result; }; reader.readAsDataURL(file); }
 function endScanProcess() { gameState = 'EDITING'; scanState.image = null; mainCanvas.style.width = ''; mainCanvas.style.height = ''; document.getElementById('editor-container').style.display = 'flex'; document.getElementById('game-container').style.display = 'none'; document.getElementById('scan-controls').style.display = 'none'; ['p1', 'p2'].forEach(drawEditorField); setTimeout(updateScale, 0); }
-function updateScanUI() { const instructions = document.getElementById('scan-instructions'), confirmBtn = document.getElementById('scanConfirmBtn'); instructions.style.display = 'block'; mainCanvas.style.cursor = 'crosshair'; if (gameState === 'SCAN_BL') { instructions.textContent = '画像の盤面の「左下」をクリック'; confirmBtn.style.visibility = scanState.bottomLeft ? 'visible' : 'hidden'; } else if (gameState === 'SCAN_TR') { instructions.textContent = '「右上」をクリック →「読込開始」'; confirmBtn.style.visibility = scanState.topRight ? 'visible' : 'hidden'; if (scanState.topRight) confirmBtn.textContent = '読込開始'; else confirmBtn.textContent = '次へ'; } }
+function updateScanUI() { const instructions = document.getElementById('scan-instructions'), confirmBtn = document.getElementById('scanConfirmBtn'); mainCanvas.style.cursor = 'crosshair'; if (gameState === 'SCAN_BL') { confirmBtn.style.visibility = scanState.bottomLeft ? 'visible' : 'hidden'; } else if (gameState === 'SCAN_TR') {confirmBtn.style.visibility = scanState.topRight ? 'visible' : 'hidden'; if (scanState.topRight) confirmBtn.textContent = '読込開始'; else confirmBtn.textContent = '次へ'; } }
 function drawScanner() { if (!scanState.image) return; ctx.clearRect(0, 0, mainCanvas.width, mainCanvas.height); ctx.drawImage(scanState.image, 0, 0, mainCanvas.width, mainCanvas.height); if (scanState.bottomLeft) { ctx.fillStyle = 'lime'; ctx.beginPath(); ctx.arc(scanState.bottomLeft.x, scanState.bottomLeft.y, 10, 0, Math.PI * 2); ctx.fill(); } if (scanState.topRight) { const {x: blx, y: bly} = scanState.bottomLeft, {x: trx, y: try_} = scanState.topRight; ctx.strokeStyle = 'fuchsia'; ctx.lineWidth = 4; ctx.strokeRect(blx, try_, trx - blx, bly - try_); } }
 function processAndLoadBoard() { const tempC = document.createElement('canvas'); tempC.width = scanState.image.naturalWidth; tempC.height = scanState.image.naturalHeight; const tempCtx = tempC.getContext('2d', { willReadFrequently: true }); tempCtx.drawImage(scanState.image, 0, 0); const sX = scanState.image.naturalWidth / mainCanvas.width, sY = scanState.image.naturalHeight / mainCanvas.height; const iBL = { x: scanState.bottomLeft.x*sX, y: scanState.bottomLeft.y*sY }, iTR = { x: scanState.topRight.x*sX, y: scanState.topRight.y*sY }; const bW_px = iTR.x - iBL.x, bH_px = iBL.y - iTR.y, blW_px = bW_px/BOARD_WIDTH, blH_px = bH_px/BOARD_VISIBLE_HEIGHT; const targetBoard = editorData[scanState.targetPlayerId].board; targetBoard.forEach(row => row.fill(null)); for (let r = 0; r < BOARD_VISIBLE_HEIGHT; r++) { for (let c = 0; c < BOARD_WIDTH; c++) { const cX = iBL.x + (c+0.5)*blW_px, cY = iTR.y + (r+0.5)*blH_px; const sampleSize = Math.max(1, Math.floor(blW_px * 0.25)); const iD = tempCtx.getImageData(cX-sampleSize/2, cY-sampleSize/2, sampleSize, sampleSize).data; let avgR=0, avgG=0, avgB=0; for(let i=0; i<iD.length; i+=4){ avgR+=iD[i]; avgG+=iD[i+1]; avgB+=iD[i+2]; } const pCount = iD.length/4; avgR/=pCount; avgG/=pCount; avgB/=pCount; targetBoard[BOARD_HEIGHT - BOARD_VISIBLE_HEIGHT + r][c] = findClosestColor(avgR, avgG, avgB); } } endScanProcess(); }
 
@@ -4667,6 +4769,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadKeyBindings();
     loadGameSettings();
+
+    if (loadSkinsFromLocalStorage()) {
+        console.log('Custom skins loaded from localStorage.');
+    }
 
     document.getElementById('shareBtn').addEventListener('click', openShareModal);
     document.getElementById('share-close').addEventListener('click', () => {
