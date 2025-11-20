@@ -1989,7 +1989,15 @@ class TetrisBoard {
         return { t_slot_score, rowTransitions };
     }
     
-    isPerfectClear() { return this.rows[BOARD_HEIGHT - 1] === 0; }
+    isPerfectClear() { return this.rows[BOARD_HEIGHT - 1] === 0;
+    }
+
+    equals(otherBoard) {
+        for (let y = 0; y < BOARD_HEIGHT; y++) {
+            if (this.rows[y] !== otherBoard.rows[y]) return false;
+        }
+        return true;
+    }
 }
 
 class Placement {
@@ -1998,10 +2006,131 @@ class Placement {
         this.y = y; 
         this.rotation = rotation; 
         this.pieceType = pieceType;
-        this.isTspin = isTspin; 
+                this.isTspin = isTspin; 
         this.isMiniTspin = isMiniTspin;
     }
 }
+
+class Template {
+    constructor(config) {
+        this.name = config.name;
+        this.initialBoard = TetrisBoard.fromSimulatorBoard(config.initialBoard);
+        this.finalBoard = TetrisBoard.fromSimulatorBoard(config.finalBoard);
+        this.moves = config.moves;
+        this.condition = config.condition;
+    }
+}
+
+const TEMPLATES = [
+    new Template({
+        name: "山学積み2号(右)",
+        initialBoard: [
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null]
+],
+        moves: [
+            {type:'Z', x:7, y:37, r:1},
+            {type:'I', x:7, y:37, r:1},
+            {type:'T', x:2, y:38, r:1},
+            {type:'O', x:0, y:39, r:0},
+            {type:'S', x:4, y:39, r:0},
+            {type:'L', x:7, y:39, r:0}
+        ],
+        finalBoard: [
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, "G", "G"],
+  [null, null, "G", null, null, null, null, "G", "G", "G"],
+  ["G", "G", "G", "G", "G", "G", null, "G", "G", "G"],
+  ["G", "G", "G", "G", "G", null, "G", "G", "G", "G"]
+],
+        condition: (queue, hold) => {
+            const pieces = [];
+            if (hold) pieces.push(hold);
+            for(let i=0; i<Math.min(queue.length, 6); i++) pieces.push(queue[i]);
+            
+            const types = new Set(pieces);
+            const required = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
+            if (!required.every(t => types.has(t))) return false;
+
+            const lIndex = pieces.indexOf('L');
+            const jIndex = pieces.indexOf('J');
+            return lIndex !== -1 && jIndex !== -1 && lIndex < jIndex;
+        }
+    })
+];
 
 class Node {
     // Integer IDs for vector-like access
@@ -2193,6 +2322,8 @@ class AIAgent {
         this.rootID = -1;
         this.totalNodesInSearch = 0;
         this.bestNodeIDAtDepth1 = -1;
+        this.activeTemplate = null;
+        this.templateIdx = 0;
     }
 
     // makeID: Simple integer increment
@@ -2252,6 +2383,25 @@ class AIAgent {
         
         // 配列なのでlengthではなくCounterを使う
         this.totalNodesInSearch = this.nodeIdCounter;
+
+        if (this.activeTemplate) {
+            if (currentBoard.equals(this.activeTemplate.finalBoard)) {
+                this.activeTemplate = null;
+                this.templateIdx = 0;
+            }
+        }
+
+        if (!this.activeTemplate) {
+            for (const tmpl of TEMPLATES) {
+                if (currentBoard.equals(tmpl.initialBoard)) {
+                    if (tmpl.condition(pieceQueue, currentHoldPiece)) {
+                        this.activeTemplate = tmpl;
+                        this.templateIdx = 0;
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     searchStep(iterations, pieceQueue) {
@@ -2286,8 +2436,23 @@ class AIAgent {
         return this.nodeMap[this.bestNodeIDAtDepth1].place;
     }
     
+        
     advanceTreeToBestMove() {
         if (this.bestNodeIDAtDepth1 !== -1) {
+            if (this.activeTemplate) {
+                const bestNode = this.nodeMap[this.bestNodeIDAtDepth1];
+                const p = bestNode.place;
+                const targetMove = this.activeTemplate.moves[this.templateIdx];
+                if (targetMove && p.pieceType === targetMove.type && 
+                    p.x === targetMove.x && 
+                    p.y === targetMove.y && 
+                    p.rotation === targetMove.r) {
+                    this.templateIdx++;
+                } else {
+                    this.activeTemplate = null;
+                    this.templateIdx = 0;
+                }
+            }
             this.pruneAndReroot(this.bestNodeIDAtDepth1);
         }
     }
@@ -2356,13 +2521,24 @@ class AIAgent {
 
         this.nodeMap[newNodeID] = newNode;
         parentNode.childrenIDs.push(newNodeID);
-        this.propagateEvaluation(newNodeID);
+                this.propagateEvaluation(newNodeID);
     }
 
     evaluate(node, placementResult) {
         let acc_eval = 0;
         const board = node.board;
         const weights = this.weights;
+
+        if (this.activeTemplate && this.templateIdx < this.activeTemplate.moves.length) {
+            const targetMove = this.activeTemplate.moves[this.templateIdx];
+            const p = node.place;
+            if (p && p.pieceType === targetMove.type && 
+                p.x === targetMove.x && 
+                p.y === targetMove.y && 
+                p.rotation === targetMove.r) {
+                return { acc_eval: 10000000, transient_eval: 0 };
+            }
+        }
         
         if (placementResult.perfectClear) acc_eval += weights.perfect_clear;
         if (true) { 
