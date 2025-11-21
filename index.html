@@ -546,37 +546,6 @@ const SPAWN_X = 4;
 const SPAWN_Y = 19;
 const SPAWN_ROT = 0;
 
-// --- Templates ---
-const TEMPLATES = [
-    {
-        name: 'Mountainous2_Right',
-        checkCondition: (queue) => {
-            if (queue.length < 7) return false;
-            const subset = queue.slice(0, 7);
-            const unique = new Set(subset);
-            if (unique.size !== subset.length) return false;
-            const lIndex = subset.indexOf('L');
-            const jIndex = subset.indexOf('J');
-            return lIndex !== -1 && jIndex !== -1 && lIndex < jIndex;
-        },
-        moves: [
-            { piece: 'J', x: 3, y: 35, r: 3 },
-            { piece: 'Z', x: 7, y: 37, r: 1 },
-            { piece: 'I', x: 7, y: 37, r: 1 },
-            { piece: 'T', x: 2, y: 38, r: 1 },
-            { piece: 'O', x: 0, y: 39, r: 0 },
-            { piece: 'S', x: 4, y: 39, r: 0 },
-            { piece: 'L', x: 7, y: 39, r: 0 },
-            { piece: 'O', x: 6, y: 34, r: 0 },
-            { piece: 'L', x: 9, y: 34, r: 3 },
-            { piece: 'I', x: -2, y: 35, r: 1 },
-            { piece: 'Z', x: 7, y: 35, r: 1 },
-            { piece: 'J', x: 1, y: 36, r: 1 },
-            { piece: 'S', x: 4, y: 37, r: 0 }
-        ]
-    }
-];
-
 // グローバルキャッシュ (Mapキーを整数にするため高速)
 let lfgCache = new Map();
 let evaluationCache = new Map();
@@ -1065,10 +1034,8 @@ function findLegalMoves(gameBoard, minoType, spawnX, spawnY, spawnRot) {
 class AIAgent {
     constructor() {
         this.weights = new StandardWeights();
-        this.activeTemplate = null;
-        this.nextTemplateMove = null;
         // Vectorization: Fixed size array for node storage (faster than Object)
-        this.nodeMap = new Array(SEARCH_ITERATION_LIMIT + 1000);
+        this.nodeMap = new Array(SEARCH_ITERATION_LIMIT + 1000); 
         this.nodeIdCounter = 0;
         this.rootID = -1;
         this.totalNodesInSearch = 0;
@@ -1078,101 +1045,15 @@ class AIAgent {
     // makeID: Simple integer increment
     makeID() { return this.nodeIdCounter++; }
     
-        // Cache clearing
+    // Cache clearing
     clearCaches() {
         lfgCache.clear();
         evaluationCache.clear();
     }
 
-    checkCollisionStrict(board, pieceType, x, y, r) {
-        const shape = getMinoCoords(pieceType, r);
-        for (const [dx, dy] of shape) {
-            const bx = x + dx;
-            const by = y + dy;
-            if (bx < 0 || bx >= WIDTH || by >= BOARD_HEIGHT) return true;
-            if (by >= 0 && board.isFilled(by, bx)) return true;
-        }
-        return false;
-    }
-
     initSearch(currentBoard, pieceQueue, currentHoldPiece, isB2B, combo) {
-        this.nextTemplateMove = null;
-
-        let isEmptyBoard = true;
-        for (let r = 0; r < BOARD_HEIGHT; r++) {
-            if (currentBoard.rows[r] !== 0) {
-                isEmptyBoard = false;
-                break;
-            }
-        }
-
-        let checkQueue = [];
-        if (currentHoldPiece) checkQueue.push(currentHoldPiece);
-        checkQueue = checkQueue.concat(pieceQueue);
-
-        if (isEmptyBoard) {
-            this.activeTemplate = null;
-            for (const tmpl of TEMPLATES) {
-                if (tmpl.checkCondition(checkQueue)) {
-                    this.activeTemplate = tmpl;
-                    self.postMessage({ type: 'debug', message: `Template START: ${tmpl.name}` });
-                    break;
-                }
-            }
-        }
-
-        if (this.activeTemplate) {
-            let simBoard = new TetrisBoard();
-            let matchIndex = -1;
-            const currentHash = currentBoard.getHash();
-
-            if (simBoard.getHash() === currentHash) {
-                matchIndex = 0;
-            } else {
-                for (let i = 0; i < this.activeTemplate.moves.length; i++) {
-                    const move = this.activeTemplate.moves[i];
-                    simBoard = simBoard.placeMino(new Placement(move.x, move.y, move.r, move.piece));
-                    const { newBoard } = simBoard.clearLines();
-                    simBoard = newBoard;
-
-                    if (simBoard.getHash() === currentHash) {
-                        matchIndex = i + 1;
-                        break;
-                    }
-                }
-            }
-
-            if (matchIndex !== -1 && matchIndex < this.activeTemplate.moves.length) {
-                let validationBoard = new TetrisBoard(currentBoard);
-                let isValidSequence = true;
-
-                for (let i = matchIndex; i < this.activeTemplate.moves.length; i++) {
-                    const move = this.activeTemplate.moves[i];
-                    
-                    if (this.checkCollisionStrict(validationBoard, move.piece, move.x, move.y, move.r)) {
-                        isValidSequence = false;
-                        break;
-                    }
-
-                    validationBoard = validationBoard.placeMino(new Placement(move.x, move.y, move.r, move.piece));
-                    const { newBoard } = validationBoard.clearLines();
-                    validationBoard = newBoard;
-                }
-
-                if (isValidSequence) {
-                    this.nextTemplateMove = this.activeTemplate.moves[matchIndex];
-                } else {
-                    this.activeTemplate = null;
-                    self.postMessage({ type: 'debug', message: 'Template ABORT: Path Blocked' });
-                }
-            } else {
-                if (!isEmptyBoard) {
-                     this.activeTemplate = null;
-                }
-            }
-        }
-
         let reuseTree = false;
+        
         // 探索木の再利用チェック
         if (this.rootID !== -1 && this.nodeMap[this.rootID]) {
             const rootNode = this.nodeMap[this.rootID];
@@ -1325,17 +1206,8 @@ class AIAgent {
         this.propagateEvaluation(newNodeID);
     }
 
-        evaluate(node, placementResult) {
+    evaluate(node, placementResult) {
         let acc_eval = 0;
-
-        if (this.nextTemplateMove) {
-            const p = node.place;
-            const t = this.nextTemplateMove;
-            if (p.pieceType === t.piece && p.x === t.x && p.y === t.y && p.rotation === t.r) {
-                return { acc_eval: 1000000000, transient_eval: 0 };
-            }
-        }
-
         const board = node.board;
         const weights = this.weights;
         
