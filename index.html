@@ -546,6 +546,66 @@ const SPAWN_X = 4;
 const SPAWN_Y = 19;
 const SPAWN_ROT = 0;
 
+// --- Template Data ---
+const TEMPLATE_SANGAKU_RIGHT_MOVES = [
+    { type: 'J', x: 3, y: 35, r: 3 },
+    { type: 'Z', x: 7, y: 37, r: 1 },
+    { type: 'I', x: 7, y: 37, r: 1 },
+    { type: 'T', x: 2, y: 38, r: 1 },
+    { type: 'O', x: 0, y: 39, r: 0 },
+    { type: 'S', x: 4, y: 39, r: 0 },
+    { type: 'L', x: 7, y: 39, r: 0 },
+    { type: 'O', x: 6, y: 34, r: 0 },
+    { type: 'L', x: 9, y: 34, r: 3 },
+    { type: 'I', x: -2, y: 35, r: 1 },
+    { type: 'Z', x: 7, y: 35, r: 1 },
+    { type: 'J', x: 1, y: 36, r: 1 },
+    { type: 'S', x: 4, y: 37, r: 0 }
+];
+
+const TEMPLATE_SANGAKU_RIGHT_MASK = [
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, null, null, null, null],
+  [null, null, null, null, null, null, "G", "G", "G", "G"],
+  ["G", null, null, "G", null, null, "G", "G", "G", "G"],
+  ["G", "G", "G", "G", null, null, null, "G", "G", "G"],
+  ["G", "G", "G", "G", "G", "G", null, "G", "G", "G"],
+  ["G", "G", "G", "G", "G", null, null, "G", "G", "G"],
+  ["G", "G", "G", "G", "G", "G", null, "G", "G", "G"],
+  ["G", "G", "G", "G", "G", null, "G", "G", "G", "G"]
+];
+
 // グローバルキャッシュ (Mapキーを整数にするため高速)
 let lfgCache = new Map();
 let evaluationCache = new Map();
@@ -1034,16 +1094,17 @@ function findLegalMoves(gameBoard, minoType, spawnX, spawnY, spawnRot) {
 class AIAgent {
     constructor() {
         this.weights = new StandardWeights();
-        // Vectorization: Fixed size array for node storage (faster than Object)
-        this.nodeMap = new Array(SEARCH_ITERATION_LIMIT + 1000); 
+        this.nodeMap = new Array(SEARCH_ITERATION_LIMIT + 1000);
         this.nodeIdCounter = 0;
         this.rootID = -1;
         this.totalNodesInSearch = 0;
         this.bestNodeIDAtDepth1 = -1;
+        this.activeTemplate = null;
     }
 
     // makeID: Simple integer increment
-    makeID() { return this.nodeIdCounter++; }
+    makeID() { return this.nodeIdCounter++;
+    }
     
     // Cache clearing
     clearCaches() {
@@ -1051,9 +1112,55 @@ class AIAgent {
         evaluationCache.clear();
     }
 
-    initSearch(currentBoard, pieceQueue, currentHoldPiece, isB2B, combo) {
+        initSearch(currentBoard, pieceQueue, currentHoldPiece, isB2B, combo) {
+        if (this.activeTemplate) {
+            const mask = this.activeTemplate.mask;
+            let isTemplateValid = true;
+            for (let y = 0; y < BOARD_HEIGHT; y++) {
+                const row = currentBoard.rows[y];
+                if (row === 0) continue;
+                for (let x = 0; x < WIDTH; x++) {
+                     if (mask[y][x] === null && (row & (1 << x)) !== 0) {
+                         isTemplateValid = false;
+                         break;
+                     }
+                }
+                if (!isTemplateValid) break;
+            }
+            if (!isTemplateValid) {
+                this.activeTemplate = null;
+            }
+        }
+
+        if (!this.activeTemplate) {
+             let isBoardEmpty = true;
+             for(let y=0; y<BOARD_HEIGHT; y++) {
+                 if (currentBoard.rows[y] !== 0) { isBoardEmpty = false; break; }
+             }
+             
+             if (isBoardEmpty) {
+                 const checkSequence = [];
+                 if (currentHoldPiece) checkSequence.push(currentHoldPiece);
+                 checkSequence.push(...pieceQueue);
+                 
+                 if (checkSequence.length >= 7) {
+                     const bag = checkSequence.slice(0, 7);
+                     const unique = new Set(bag);
+                     if (unique.size === 7) {
+                         const idxL = bag.indexOf('L');
+                         const idxJ = bag.indexOf('J');
+                         if (idxL !== -1 && idxJ !== -1 && idxL < idxJ) {
+                             this.activeTemplate = {
+                                 moves: TEMPLATE_SANGAKU_RIGHT_MOVES,
+                                 mask: TEMPLATE_SANGAKU_RIGHT_MASK
+                             };
+                         }
+                     }
+                 }
+             }
+        }
+
         let reuseTree = false;
-        
         // 探索木の再利用チェック
         if (this.rootID !== -1 && this.nodeMap[this.rootID]) {
             const rootNode = this.nodeMap[this.rootID];
@@ -1206,7 +1313,16 @@ class AIAgent {
         this.propagateEvaluation(newNodeID);
     }
 
-    evaluate(node, placementResult) {
+        evaluate(node, placementResult) {
+        if (this.activeTemplate && node.place) {
+            const p = node.place;
+            for (const tm of this.activeTemplate.moves) {
+                if (tm.type === p.pieceType && tm.x === p.x && tm.y === p.y && tm.r === p.rotation) {
+                    return { acc_eval: 10000000, transient_eval: 0 };
+                }
+            }
+        }
+
         let acc_eval = 0;
         const board = node.board;
         const weights = this.weights;
