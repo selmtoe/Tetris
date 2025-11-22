@@ -1668,8 +1668,544 @@ const SEARCH_ITERATION_LIMIT = 70000; // 最適化により探索数を増やし
 const ZOBRIST_TABLE = new Int32Array(BOARD_HEIGHT * 1024);
 for (let i = 0; i < ZOBRIST_TABLE.length; i++) {
     // 32bit signed integer range
-    ZOBRIST_TABLE[i] = (Math.random() * 0xFFFFFFFF) | 0;
+    ZOBRIST_TABLE[i] = (Math.random() * 0xFFFFFFFF) |
+0;
 }
+
+// --- Template Definitions ---
+const TEMPLATES = [
+    {
+        name: 'sangaku_2_right',
+        // 盤面データ: nullの部分にブロックが存在したらテンプレートモードを即中断
+        board: [
+[
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    "G",
+    "G",
+    "G",
+    "G"
+  ],
+  [
+    "G",
+    null,
+    null,
+    "G",
+    null,
+    null,
+    "G",
+    "G",
+    "G",
+    "G"
+  ],
+  [
+    "G",
+    "G",
+    "G",
+    "G",
+    null,
+    null,
+    null,
+    "G",
+    "G",
+    "G"
+  ],
+  [
+    "G",
+    "G",
+    "G",
+    "G",
+    "G",
+    "G",
+    null,
+    "G",
+    "G",
+    "G"
+  ],
+  [
+    "G",
+    "G",
+    "G",
+    "G",
+    "G",
+    null,
+    null,
+    "G",
+    "G",
+    "G"
+  ],
+  [
+    "G",
+    "G",
+    "G",
+    "G",
+    "G",
+    "G",
+    null,
+    "G",
+    "G",
+    "G"
+  ],
+  [
+    "G",
+    "G",
+    "G",
+    "G",
+    "G",
+    null,
+    "G",
+    "G",
+    "G",
+    "G"
+  ]
+]
+        ],
+        // 固定手順リスト: 順番不問。このリストにある配置が可能なら超高評価して実行させる
+        moves: [
+            {t:'J', x:3, y:35, r:3},
+            {t:'Z', x:7, y:37, r:1},
+            {t:'I', x:7, y:37, r:1},
+            {t:'T', x:2, y:38, r:1},
+            {t:'O', x:0, y:39, r:0},
+            {t:'S', x:4, y:39, r:0},
+            {t:'L', x:7, y:39, r:0},
+            {t:'O', x:6, y:34, r:0},
+            {t:'L', x:9, y:34, r:3},
+            {t:'I', x:-2, y:35, r:1},
+            {t:'Z', x:7, y:35, r:1},
+            {t:'J', x:1, y:36, r:1},
+            {t:'S', x:4, y:37, r:0}
+        ],
+        // 開始条件: 盤面が空 && 直近7ミノ(Hold込)に重複なし && LがJより先
+        trigger: (board, queue, hold) => {
+            // 1. 盤面が空か
+            for(let y=0; y<BOARD_HEIGHT; y++) if(board.rows[y] !== 0) return false;
+            
+            // 2. ミノ列の取得 (Hold + Queue先頭から計7個分)
+            const minos = [];
+            if(hold) minos.push(hold);
+            // queue[0]が現在の手、queue[1]...がNext
+            const countToCheck = 7 - minos.length;
+            for(let i=0; i<Math.min(queue.length, countToCheck); i++) {
+                minos.push(queue[i]);
+            }
+
+            // 3. 重複チェック
+            const counts = {};
+            for(const m of minos) {
+                counts[m] = (counts[m]||0) + 1;
+                if(counts[m] > 1) return false;
+            }
+
+            // 4. LとJの順序 (Lが先ならOK)
+            const lIndex = minos.indexOf('L');
+            const jIndex = minos.indexOf('J');
+            if(lIndex === -1 || jIndex === -1) return false;
+            return lIndex < jIndex;
+        }
+    }
+];
 
 // --- Mino Definitions ---
 const MINO_DEFS = {
@@ -2183,16 +2719,17 @@ function findLegalMoves(gameBoard, minoType, spawnX, spawnY, spawnRot) {
     return { reachable, landed, landed_tspin };
 }
 
-// --- AIAgent (Optimized with Vector & Zobrist) ---
 class AIAgent {
     constructor() {
         this.weights = new StandardWeights();
         // Vectorization: Fixed size array for node storage (faster than Object)
-        this.nodeMap = new Array(SEARCH_ITERATION_LIMIT + 1000); 
+        this.nodeMap = new Array(SEARCH_ITERATION_LIMIT + 1000);
         this.nodeIdCounter = 0;
         this.rootID = -1;
         this.totalNodesInSearch = 0;
         this.bestNodeIDAtDepth1 = -1;
+        
+        this.activeTemplate = null; // 現在有効なテンプレート
     }
 
     // makeID: Simple integer increment
@@ -2201,12 +2738,48 @@ class AIAgent {
     // Cache clearing
     clearCaches() {
         lfgCache.clear();
-        evaluationCache.clear();
+            evaluationCache.clear();
     }
 
     initSearch(currentBoard, pieceQueue, currentHoldPiece, isB2B, combo) {
+        // --- Template Logic ---
+        // 1. テンプレート適用中なら、逸脱チェック (nullの場所にブロックがないか)
+        if (this.activeTemplate) {
+            let valid = true;
+            const tempBoard = this.activeTemplate.board;
+            // データが空の場合はチェックをスキップして有効扱い
+            if (tempBoard && tempBoard.length === BOARD_HEIGHT) {
+                for (let y = 0; y < BOARD_HEIGHT; y++) {
+                    if (!valid) break;
+                    const row = currentBoard.rows[y];
+                    for (let x = 0; x < WIDTH; x++) {
+                        // テンプレートでnull (空であるべき) なのに、現在の盤面でブロックがある場合
+                        if (tempBoard[y][x] === null && (row & (1 << x)) !== 0) {
+                            valid = false;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (!valid) {
+                this.activeTemplate = null;
+                self.postMessage({ type: 'debug', message: 'Template: Cancelled (Block detected in null area)' });
+            }
+        }
+
+        // 2. テンプレート未適用なら、開始条件をチェック
+        if (!this.activeTemplate) {
+            for (const temp of TEMPLATES) {
+                if (temp.trigger(currentBoard, pieceQueue, currentHoldPiece)) {
+                    this.activeTemplate = temp;
+                    self.postMessage({ type: 'debug', message: `Template: Active (${temp.name})` });
+                    break;
+                }
+            }
+        }
+        // ----------------------
+
         let reuseTree = false;
-        
         // 探索木の再利用チェック
         if (this.rootID !== -1 && this.nodeMap[this.rootID]) {
             const rootNode = this.nodeMap[this.rootID];
@@ -2386,7 +2959,21 @@ class AIAgent {
             }
         }
         if (placementResult.wastedT) acc_eval += weights.wasted_t;
-        
+
+        // --- Template Bonus ---
+        if (this.activeTemplate && node.place) {
+            const p = node.place;
+            // リスト内のいずれかの手と一致するかチェック
+            for (const move of this.activeTemplate.moves) {
+                if (move.t === p.pieceType && move.x === p.x && move.y === p.y && move.r === p.rotation) {
+                    // 一致する手があれば超高評価 (他の評価を無視して最優先される)
+                    acc_eval += 1000000000; 
+                    break; 
+                }
+            }
+        }
+        // ----------------------
+
         // Cache Check (Zobrist Hash = Integer)
         const boardHash = board.getHash();
         if (evaluationCache.has(boardHash)) {
