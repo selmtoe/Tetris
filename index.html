@@ -228,11 +228,14 @@
 
 /* デバッグコンソール用のスタイル追加 */
 #debug-console-overlay {
-    position: fixed; top: 0; left: 0; width: 100%; height: 200px;
+    position: fixed; top: 0;
+    left: 0; width: 100%; height: 200px;
     background: rgba(0,0,0,0.8); color: #ff4444; z-index: 9999;
     overflow-y: scroll; font-family: monospace; font-size: 12px;
-    pointer-events: none; /* クリックを下の要素に通す */
+    pointer-events: none;
+    /* クリックを下の要素に通す */
     white-space: pre-wrap; padding: 10px; border-bottom: 2px solid red;
+    display: none;
 }
 </style>
 </head>
