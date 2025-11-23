@@ -2794,7 +2794,37 @@ class AIAgent {
         // 2. テンプレート未適用なら、開始条件をチェック
         if (!this.activeTemplate) {
             for (const temp of TEMPLATES) {
-                if (temp.trigger(currentBoard, pieceQueue, currentHoldPiece)) {
+                let match = true;
+                
+                // A. 開始盤面パターン (startBoard) のチェック
+                if (temp.startBoard) {
+                    // startBoardがある場合: パターン完全一致チェック
+                    for (let y = 0; y < BOARD_HEIGHT; y++) {
+                        if (!match) break;
+                        const row = currentBoard.rows[y];
+                        for (let x = 0; x < WIDTH; x++) {
+                            const isFilled = (row & (1 << x)) !== 0;
+                            // nullなら空、それ以外(G等)ならブロックがあること
+                            const isPatternNull = temp.startBoard[y][x] === null;
+                            if (isPatternNull && isFilled) { match = false; break; }
+                            if (!isPatternNull && !isFilled) { match = false; break; }
+                        }
+                    }
+                } else {
+                    // B. startBoardがない場合 (略記法): 「盤面が空」であることを条件とする
+                    for (let y = 0; y < BOARD_HEIGHT; y++) {
+                        if (currentBoard.rows[y] !== 0) { match = false; break; }
+                    }
+                }
+
+                // C. 追加条件 (trigger関数) のチェック
+                if (match && temp.trigger) {
+                    if (!temp.trigger(currentBoard, pieceQueue, currentHoldPiece)) {
+                        match = false;
+                    }
+                }
+
+                if (match) {
                     this.activeTemplate = temp;
                     self.postMessage({ type: 'debug', message: 'Template: Active (' + temp.name + ')' });
                     break;
@@ -2805,8 +2835,8 @@ class AIAgent {
         // ----------------------
 
         let reuseTree = false;
-        // 探索木の再利用チェック
-        if (this.rootID !== -1 && this.nodeMap[this.rootID]) {
+        // 探索木の再利用チェック (テンプレートモード中は強制リセット)
+        if (!this.activeTemplate && this.rootID !== -1 && this.nodeMap[this.rootID]) {
             const rootNode = this.nodeMap[this.rootID];
             // Zobrist Hash Compare
             const hashCurrent = currentBoard.getHash();
