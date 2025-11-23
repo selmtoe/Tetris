@@ -1731,28 +1731,24 @@ const TEMPLATES = [
             const lIndex = minos.indexOf('L');
             const jIndex = minos.indexOf('J');
             // 両方存在し、かつLのインデックスがJより小さい(速い)場合のみtrue
-            return lIndex !== -1 && jIndex !== -1 && lIndex < jIndex;
+            return lIndex !== -1 && jIndex !== -1 && lIndex <= jIndex;
         }
     },
 
     // 2. 山岳2号左 (1巡目)
     {
         name: 'sangaku_2_left_1st',
-        /*
-        startBoard: [
-            
+        board: [[[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],["G","G",null,null,null,null,null,null,null,null],["G","G","G",null,null,null,null,"G",null,null],["G","G","G",null,"G","G","G","G","G","G"],["G","G","G","G",null,"G","G","G","G","G"]
         ],
-        */
-        /*
-        board: [
-
-        ],
-        */
-        /*
         moves: [
+        {t:'I', x:0, y:37, r:3},
+        {t:'S', x:1, y:37, r:1},
+        {t:'T', x:7, y:38, r:3},
+        {t:'J', x:2, y:39, r:0},
+        {t:'Z', x:5, y:39, r:0},
+        {t:'O', x:8, y:39, r:0},
 
         ],
-        */
         // 条件: 直近でJがLより速い かつ ホールド含めた直近7ミノに重複がない
         trigger: (board, queue, hold) => {
             // 1. ミノ列の取得 (Hold + Queueから計7個分)
@@ -1780,27 +1776,20 @@ const TEMPLATES = [
     // 3. 山岳2号右の二巡目① (Z < O)
     {
         name: 'sangaku_2_right_2nd_pattern1',
-        /*
-        startBoard: [
-            
+        startBoard: [[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,"G","G"],[null,null,"G",null,null,null,null,"G","G","G"],["G","G","G","G","G","G",null,"G","G","G"],["G","G","G","G","G",null,"G","G","G","G"]
         ],
-        */
-        /*
-        board: [
-
+        board: [[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,"G","G","G","G"],["G",null,null,"G",null,null,"G","G","G","G"],["G","G","G","G",null,null,null,"G","G","G"],["G","G","G","G","G","G",null,"G","G","G"],["G","G","G","G","G",null,null,"G","G","G"],["G","G","G","G","G","G",null,"G","G","G"],["G","G","G","G","G",null,"G","G","G","G"]
+        
         ],
-        */
-        /*
-        moves: [            
+        moves: [ 
+            {t:'J', x:3, y:35, r:3},
             {t:'O', x:6, y:34, r:0},
             {t:'L', x:9, y:34, r:3},
             {t:'I', x:0, y:35, r:3},
             {t:'Z', x:7, y:35, r:1},
             {t:'J', x:1, y:36, r:1},
-            {t:'S', x:4, y:37, r:0},
-
+            {t:'S', x:4, y:37, r:0}
         ],
-        */
         // 条件: ホールド含めた直近8ミノのうち、ZがOより速い
         trigger: (board, queue, hold) => {
             // 1. ミノ列の取得 (Hold + Queueから計8個分)
@@ -1822,21 +1811,20 @@ const TEMPLATES = [
     // 4. 山岳2号右の二巡目② (O < Z)
     {
         name: 'sangaku_2_right_2nd_pattern2',
-        /*
-        startBoard: [
-            
+        startBoard: [[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,"G","G"],[null,null,"G",null,null,null,null,"G","G","G"],["G","G","G","G","G","G",null,"G","G","G"],["G","G","G","G","G",null,"G","G","G","G"]
         ],
-        */
-        /*
-        board: [
-
+        board: [[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,"G","G","G","G"],[null,null,null,null,null,null,"G","G","G","G"],[null,"G","G",null,null,null,null,"G","G","G"],["G","G","G","G","G","G",null,"G","G","G"],["G","G","G","G","G",null,null,"G","G","G"],["G","G","G","G","G","G",null,"G","G","G"],["G","G","G","G","G",null,"G","G","G","G"]
         ],
-        */
-        /*
         moves: [
-
+            {t:'J', x:9, y:34, r:3},
+            {t:'O', x:0, y:37, r:0},
+            {t:'L', x:7, y:33, r:2},
+            {t:'L', x:7, y:35, r:3},
+            {t:'J', x:7, y:35, r:1},
+            {t:'J', x:7, y:33, r:2},
+            {t:'Z', x:2, y:36, r:0},
+            {t:'S', x:4, y:37, r:0}
         ],
-        */
         // 条件: ホールド含めた直近8ミノのうち、OがZより速い
         trigger: (board, queue, hold) => {
             // 1. ミノ列の取得 (Hold + Queueから計8個分)
