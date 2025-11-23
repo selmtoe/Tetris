@@ -2766,6 +2766,9 @@ class AIAgent {
     }
 
     initSearch(currentBoard, pieceQueue, currentHoldPiece, isB2B, combo) {
+        // 以前のターンでテンプレートがアクティブだったかを記憶
+        const wasTemplateActive = this.activeTemplate !== null;
+
         // --- Template Logic ---
         // 1. テンプレート適用中なら、逸脱チェック (nullの場所にブロックがないか)
         if (this.activeTemplate) {
@@ -2835,8 +2838,9 @@ class AIAgent {
         // ----------------------
 
         let reuseTree = false;
-        // 探索木の再利用チェック (テンプレートモード中は強制リセット)
-        if (!this.activeTemplate && this.rootID !== -1 && this.nodeMap[this.rootID]) {
+        // 探索木の再利用チェック
+        // テンプレートが「現在アクティブ」または「直前までアクティブだった」場合はリセットする
+        if (!this.activeTemplate && !wasTemplateActive && this.rootID !== -1 && this.nodeMap[this.rootID]) {
             const rootNode = this.nodeMap[this.rootID];
             // Zobrist Hash Compare
             const hashCurrent = currentBoard.getHash();
