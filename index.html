@@ -3329,6 +3329,10 @@ self.onmessage = (e) => {
                 finalX -= 1;
             }
             self.postMessage({
+                type: 'debug',
+                message: 'Move: ' + bestPlacement.pieceType + ' (x:' + finalX + ', y:' + bestPlacement.y + ', r:' + bestPlacement.rotation + ')'
+            });
+            self.postMessage({
                 piece: bestPlacement.pieceType,
                 x: finalX,
                 y: bestPlacement.y,
