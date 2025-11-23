@@ -237,23 +237,23 @@
 </style>
 </head>
 <body>
-<div id="debug-console-overlay" style="
-    position: fixed; top: 0; left: 0; width: 100%; height: 150px;
-    background: rgba(0,0,0,0.9); color: #00ff00; z-index: 10000;
-    overflow-y: scroll; font-family: monospace; font-size: 12px;
-    pointer-events: none; border-bottom: 2px solid #00ff00; padding: 5px;
-"></div>
-
+<div id="debug-console-overlay"></div>
 <script>
-    // AIからのメッセージをここに表示する機能
-    window.logToScreen = function(msg) {
+    // エラーを画面に表示する仕組み
+    (function(){
         const consoleDiv = document.getElementById('debug-console-overlay');
-        if (consoleDiv) {
-            const time = new Date().toLocaleTimeString();
-            consoleDiv.innerHTML += `<div>[${time}] ${msg}</div>`;
-            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        function logError(msg) {
+            consoleDiv.textContent += "ERROR: " + msg + "\n----------------\n";
+            consoleDiv.style.display = 'block';
         }
-    };
+        window.onerror = function(msg, url, line, col, error) {
+            logError(`${msg}\nAt: ${line}:${col}\n${error ? error.stack : ''}`);
+            return false;
+        };
+        window.onunhandledrejection = function(e) {
+            logError(`Unhandled Promise Rejection: ${e.reason}`);
+        };
+    })();
 </script>
 
 <div class="main-container">
@@ -2766,14 +2766,12 @@ class AIAgent {
     }
 
     initSearch(currentBoard, pieceQueue, currentHoldPiece, isB2B, combo) {
-        // --- Template Logic Debugging ---
-        
-        // 1. テンプレート適用中なら、逸脱チェック
+        // --- Template Logic ---
+        // 1. テンプレート適用中なら、逸脱チェック (nullの場所にブロックがないか)
         if (this.activeTemplate) {
             let valid = true;
-            let failReason = "";
             const tempBoard = this.activeTemplate.board;
-            
+            // データが空の場合はチェックをスキップして有効扱い
             if (tempBoard && tempBoard.length === BOARD_HEIGHT) {
                 for (let y = 0; y < BOARD_HEIGHT; y++) {
                     if (!valid) break;
@@ -2782,43 +2780,29 @@ class AIAgent {
                         // テンプレートでnull (空であるべき) なのに、現在の盤面でブロックがある場合
                         if (tempBoard[y][x] === null && (row & (1 << x)) !== 0) {
                             valid = false;
-                            failReason = "Block at x:" + x + ", y:" + y; // 座標を特定
                             break;
                         }
                     }
                 }
-            } else {
-                // データ長が合わない等のエラー
-                if (!tempBoard) failReason = "Template board is null";
-                else if (tempBoard.length !== BOARD_HEIGHT) failReason = "Board height mismatch: " + tempBoard.length;
             }
-
             if (!valid) {
                 this.activeTemplate = null;
-                self.postMessage({ type: 'debug', message: 'Template Cancelled: ' + failReason });
-            } else {
-                // 継続中であることの確認ログ（うざければコメントアウト）
-                // self.postMessage({ type: 'debug', message: 'Template Continuing: ' + this.activeTemplate.name });
+                self.postMessage({ type: 'debug', message: 'Template: Cancelled (Block detected in null area)' });
             }
         }
 
         // 2. テンプレート未適用なら、開始条件をチェック
         if (!this.activeTemplate) {
             for (const temp of TEMPLATES) {
-                // トリガー条件チェック前にログを出す（デバッグ用）
-                // self.postMessage({ type: 'debug', message: 'Checking trigger for: ' + temp.name });
-                
                 if (temp.trigger(currentBoard, pieceQueue, currentHoldPiece)) {
                     this.activeTemplate = temp;
-                    self.postMessage({ type: 'debug', message: 'Template ACTIVATED: ' + temp.name });
+                    self.postMessage({ type: 'debug', message: 'Template: Active (' + temp.name + ')' });
                     break;
-                } else {
-                    // なぜトリガーしなかったか簡易ログ（必要なら）
-                    // self.postMessage({ type: 'debug', message: 'Trigger failed for: ' + temp.name });
                 }
             }
         }
-        // ----------------------   
+        
+        // ----------------------
 
         let reuseTree = false;
         // 探索木の再利用チェック
