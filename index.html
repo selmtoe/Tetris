@@ -1698,14 +1698,12 @@ for (let i = 0; i < ZOBRIST_TABLE.length; i++) {
 0;
 }
 
-// --- Template Definitions ---
 const TEMPLATES = [
+    // 1. 山岳2号右 (1巡目)
     {
-        name: 'sangaku_2_right',
-        // 盤面データ: nullの部分にブロックが存在したらテンプレートモードを即中断
+        name: 'sangaku_2_right_1st',
         board: [[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,"G","G","G","G"],["G",null,null,"G",null,null,"G","G","G","G"],["G","G","G","G",null,null,null,"G","G","G"],["G","G","G","G","G","G",null,"G","G","G"],["G","G","G","G","G",null,null,"G","G","G"],["G","G","G","G","G","G",null,"G","G","G"],["G","G","G","G","G",null,"G","G","G","G"]
         ],
-        // 固定手順リスト: 順番不問。このリストにある配置が可能なら超高評価して実行させる
         moves: [
             {t:'J', x:3, y:35, r:3},
             {t:'Z', x:7, y:37, r:1},
@@ -1722,32 +1720,210 @@ const TEMPLATES = [
             {t:'S', x:4, y:37, r:0},
             {t:'I', x:6, y:32, r:0}
         ],
-        // 開始条件: 盤面が空 && 直近7ミノ(Hold込)に重複なし && LがJより先
         trigger: (board, queue, hold) => {
-            // 1. 盤面が空か
-            for(let y=0; y<BOARD_HEIGHT; y++) if(board.rows[y] !== 0) return false;
-            
-            // 2. ミノ列の取得 (Hold + Queue先頭から計7個分)
+            // 1. ミノ列の取得 (Hold + Queueから計7個分)
             const minos = [];
-            if(hold) minos.push(hold);
-            // queue[0]が現在の手、queue[1]...がNext
-            const countToCheck = 7 - minos.length;
-            for(let i=0; i<Math.min(queue.length, countToCheck); i++) {
-                minos.push(queue[i]);
+            if (hold) minos.push(hold);
+            for (const p of queue) {
+                if (minos.length >= 7) break;
+                minos.push(p);
             }
 
-            // 3. 重複チェック
+            // 2. 重複チェック
             const counts = {};
-            for(const m of minos) {
-                counts[m] = (counts[m]||0) + 1;
-                if(counts[m] > 1) return false;
+            for (const m of minos) {
+                counts[m] = (counts[m] || 0) + 1;
+                if (counts[m] > 1) return false;
             }
 
-            // 4. LとJの順序 (Lが先ならOK)
+            // 3. 順序チェック (LがJより先)
             const lIndex = minos.indexOf('L');
             const jIndex = minos.indexOf('J');
-            if(lIndex === -1 || jIndex === -1) return false;
-            return lIndex < jIndex;
+            // 両方存在し、かつLのインデックスがJより小さい(速い)場合のみtrue
+            return lIndex !== -1 && jIndex !== -1 && lIndex < jIndex;
+        }
+    },
+
+    // 2. 山岳2号左 (1巡目)
+    {
+        name: 'sangaku_2_left_1st',
+        /*
+        startBoard: [
+            
+        ],
+        */
+        /*
+        board: [
+
+        ],
+        */
+        /*
+        moves: [
+
+        ],
+        */
+        // 条件: 直近でJがLより速い かつ ホールド含めた直近7ミノに重複がない
+        trigger: (board, queue, hold) => {
+            // 1. ミノ列の取得 (Hold + Queueから計7個分)
+            const minos = [];
+            if (hold) minos.push(hold);
+            for (const p of queue) {
+                if (minos.length >= 7) break;
+                minos.push(p);
+            }
+
+            // 2. 重複チェック
+            const counts = {};
+            for (const m of minos) {
+                counts[m] = (counts[m] || 0) + 1;
+                if (counts[m] > 1) return false;
+            }
+
+            // 3. 順序チェック (JがLより先)
+            const jIndex = minos.indexOf('J');
+            const lIndex = minos.indexOf('L');
+            return jIndex !== -1 && lIndex !== -1 && jIndex < lIndex;
+        }
+    },
+
+    // 3. 山岳2号右の二巡目① (Z < O)
+    {
+        name: 'sangaku_2_right_2nd_pattern1',
+        /*
+        startBoard: [
+            
+        ],
+        */
+        /*
+        board: [
+
+        ],
+        */
+        /*
+        moves: [
+
+        ],
+        */
+        // 条件: ホールド含めた直近8ミノのうち、ZがOより速い
+        trigger: (board, queue, hold) => {
+            // 1. ミノ列の取得 (Hold + Queueから計8個分)
+            const minos = [];
+            if (hold) minos.push(hold);
+            for (const p of queue) {
+                if (minos.length >= 8) break;
+                minos.push(p);
+            }
+
+            // 2. 順序チェック (ZがOより先)
+            const zIndex = minos.indexOf('Z');
+            const oIndex = minos.indexOf('O');
+            // ※2巡目は盤面形状(startBoard)でフィルタされる前提のため重複チェックは省略し順序のみ判定
+            return zIndex !== -1 && oIndex !== -1 && zIndex < oIndex;
+        }
+    },
+
+    // 4. 山岳2号右の二巡目② (O < Z)
+    {
+        name: 'sangaku_2_right_2nd_pattern2',
+        /*
+        startBoard: [
+            
+        ],
+        */
+        /*
+        board: [
+
+        ],
+        */
+        /*
+        moves: [
+
+        ],
+        */
+        // 条件: ホールド含めた直近8ミノのうち、OがZより速い
+        trigger: (board, queue, hold) => {
+            // 1. ミノ列の取得 (Hold + Queueから計8個分)
+            const minos = [];
+            if (hold) minos.push(hold);
+            for (const p of queue) {
+                if (minos.length >= 8) break;
+                minos.push(p);
+            }
+
+            // 2. 順序チェック (OがZより先)
+            const oIndex = minos.indexOf('O');
+            const zIndex = minos.indexOf('Z');
+            return oIndex !== -1 && zIndex !== -1 && oIndex < zIndex;
+        }
+    },
+
+    // 5. 山岳2号左の二巡目① (S < O)
+    {
+        name: 'sangaku_2_left_2nd_pattern1',
+        /*
+        startBoard: [
+            
+        ],
+        */
+        /*
+        board: [
+
+        ],
+        */
+        /*
+        moves: [
+
+        ],
+        */
+        // 条件: ホールド含めた直近8ミノのうち、SがOより速い
+        trigger: (board, queue, hold) => {
+            // 1. ミノ列の取得 (Hold + Queueから計8個分)
+            const minos = [];
+            if (hold) minos.push(hold);
+            for (const p of queue) {
+                if (minos.length >= 8) break;
+                minos.push(p);
+            }
+
+            // 2. 順序チェック (SがOより先)
+            const sIndex = minos.indexOf('S');
+            const oIndex = minos.indexOf('O');
+            return sIndex !== -1 && oIndex !== -1 && sIndex < oIndex;
+        }
+    },
+
+    // 6. 山岳2号左の二巡目② (O < S)
+    {
+        name: 'sangaku_2_left_2nd_pattern2',
+        /*
+        startBoard: [
+            
+        ],
+        */
+        /*
+        board: [
+
+        ],
+        */
+        /*
+        moves: [
+
+        ],
+        */
+        // 条件: ホールド含めた直近8ミノのうち、OがSより速い
+        trigger: (board, queue, hold) => {
+            // 1. ミノ列の取得 (Hold + Queueから計8個分)
+            const minos = [];
+            if (hold) minos.push(hold);
+            for (const p of queue) {
+                if (minos.length >= 8) break;
+                minos.push(p);
+            }
+
+            // 2. 順序チェック (OがSより先)
+            const oIndex = minos.indexOf('O');
+            const sIndex = minos.indexOf('S');
+            return oIndex !== -1 && sIndex !== -1 && oIndex < sIndex;
         }
     }
 ];
