@@ -2462,25 +2462,23 @@ class AIAgent {
             evaluationCache.clear();
     }
 
-    initSearch(currentBoard, pieceQueue, currentHoldPiece, isB2B, combo) {
-        // 以前のターンでテンプレートがアクティブだったかを記憶
+        initSearch(currentBoard, pieceQueue, currentHoldPiece, isB2B, combo) {
         const wasTemplateActive = this.activeTemplate !== null;
-
-        // --- Template Logic ---
-        // 1. テンプレート適用中なら、逸脱チェック (nullの場所にブロックがないか)
         if (this.activeTemplate) {
             let valid = true;
+            let completed = true;
+            let hasTargets = false;
             const tempBoard = this.activeTemplate.board;
-            // データが空の場合はチェックをスキップして有効扱い
             if (tempBoard && tempBoard.length === BOARD_HEIGHT) {
                 for (let y = 0; y < BOARD_HEIGHT; y++) {
-                    if (!valid) break;
                     const row = currentBoard.rows[y];
                     for (let x = 0; x < WIDTH; x++) {
-                        // テンプレートでnull (空であるべき) なのに、現在の盤面でブロックがある場合
-                        if (tempBoard[y][x] === null && (row & (1 << x)) !== 0) {
-                            valid = false;
-                            break;
+                        const isFilled = (row & (1 << x)) !== 0;
+                        if (tempBoard[y][x] === null) {
+                            if (isFilled) valid = false;
+                        } else {
+                            hasTargets = true;
+                            if (!isFilled) completed = false;
                         }
                     }
                 }
@@ -2488,10 +2486,12 @@ class AIAgent {
             if (!valid) {
                 this.activeTemplate = null;
                 self.postMessage({ type: 'debug', message: 'Template: Cancelled (Block detected in null area)' });
+            } else if (hasTargets && completed) {
+                this.activeTemplate = null;
+                self.postMessage({ type: 'debug', message: 'Template: Completed' });
             }
         }
 
-        // 2. テンプレート未適用なら、開始条件をチェック
         if (!this.activeTemplate) {
             for (const temp of TEMPLATES) {
                 let match = true;
