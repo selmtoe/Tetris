@@ -2796,11 +2796,12 @@ class AIAgent {
             for (const temp of TEMPLATES) {
                 if (temp.trigger(currentBoard, pieceQueue, currentHoldPiece)) {
                     this.activeTemplate = temp;
-                    self.postMessage({ type: 'debug', message: `Template: Active (${temp.name})` });
+                    self.postMessage({ type: 'debug', message: 'Template: Active (' + temp.name + ')' });
                     break;
                 }
             }
         }
+        
         // ----------------------
 
         let reuseTree = false;
