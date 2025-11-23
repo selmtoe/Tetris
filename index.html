@@ -238,7 +238,23 @@
 </head>
 <body>
 <div id="debug-console-overlay"></div>
-
+<script>
+    // エラーを画面に表示する仕組み
+    (function(){
+        const consoleDiv = document.getElementById('debug-console-overlay');
+        function logError(msg) {
+            consoleDiv.textContent += "ERROR: " + msg + "\n----------------\n";
+            consoleDiv.style.display = 'block';
+        }
+        window.onerror = function(msg, url, line, col, error) {
+            logError(`${msg}\nAt: ${line}:${col}\n${error ? error.stack : ''}`);
+            return false;
+        };
+        window.onunhandledrejection = function(e) {
+            logError(`Unhandled Promise Rejection: ${e.reason}`);
+        };
+    })();
+</script>
 
 <div class="main-container">
     <div id="editor-container">
