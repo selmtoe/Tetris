@@ -3247,8 +3247,12 @@ let currentQueue = [];
 
 function thinkingLoop() {
     if (!isThinking) return;
-    aiAgent.searchStep(200, currentQueue); // 1回のステップ数を増やして呼び出しオーバーヘッド削減
-    self.postMessage({ type: 'nodeCount', count: aiAgent.totalNodesInSearch });
+    aiAgent.searchStep(200, currentQueue);
+    self.postMessage({ 
+        type: 'nodeCount', 
+        count: aiAgent.totalNodesInSearch,
+        template: aiAgent.activeTemplate ? aiAgent.activeTemplate.name : null
+    });
     setTimeout(thinkingLoop, 0);
 }
 
@@ -3885,7 +3889,8 @@ class Player {
                         
                         debugDisplay.style.display = 'block';
                         const color = status.includes('RESET') ? '#ff4444' : (status.includes('REUSED') ? '#44ff44' : 'white');
-                        debugDisplay.innerHTML = `Status: <span style="color: ${color}">${status}</span><br>Nodes: ${e.data.count}`;
+                        const templateInfo = e.data.template ? `<br>Template: <span style="color: #00ffff">${e.data.template}</span>` : '';
+                        debugDisplay.innerHTML = `Status: <span style="color: ${color}">${status}</span><br>Nodes: ${e.data.count}${templateInfo}`;
                     }
                 } else if (gameState === 'PLAYING' && this.isAiThinking) {
                     this.executeAiMove(e.data);
