@@ -2891,12 +2891,15 @@ class AIAgent {
         let count = 0;
         while (count < iterations && this.totalNodesInSearch < SEARCH_ITERATION_LIMIT) {
             const selectedNode = this.select(this.rootID);
+            
+            // テンプレートモード時は深さ1以上（ルートの子ノード以降）を展開しない
+            if (this.activeTemplate && selectedNode.depth >= 1) break;
+
             if (selectedNode.expanded) break; 
             
             const depth = selectedNode.depth;
             const pieceForExpand = pieceQueue[depth];
             const nextPieceForExpand = pieceQueue[depth + 1];
-            
             if (pieceForExpand && nextPieceForExpand) {
                 this.expand(selectedNode.id, pieceForExpand, nextPieceForExpand);
             } else {
@@ -3018,15 +3021,15 @@ class AIAgent {
             }
         }
         if (placementResult.wastedT) acc_eval += weights.wasted_t;
-
         // --- Template Bonus ---
         if (this.activeTemplate && node.place) {
             const p = node.place;
-            // リスト内のいずれかの手と一致するかチェック
-            for (const move of this.activeTemplate.moves) {
+            // リスト内のいずれかの手と一致するかチェック (上から優先)
+            for (let i = 0; i < this.activeTemplate.moves.length; i++) {
+                const move = this.activeTemplate.moves[i];
                 if (move.t === p.pieceType && move.x === p.x && move.y === p.y && move.r === p.rotation) {
-                    // 一致する手があれば超高評価 (他の評価を無視して最優先される)
-                    acc_eval += 1000000000; 
+                    // 一致する手があれば超高評価。リストの上位(iが小さい)ほど点数を高くする
+                    acc_eval += 1000000000 - (i * 10000);
                     break; 
                 }
             }
