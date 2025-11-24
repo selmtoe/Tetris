@@ -1945,7 +1945,7 @@ const TEMPLATES = [
             const oIndex = minos.indexOf('O');
             const sIndex = minos.indexOf('S');
             const iIndex = minos.indexOf('I');
-            return oIndex !== -1 && sIndex !== -1 && iIndex !== -1 && oIndex < sIndex && oIndex < iIndex;
+            return oIndex !== -1 && sIndex !== -1 && iIndex !== -1 && oIndex < sIndex && oIndex > iIndex;
             
         }
     },
