@@ -1702,6 +1702,40 @@ for (let i = 0; i < ZOBRIST_TABLE.length; i++) {
 }
 
 const TEMPLATES = [
+    {
+        name: 'meisou_1st',
+        board: 
+        moves: [
+            {t:'L', x:1, y:38, r:1},
+            {t:'J', x:7, y:38, r:3},
+            {t:'T', x:4, y:38, r:1},
+            {t:'O', x:8, y:39, r:0},
+            {t:'I', x:0, y:37, r:3},
+            {t:'S', x:2, y:38, r:1}
+        ],
+        trigger: (board, queue, hold) => {
+            // 1. ミノ列の取得 (Hold + Queueから計7個分)
+            const minos = [];
+            if (hold) minos.push(hold);
+            for (const p of queue) {
+                if (minos.length >= 7) break;
+                minos.push(p);
+            }
+
+            // 2. 重複チェック
+            const counts = {};
+            for (const m of minos) {
+                counts[m] = (counts[m] || 0) + 1;
+                if (counts[m] > 1) return false;
+            }
+
+    const lIndex = minos.indexOf('L');
+    const sIndex = minos.indexOf('S');
+    const iIndex = minos.indexOf('I');
+
+    return oIndex !== -1 && zIndex !== -1 && iIndex !== -1 && !(lIndex > sIndex && lIndex > iIndex);
+        }
+    },
     // 1. 山岳2号右 (1巡目)
     {
         name: 'sangaku_2_right_1st',
@@ -1842,8 +1876,7 @@ const TEMPLATES = [
     const zIndex = minos.indexOf('Z');
     const iIndex = minos.indexOf('I');
 
-    return oIndex !== -1 && zIndex !== -1 && iIndex !== -1 &&
-           oIndex < zIndex && iIndex < oIndex;
+    return oIndex !== -1 && zIndex !== -1 && iIndex !== -1 && oIndex < zIndex && iIndex < oIndex;
 
         }
     },
