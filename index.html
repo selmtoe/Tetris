@@ -1942,10 +1942,42 @@ const TEMPLATES = [
                 minos.push(p);
             }
 
-            // 2. 順序チェック (OがSより先)
             const oIndex = minos.indexOf('O');
             const sIndex = minos.indexOf('S');
-            return oIndex !== -1 && sIndex !== -1 && oIndex < sIndex;
+            const iIndex = minos.indexOf('I');
+            return oIndex !== -1 && sIndex !== -1 && iIndex !== -1 && oIndex < sIndex && oIndex < iIndex;
+            
+        }
+    },
+    {
+        name: 'sangaku_2_left_2nd_pattern3',
+        startBoard:[[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],["G","G",null,null,null,null,null,null,null,null],["G","G","G",null,null,null,null,"G",null,null],["G","G","G",null,"G","G","G","G","G","G"],["G","G","G","G",null,"G","G","G","G","G"]],
+        board: [[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null,null,"G"],["G","G","G","G",null,null,null,null,null,"G"],["G","G","G","G",null,null,null,null,null,"G"],["G","G","G",null,null,null,null,"G","G","G"],["G","G","G",null,"G","G","G","G","G","G"],["G","G","G",null,null,"G","G","G","G","G"],["G","G","G",null,"G","G","G","G","G","G"],["G","G","G","G",null,"G","G","G","G","G"]],
+        moves: [
+            {t:'L', x:0, y:34, r:1},
+            {t:'O', x:8, y:37, r:0},
+            {t:'L', x:2, y:35, r:3},
+            {t:'L', x:2, y:33, r:2},
+            {t:'J', x:2, y:33, r:2},
+            {t:'J', x:2, y:35, r:1},
+            {t:'Z', x:5, y:37, r:0},
+            {t:'S', x:7, y:36, r:0},
+            {t:'I', x:7, y:33, r:1}
+        ],
+        // 条件: ホールド含めた直近8ミノのうち、OがSより速い
+        trigger: (board, queue, hold) => {
+            // 1. ミノ列の取得 (Hold + Queueから計8個分)
+            const minos = [];
+            if (hold) minos.push(hold);
+            for (const p of queue) {
+                if (minos.length >= 8) break;
+                minos.push(p);
+            }
+
+            const oIndex = minos.indexOf('O');
+            const sIndex = minos.indexOf('S');
+            const iIndex = minos.indexOf('I');
+            return oIndex !== -1 && sIndex !== -1 && iIndex !== -1 && oIndex < sIndex && oIndex < iIndex;
         }
     }
 ];
