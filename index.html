@@ -2,20 +2,17 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Sfinder Web Environment (CheerpJ 3.0)</title>
+    <title>Sfinder Web (CheerpJ Fix)</title>
     <script src="https://cjrtnc.leaningtech.com/3.0/cj3loader.js"></script>
     <style>
         body { display: flex; height: 100vh; margin: 0; font-family: sans-serif; }
         .left-pane { width: 40%; padding: 15px; background: #f4f4f4; display: flex; flex-direction: column; overflow-y: auto; border-right: 1px solid #ccc; box-sizing: border-box; }
         .right-pane { width: 60%; padding: 15px; background: #2d2d2d; color: #eee; display: flex; flex-direction: column; box-sizing: border-box; }
-        
         textarea { width: 100%; height: 120px; margin-bottom: 10px; font-family: monospace; font-size: 14px; box-sizing: border-box; }
         input[type="text"] { width: 100%; padding: 5px; margin-bottom: 10px; font-family: monospace; box-sizing: border-box; }
         label { font-weight: bold; font-size: 14px; margin-top: 10px; display: block; }
-        
         button { padding: 12px; font-size: 16px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; margin-top: 10px; }
         button:disabled { background: #999; cursor: wait; }
-        
         #consoleOutput { flex-grow: 1; background: #000; color: #0f0; padding: 10px; font-family: monospace; white-space: pre-wrap; overflow-y: scroll; border: 1px solid #555; height: 300px; }
         #fileList { margin-top: 10px; padding: 10px; background: #444; border-radius: 4px; min-height: 50px; }
         .download-link { display: block; color: #4da6ff; text-decoration: none; margin: 5px 0; }
@@ -23,44 +20,36 @@
     </style>
 </head>
 <body>
-
     <div class="left-pane">
-        <h2>Sfinder Web (Wasm)</h2>
-        
-        <label>Command</label>
+        <h2>Sfinder Web</h2>
+        <label>Command (自動で -t 1 が付与されます)</label>
         <input type="text" id="commandInput" value="path -f input/field.txt -k kicks/srs.properties">
-        <small>※ sfinder.jar は自動的にロードされます</small>
-
+        
         <label>input/field.txt</label>
         <textarea id="fieldTxt">
-# フィールド入力
 XX________
 XX________
 XX________
 </textarea>
-
         <label>input/patterns.txt</label>
         <textarea id="patternsTxt">
-# パターン入力
 T, I, J, L, S, Z, O
 </textarea>
-
-        <button id="runBtn" onclick="runApp()" disabled>CheerpJ 準備中...</button>
+        <button id="runBtn" onclick="runApp()" disabled>Loading CheerpJ...</button>
         <div id="status" style="margin-top:5px; color:#666;">Initializing...</div>
     </div>
 
     <div class="right-pane">
         <label>Console Output</label>
         <div id="consoleOutput"></div>
-
-        <label>Generated Output Files</label>
-        <div id="fileList">実行待ち</div>
+        <label>Output Files</label>
+        <div id="fileList"></div>
     </div>
 
     <script>
-        // 設定: kicks/srs.properties の内容
-        const SRS_PROPERTIES_CONTENT = `# srs.properties content
-        L.NE=(0,0)(-1,0)(-1,+1)(0,-2)(-1,-2)
+        // srs.properties (最小限の設定)
+        const SRS_PROPERTIES_CONTENT = `
+L.NE=(0,0)(-1,0)(-1,+1)(0,-2)(-1,-2)
 L.ES=(0,0)(+1,0)(+1,-1)(0,+2)(+1,+2)
 L.SW=(0,0)(+1,0)(+1,+1)(0,-2)(+1,-2)
 L.WN=(0,0)(-1,0)(-1,-1)(0,+2)(-1,+2)
@@ -131,42 +120,31 @@ O.SE=(-1, 0)
 O.EN=( 0,-1)
 `;
 
-        // CheerpJの初期化
         (async function init() {
             try {
-                // 3.0の初期化。status: "splash" を指定するとロード画面が出るが今回は自作UIのためなし
                 await cheerpjInit();
                 document.getElementById("status").innerText = "Ready";
-                document.getElementById("runBtn").innerText = "実行 (Run)";
-                document.getElementById("runBtn").disabled = false;
-                
-                console.log("CheerpJ initialized.");
+                const btn = document.getElementById("runBtn");
+                btn.innerText = "実行 (Run)";
+                btn.disabled = false;
             } catch (e) {
-                document.getElementById("status").innerText = "Error: " + e;
                 console.error(e);
+                document.getElementById("status").innerText = "Error: " + e;
             }
         })();
 
-        // 仮想ファイルシステムへの書き込み (Javaのクラスを使用)
         async function writeVirtualFile(pathStr, content) {
-            // Javaのクラスを取得
-            const Files = await cheerpjRunLibrary("java.nio.file.Files");
-            const Paths = await cheerpjRunLibrary("java.nio.file.Paths");
-            const StandardOpenOption = await cheerpjRunLibrary("java.nio.file.StandardOpenOption");
-            const StringCls = await cheerpjRunLibrary("java.lang.String");
-
-            // ディレクトリ作成 (Fileクラス経由が簡単)
+            // ディレクトリ作成
             const File = await cheerpjRunLibrary("java.io.File");
             const fileObj = await new File(pathStr);
             const parent = await fileObj.getParentFile();
-            if (parent) {
+            if (parent && !(await parent.exists())) {
                 await parent.mkdirs();
             }
 
-            // ファイル書き込み (Files.writeString は Java11+。CheerpJは基本Java8互換ベースだが、
-            // 安全のためにFileWriterを使う古い方式で実装します)
+            // JavaのFileWriterを使って書き込み
             const FileWriter = await cheerpjRunLibrary("java.io.FileWriter");
-            const writer = await new FileWriter(pathStr);
+            const writer = await new FileWriter(fileObj);
             await writer.write(content);
             await writer.close();
         }
@@ -177,30 +155,41 @@ O.EN=( 0,-1)
             
             btn.disabled = true;
             outputDiv.innerText = "Processing...\n";
+            document.getElementById("fileList").innerHTML = "";
 
             try {
-                // 1. ファイルの準備
-                // sfinderのディレクトリ構造 (/app/ がルート相当)
-                await writeVirtualFile("kicks/srs.properties", SRS_PROPERTIES_CONTENT);
-                await writeVirtualFile("input/field.txt", document.getElementById("fieldTxt").value);
-                await writeVirtualFile("input/patterns.txt", document.getElementById("patternsTxt").value);
+                // ファイル準備
+                await writeVirtualFile("/app/kicks/srs.properties", SRS_PROPERTIES_CONTENT);
+                await writeVirtualFile("/app/input/field.txt", document.getElementById("fieldTxt").value);
+                await writeVirtualFile("/app/input/patterns.txt", document.getElementById("patternsTxt").value);
 
-                // 2. コマンド引数の処理
-                // "path -f input/field.txt ..." を分割
+                // コマンド引数の構築
                 let cmdString = document.getElementById("commandInput").value.trim();
                 let args = cmdString.split(/\s+/);
-
-                // 3. JARの実行
-                // /app/sfinder.jar は、HTMLと同じ場所にある実際のファイルをCheerpJがフェッチします
-                const exitCode = await cheerpjRunJar("/app/sfinder.jar", ...args);
                 
-                outputDiv.innerText += `\n[Process Finished with exit code ${exitCode}]\n`;
+                // 【重要】スレッド数を1に強制する
+                // 既に指定されていなければ追加
+                if(!args.includes("-t") && !args.includes("--threads")) {
+                    args.push("-t", "1");
+                }
 
-                // 4. outputフォルダの結果を表示
+                outputDiv.innerText += `Executing: sfinder.jar ${args.join(" ")}\n\n`;
+
+                // JAR実行
+                // System.exit()が呼ばれるとJS側では例外としてキャッチされる仕様のためtry-catchする
+                try {
+                    await cheerpjRunJar("/app/sfinder.jar", ...args);
+                } catch (e) {
+                    // System.exit(0) は正常終了とみなす
+                    // CheerpJのエラーメッセージ構造に依存するが、一般的にExitExceptionのようなものが飛ぶ
+                    console.log("Process finished (possibly via System.exit):", e);
+                }
+
+                outputDiv.innerText += `\n[Done]\n`;
                 await listOutputFiles();
 
             } catch (e) {
-                outputDiv.innerText += `\n[Error] ${e}\n`;
+                outputDiv.innerText += `\n[Fatal Error] ${e}\n`;
                 console.error(e);
             } finally {
                 btn.disabled = false;
@@ -209,66 +198,62 @@ O.EN=( 0,-1)
 
         async function listOutputFiles() {
             const fileListDiv = document.getElementById("fileList");
-            fileListDiv.innerHTML = "";
-
             try {
                 const File = await cheerpjRunLibrary("java.io.File");
+                // sfinderはカレントディレクトリの output フォルダに出力する
                 const outputDir = await new File("output");
                 
-                if (!(await outputDir.exists()) || !(await outputDir.isDirectory())) {
-                    fileListDiv.innerText = "outputディレクトリが見つかりませんでした。";
+                if (!(await outputDir.exists())) {
+                    fileListDiv.innerText = "outputディレクトリが生成されませんでした。";
                     return;
                 }
 
-                const files = await outputDir.list();
-                if (!files) {
-                    fileListDiv.innerText = "出力ファイルなし";
-                    return;
-                }
+                const files = await outputDir.listFiles();
+                if (!files) { return; }
 
-                // Java配列をJSでループする場合、CheerpJ 3.0では少し工夫が必要
-                // 単純にファイル名を取得してダウンロードリンク化
+                // File[] 配列を反復処理
                 for (let i = 0; i < files.length; i++) {
-                    let fileName = files[i];
-                    let fullPath = "output/" + fileName;
+                    const f = files[i];
+                    if(await f.isDirectory()) continue;
 
-                    // 中身を読む
-                    const Path = await cheerpjRunLibrary("java.nio.file.Paths");
+                    const name = await f.getName();
+                    const fullPath = await f.getAbsolutePath();
+
+                    // ファイル読み込み
                     const Files = await cheerpjRunLibrary("java.nio.file.Files");
+                    const Path = await cheerpjRunLibrary("java.nio.file.Paths");
                     const pathObj = await Path.get(fullPath);
-                    
-                    // バイナリとして読み込んでBlob化
                     const bytes = await Files.readAllBytes(pathObj);
-                    // Javaのbyte配列をJSのUint8Arrayに変換
-                    const jsBytes = new Uint8Array(bytes);
                     
+                    // JSのBlob化
+                    const jsBytes = new Uint8Array(bytes);
                     const blob = new Blob([jsBytes], { type: "text/plain" });
                     const url = URL.createObjectURL(blob);
 
                     const link = document.createElement("a");
                     link.href = url;
-                    link.download = fileName;
+                    link.download = name;
                     link.className = "download-link";
-                    link.innerText = `📄 ${fileName}`;
+                    link.innerText = `📄 ${name}`;
                     fileListDiv.appendChild(link);
                 }
             } catch (e) {
-                fileListDiv.innerText = "結果取得エラー: " + e;
-                console.error(e);
+                fileListDiv.innerText = "ファイル一覧取得エラー: " + e;
             }
         }
 
-        // 標準出力を画面に表示するためのフック
-        // CheerpJはconsole.logにstdoutを流すため、それを横取りします
+        // console.logのフック（簡易的）
         const originalLog = console.log;
-        const outputDiv = document.getElementById("consoleOutput");
+        const outDiv = document.getElementById("consoleOutput");
         console.log = function(...args) {
             originalLog.apply(console, args);
-            // Sfinder実行中のログっぽいものだけ表示する簡易フィルタ
-            const msg = args.join(" ");
-            // システムメッセージ以外を表示
-            outputDiv.innerText += msg + "\n";
-            outputDiv.scrollTop = outputDiv.scrollHeight;
+            // Sfinderのログっぽいものを拾う
+            const txt = args.join(" ");
+            // システムログなどを除外するフィルタが必要ならここに追加
+            if (!txt.includes("cj3loader") && !txt.includes("CheerpJ")) {
+                outDiv.innerText += txt + "\n";
+                outDiv.scrollTop = outDiv.scrollHeight;
+            }
         };
     </script>
 </body>
