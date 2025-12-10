@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Sfinder  Web (Multi-Thread Supported)</title>
+    <title>Sfinder Web (Fixed Output)</title>
     <script src="coi-serviceworker.js"></script>
     <script src="https://cjrtnc.leaningtech.com/3.0/cj3loader.js"></script>
     <style>
@@ -19,13 +19,14 @@
         #fileList { padding: 10px; background: #2a2a2a; border: 1px solid #444; border-radius: 4px; min-height: 50px; }
         .download-link { display: inline-block; padding: 5px 10px; background: #444; color: #4da6ff; text-decoration: none; margin: 5px; border-radius: 3px; border: 1px solid #555; }
         .download-link:hover { background: #555; text-decoration: none; }
+        .error-msg { color: #ff4d4d; }
     </style>
 </head>
 <body>
     <div class="left-pane">
         <h2 style="margin-top:0">Sfinder Web</h2>
         
-        <label>Command (※ -th 1 は不要になりました)</label>
+        <label>Command</label>
         <input type="text" id="commandInput" value="path -f input/field.txt -k kicks/srs.properties">
         
         <label>input/field.txt</label>
@@ -55,6 +56,7 @@ T, I, J, L, S, Z, O
     </div>
 
     <script>
+// SRS定義 (変更なし)
 const SRS_PROPERTIES_CONTENT=`
 L.NE=(0,0)(-1,0)(-1,+1)(0,-2)(-1,-2)
 L.ES=(0,0)(+1,0)(+1,-1)(0,+2)(+1,+2)
@@ -127,27 +129,49 @@ O.SE=(-1, 0)
 O.EN=( 0,-1)
 `;
 
+        let logPoller = null;
+        let lastLogSize = 0;
+
         (async function init() {
             try {
-                // CheerpJ初期化
                 await cheerpjInit();
                 document.getElementById("status").innerText = "Environment Ready. sfinder.jar loaded.";
                 document.getElementById("runBtn").innerText = "Run Sfinder";
                 document.getElementById("runBtn").disabled = false;
             } catch (e) {
                 document.getElementById("status").innerText = "Init Error: " + e;
+                document.getElementById("status").className = "error-msg";
             }
         })();
 
+        // 仮想ファイル書き込みヘルパー
         async function writeVirtualFile(pathStr, content) {
             const File = await cheerpjRunLibrary("java.io.File");
             const FileWriter = await cheerpjRunLibrary("java.io.FileWriter");
+            
+            // 親ディレクトリ作成
             const fileObj = await new File(pathStr);
             const parent = await fileObj.getParentFile();
             if (parent && !(await parent.exists())) await parent.mkdirs();
+            
             const writer = await new FileWriter(pathStr);
             await writer.write(content);
             await writer.close();
+        }
+
+        // 標準出力・標準エラー出力をファイルにリダイレクトする
+        async function redirectOutputToFile(logPath) {
+            const FileOutputStream = await cheerpjRunLibrary("java.io.FileOutputStream");
+            const PrintStream = await cheerpjRunLibrary("java.io.PrintStream");
+            const System = await cheerpjRunLibrary("java.lang.System");
+
+            // Append mode = false (毎回上書き開始)
+            const fos = await new FileOutputStream(logPath, false);
+            // AutoFlush = true
+            const ps = await new PrintStream(fos, true);
+
+            await System.setOut(ps);
+            await System.setErr(ps);
         }
 
         async function runApp() {
@@ -155,28 +179,91 @@ O.EN=( 0,-1)
             const outputDiv = document.getElementById("consoleOutput");
             btn.disabled = true;
             outputDiv.innerText = "--- Started ---\n";
+            document.getElementById("fileList").innerHTML = "";
+
+            // ログポーリング開始
+            if (logPoller) clearInterval(logPoller);
+            lastLogSize = 0;
+            const logPath = "output/session.log";
 
             try {
+                // JARの存在確認 (重要)
+                const File = await cheerpjRunLibrary("java.io.File");
+                // Webサーバ上のパスとCheerpJ上のパスが一致しているか確認
+                // デフォルトではルートは /app/ にマウントされることが多い
+                const jarPath = "/app/sfinder.jar"; 
+                const jarFile = await new File(jarPath);
+                
+                // ※ CheerpJの仮想ファイルシステム上での存在チェック
+                // Webサーバからfetchできない場合はここより下の実行フェーズでエラーになる
+                
+                // ファイル準備
                 await writeVirtualFile("kicks/srs.properties", SRS_PROPERTIES_CONTENT);
                 await writeVirtualFile("input/field.txt", document.getElementById("fieldTxt").value);
                 await writeVirtualFile("input/patterns.txt", document.getElementById("patternsTxt").value);
 
+                // 出力先のリダイレクト設定
+                await redirectOutputToFile(logPath);
+
+                // ログ監視開始
+                logPoller = setInterval(() => checkLogFile(logPath), 200);
+
                 let cmdString = document.getElementById("commandInput").value.trim();
                 let args = cmdString.split(/\s+/);
-
-                outputDiv.innerText += `Executing: java -jar sfinder.jar ${args.join(" ")}\n\n`;
                 
+                outputDiv.innerText += `Executing: java -jar sfinder.jar ${args.join(" ")}\n\n`;
+
                 // JAR実行
-                const exitCode = await cheerpjRunJar("/app/sfinder.jar", ...args);
+                // エラー時は通常コンソールに出るが、リダイレクトしているので log.txt に出るはず
+                const exitCode = await cheerpjRunJar(jarPath, ...args);
                 
                 outputDiv.innerText += `\n--- Finished (Exit Code: ${exitCode}) ---\n`;
-                await listOutputFiles();
-
+                
             } catch (e) {
-                outputDiv.innerText += `\n[Fatal Error] ${e}\n`;
+                outputDiv.innerText += `\n[Fatal Error in JS Layer]\n${e}\n`;
                 console.error(e);
             } finally {
+                // 最後に一回ログを読んでから停止
+                await checkLogFile(logPath);
+                if (logPoller) clearInterval(logPoller);
+                
+                await listOutputFiles();
                 btn.disabled = false;
+            }
+        }
+
+        // ログファイルを読み込んで画面に追記する関数
+        async function checkLogFile(logPath) {
+            try {
+                const Paths = await cheerpjRunLibrary("java.nio.file.Paths");
+                const Files = await cheerpjRunLibrary("java.nio.file.Files");
+                const pathObj = await Paths.get(logPath);
+                
+                if (!(await Files.exists(pathObj))) return;
+
+                const bytes = await Files.readAllBytes(pathObj);
+                if (bytes.length > lastLogSize) {
+                    // 全量を読んで差分を表示するのは重いので、簡易的に全量置換または差分計算
+                    // ここではシンプルに全量をTextDecodeして表示
+                    const jsBytes = new Uint8Array(bytes);
+                    const text = new TextDecoder("utf-8").decode(jsBytes);
+                    
+                    // 前回の長さより長い部分だけ...というのは文字化けリスクがあるので
+                    // 単純に現在のテキストエリアの内容を更新する
+                    const outputDiv = document.getElementById("consoleOutput");
+                    // 最初の "--- Started ---" 等を残すための処理が必要なら工夫するが
+                    // ここでは「ログファイルの内容」＝「コンソール出力」とする
+                    
+                    // 既存のヘッダを残したい場合
+                    const header = outputDiv.innerText.split("\n\n")[0]; 
+                    // ※簡易実装: ログファイルの内容をそのまま表示
+                    outputDiv.innerText = (header.includes("Executing") ? header + "\n\n" : "") + text;
+                    outputDiv.scrollTop = outputDiv.scrollHeight;
+
+                    lastLogSize = bytes.length;
+                }
+            } catch (e) {
+                console.error("Log poll error", e);
             }
         }
 
@@ -196,12 +283,13 @@ O.EN=( 0,-1)
 
                 for (let i = 0; i < fileArray.length; i++) {
                     const name = fileArray[i];
-                    if(name.startsWith(".")) continue;
+                    if(name.startsWith(".") || name === "session.log") continue; // ログファイルはDLリストから除外
+                    
                     const fullPath = "output/" + name;
                     const pathObj = await Paths.get(fullPath);
                     const bytes = await Files.readAllBytes(pathObj);
                     const jsBytes = new Uint8Array(bytes);
-                    const blob = new Blob([jsBytes], { type: "text/plain" });
+                    const blob = new Blob([jsBytes], { type: "text/plain" }); // 画像等はMIME判定必要だが一旦text
                     const url = URL.createObjectURL(blob);
                     const link = document.createElement("a");
                     link.href = url;
@@ -214,17 +302,6 @@ O.EN=( 0,-1)
                 console.error("File listing failed", e);
             }
         }
-
-        const originalLog = console.log;
-        const outputDiv = document.getElementById("consoleOutput");
-        console.log = function(...args) {
-            originalLog.apply(console, args);
-            const msg = args.map(a => (typeof a === 'object') ? '' : String(a)).join(" ");
-            if(msg.trim().length > 0 && !msg.includes("COI:")) {
-                outputDiv.innerText += msg + "\n";
-                outputDiv.scrollTop = outputDiv.scrollHeight;
-            }
-        };
     </script>
 </body>
 </html>
