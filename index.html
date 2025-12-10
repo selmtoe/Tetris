@@ -1,221 +1,46 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Sfinder Debug Test</title>
+    <title>JAR Runner in Browser</title>
     <script src="https://cjrtnc.leaningtech.com/3.0/cj3loader.js"></script>
-    <style>
-        body { font-family: monospace; }
-        pre { background: #f0f0f0; padding: 10px; }
-        .error { color: red; }
-        .success { color: green; }
-    </style>
 </head>
-<body>
-    <h1>Sfinder Debug Test</h1>
-    <div>
-        <button onclick="testBasic()">1. Basic Test</button>
-        <button onclick="testSystem()">2. System Test</button>
-        <button onclick="testJar()">3. JAR Test</button>
-        <button onclick="testSfinder()">4. Sfinder Simple Test</button>
-    </div>
-    <pre id="output">Ready...</pre>
+<body style="font-family: sans-serif; padding: 20px;">
+
+    <h2>ブラウザでJAR実行 (CheerpJ)</h2>
     
+    <p>実行したいJARファイルを選択してください（Swing/AWT対応）:</p>
+    <input type="file" id="jarInput" accept=".jar">
+    
+    <div id="console" style="background: #eee; padding: 10px; margin-top: 10px; height: 100px; overflow: auto; border: 1px solid #ccc;">
+        コンソールログ...
+    </div>
+
+    <div id="jar-container" style="margin-top: 20px; border: 2px solid #333; width: 640px; height: 480px;"></div>
+
     <script>
-        let cheerpjInitialized = false;
-        const output = document.getElementById('output');
-        
-        function log(msg, className = '') {
-            const line = document.createElement('div');
-            line.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
-            if (className) line.className = className;
-            output.appendChild(line);
-            console.log(msg);
-        }
-        
-        async function initCheerpJ() {
-            if (cheerpjInitialized) return true;
+        // CheerpJの初期化
+        cheerpjInit();
+
+        document.getElementById('jarInput').addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const consoleDiv = document.getElementById('console');
+            consoleDiv.innerHTML += `<div>Loading ${file.name}...</div>`;
+
+            // 仮想ファイルシステムにファイルを書き込む
+            const arrayBuffer = await file.arrayBuffer();
+            const fileName = `/files/${file.name}`;
             
-            log('Initializing CheerpJ...');
-            try {
-                // シンプルな初期化
-                await cheerpjInit({
-                    wasmMemorySize: 256,
-                    disableAudio: true,
-                    disableThreads: false,
-                    javaProperties: {
-                        "user.dir": "/",
-                        "java.awt.headless": "true",
-                        "file.encoding": "UTF-8"
-                    }
-                });
-                
-                // 初期化が完全に完了するまで待機
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                cheerpjInitialized = true;
-                log('✓ CheerpJ initialized', 'success');
-                return true;
-            } catch (e) {
-                log('✗ CheerpJ init failed: ' + e.message, 'error');
-                return false;
-            }
-        }
-        
-        async function testBasic() {
-            log('\n=== Test 1: Basic CheerpJ ===');
-            try {
-                // 最も基本的なテスト
-                log('Testing cheerpjRunLibrary...');
-                const StringClass = await cheerpjRunLibrary("java.lang.String");
-                log('✓ java.lang.String loaded');
-                
-                const str = await new StringClass("Hello World");
-                const result = await str.toString();
-                log('✓ String created: ' + result, 'success');
-                
-                // メソッド呼び出しテスト
-                const length = await str.length();
-                log('✓ String length: ' + length, 'success');
-                
-            } catch (e) {
-                log('✗ Basic test failed: ' + e.message + '\n' + e.stack, 'error');
-            }
-        }
-        
-        async function testSystem() {
-            log('\n=== Test 2: System Properties ===');
-            try {
-                const init = await initCheerpJ();
-                if (!init) return;
-                
-                // Systemクラスを直接使用
-                log('Getting System class...');
-                const System = await cheerpjRunLibrary("java.lang.System");
-                
-                // プロパティの取得
-                log('Getting properties...');
-                const version = await System.getProperty("java.version");
-                log('Java version: ' + version);
-                
-                const os = await System.getProperty("os.name");
-                log('OS: ' + os);
-                
-                const arch = await System.getProperty("os.arch");
-                log('Arch: ' + arch);
-                
-                // 現在時刻の取得
-                const time = await System.currentTimeMillis();
-                log('Current time: ' + new Date(Number(time)).toLocaleString());
-                
-                log('✓ System test passed', 'success');
-                
-            } catch (e) {
-                log('✗ System test failed: ' + e.message, 'error');
-            }
-        }
-        
-        async function testJar() {
-            log('\n=== Test 3: JAR Execution Test ===');
-            try {
-                const init = await initCheerpJ();
-                if (!init) return;
-                
-                log('Testing if sfinder.jar exists...');
-                
-                // fetchで確認
-                const response = await fetch('sfinder.jar');
-                if (!response.ok) {
-                    throw new Error('sfinder.jar not found: ' + response.status);
-                }
-                log('✓ sfinder.jar found (' + response.headers.get('content-length') + ' bytes)');
-                
-                // まずhelpコマンドを試す
-                log('Trying to run: java -jar sfinder.jar help');
-                
-                // CheerpJのJARランチャーを使用
-                const exitCode = await cheerpjRunJar("sfinder.jar", "help");
-                
-                log('✓ JAR executed with exit code: ' + exitCode, 'success');
-                
-            } catch (e) {
-                log('✗ JAR test failed: ' + e.message, 'error');
-                
-                // 代替方法を試す
-                log('Trying alternative method...');
-                try {
-                    // 直接Mainクラスを指定して実行
-                    const MainClass = await cheerpjRunLibrary("main.Main");
-                    log('Found Main class');
-                } catch (e2) {
-                    log('Alternative also failed: ' + e2.message);
-                }
-            }
-        }
-        
-        async function testSfinder() {
-            log('\n=== Test 4: Simple Sfinder Command ===');
-            try {
-                const init = await initCheerpJ();
-                if (!init) return;
-                
-                // 一時ファイルを作成
-                log('Creating test files...');
-                
-                // 仮想ファイルシステムに書き込み
-                const File = await cheerpjRunLibrary("java.io.File");
-                const FileWriter = await cheerpjRunLibrary("java.io.FileWriter");
-                
-                // field.txtを作成
-                const fieldFile = await new File("/field.txt");
-                const fieldWriter = await new FileWriter(fieldFile);
-                await fieldWriter.write("__________\n".repeat(10));
-                await fieldWriter.close();
-                log('Created field.txt');
-                
-                // シンプルなコマンドを実行
-                log('Running: path -f /field.txt -p T');
-                const exitCode = await cheerpjRunJar("sfinder.jar", "path", "-f", "/field.txt", "-p", "T");
-                
-                log('Exit code: ' + exitCode);
-                
-                if (exitCode === 0) {
-                    log('✓ Sfinder command executed successfully', 'success');
-                    
-                    // 出力を確認
-                    const outputFile = await new File("/output/last_output.txt");
-                    if (await outputFile.exists()) {
-                        log('Output file created');
-                    }
-                } else {
-                    log('⚠ Sfinder returned non-zero exit code: ' + exitCode);
-                }
-                
-            } catch (e) {
-                log('✗ Sfinder test failed: ' + e.message, 'error');
-            }
-        }
-        
-        // ページ読み込み時に基本的な初期化
-        window.addEventListener('load', async () => {
-            log('Page loaded, testing CheerpJ availability...');
-            
-            // cheerpjInitが利用可能か確認
-            if (typeof cheerpjInit !== 'function') {
-                log('✗ cheerpjInit not found. Check script loading.', 'error');
-                return;
-            }
-            
-            log('✓ cheerpjInit is available');
-            
-            // 基本的な初期化テスト
-            try {
-                await cheerpjInit({});
-                cheerpjInitialized = true;
-                log('✓ Quick initialization successful', 'success');
-            } catch (e) {
-                log('⚠ Quick init failed (may need full init): ' + e.message);
-            }
+            // CheerpJの仮想FSに保存
+            cheerpjCreateFile(fileName, new Uint8Array(arrayBuffer));
+
+            consoleDiv.innerHTML += `<div>Executing...</div>`;
+
+            // JARを実行 (GUIを表示)
+            // cjDomを使ってHTML要素内に表示させることも可能ですが、デフォルトではオーバーレイ表示されます
+            cheerpjRunJar(fileName);
         });
     </script>
 </body>
