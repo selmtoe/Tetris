@@ -2,133 +2,427 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Sfinder Web (Diagnostic Mode)</title>
+    <title>Sfinder Web (Debug Mode)</title>
     <script src="coi-serviceworker.js"></script>
     <script src="https://cjrtnc.leaningtech.com/3.0/cj3loader.js"></script>
     <style>
-        body { background: #111; color: #fff; font-family: monospace; padding: 20px; }
-        #console { 
-            width: 100%; height: 500px; 
-            background: #000; border: 1px solid #555; 
-            padding: 10px; overflow-y: scroll; white-space: pre-wrap;
-            font-size: 14px;
+        body { display: flex; height: 100vh; margin: 0; font-family: "Segoe UI", sans-serif; background: #222; color: #ddd; }
+        .left-pane { width: 40%; padding: 20px; background: #333; display: flex; flex-direction: column; overflow-y: auto; border-right: 1px solid #555; box-sizing: border-box; }
+        .right-pane { width: 60%; padding: 20px; background: #1e1e1e; display: flex; flex-direction: column; box-sizing: border-box; }
+        textarea { width: 100%; height: 100px; margin-bottom: 15px; background: #444; color: #fff; border: 1px solid #666; padding: 10px; font-family: monospace; box-sizing: border-box; resize: vertical; }
+        input[type="text"] { width: 100%; padding: 8px; margin-bottom: 15px; background: #444; color: #fff; border: 1px solid #666; font-family: monospace; box-sizing: border-box; }
+        label { font-weight: bold; font-size: 14px; margin-bottom: 5px; display: block; color: #aaa; }
+        button { padding: 12px; font-size: 16px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; margin-top: 10px; transition: background 0.2s; }
+        button:hover { background: #0069d9; }
+        button:disabled { background: #555; cursor: not-allowed; }
+        
+        /* コンソール出力エリアのスタイル強化 */
+        #consoleOutput { 
+            flex-grow: 1; 
+            background: #000; 
+            color: #0f0; 
+            padding: 15px; 
+            font-family: "Consolas", monospace; 
+            white-space: pre-wrap; 
+            overflow-y: scroll; 
+            border: 1px solid #444; 
+            margin-bottom: 15px; 
+            font-size: 13px; 
         }
-        .log-info { color: #88ff88; }
-        .log-warn { color: #ffff88; }
-        .log-error { color: #ff8888; font-weight: bold; }
-        .log-sys { color: #88ffff; }
-        button { font-size: 1.2em; padding: 10px 20px; cursor: pointer; }
+        .log-error { color: #ff5555; font-weight: bold; }
+        .log-warn { color: #ffcc00; }
+        .log-info { color: #0f0; }
+
+        #fileList { padding: 10px; background: #2a2a2a; border: 1px solid #444; border-radius: 4px; min-height: 50px; }
+        .download-link { display: inline-block; padding: 5px 10px; background: #444; color: #4da6ff; text-decoration: none; margin: 5px; border-radius: 3px; border: 1px solid #555; }
+        .download-link:hover { background: #555; text-decoration: none; }
+        .error-msg { color: #ff4d4d; }
     </style>
 </head>
 <body>
-    <h2>Sfinder Web - 診断モード</h2>
-    <p>この画面に表示される詳細なログを確認してください。</p>
-    
-    <div>
-        <label>コマンド引数: </label>
-        <input type="text" id="argsInput" value="-h" style="width: 300px; padding:5px;">
-        <button id="runBtn" onclick="startDiagnosis()">診断実行 (Run)</button>
+    <div class="left-pane">
+        <h2 style="margin-top:0">Sfinder Web</h2>
+        
+        <script>
+            (function(){
+                const outputDiv = document.getElementById("consoleOutput"); // まだDOMがないので後で取得
+                const queue = [];
+                
+                function appendLog(msg, type) {
+                    const el = document.getElementById("consoleOutput");
+                    if (!el) {
+                        queue.push({msg, type});
+                        return;
+                    }
+                    // キューがあれば先に吐き出す
+                    while(queue.length > 0) {
+                        const q = queue.shift();
+                        appendLog(q.msg, q.type);
+                    }
+
+                    const span = document.createElement("div");
+                    span.className = type === "error" ? "log-error" : (type === "warn" ? "log-warn" : "log-info");
+                    span.innerText = msg;
+                    el.appendChild(span);
+                    el.scrollTop = el.scrollHeight;
+                }
+
+                // console.log / error を上書きして画面に出す
+                const originalLog = console.log;
+                const originalError = console.error;
+                const originalWarn = console.warn;
+
+                console.log = function(...args) {
+                    originalLog.apply(console, args);
+                    appendLog(args.join(" "), "info");
+                };
+                console.error = function(...args) {
+                    originalError.apply(console, args);
+                    appendLog("[ERROR] " + args.join(" "), "error");
+                };
+                console.warn = function(...args) {
+                    originalWarn.apply(console, args);
+                    appendLog("[WARN] " + args.join(" "), "warn");
+                };
+                
+                // キャッチされないエラーも表示
+                window.addEventListener('error', function(e) {
+                    appendLog("[Uncaught Error] " + e.message, "error");
+                });
+            })();
+        </script>
+
+        <label>Command</label>
+        <input type="text" id="commandInput" value="path -f input/field.txt -k kicks/srs.properties">
+        
+        <label>input/field.txt</label>
+        <textarea id="fieldTxt">
+# フィールド入力
+XX________
+XX________
+XX________
+</textarea>
+
+        <label>input/patterns.txt</label>
+        <textarea id="patternsTxt">
+# パターン入力
+T, I, J, L, S, Z, O
+</textarea>
+
+        <button id="runBtn" onclick="runApp()" disabled>Loading CheerpJ...</button>
+        <div id="status" style="margin-top:10px; color:#888; font-size: 0.9em;">Initializing...</div>
     </div>
-    <br>
-    <div id="console">Initializing logger...</div>
+
+    <div class="right-pane">
+        <label>Console Output (Internal Logs & Stdout)</label>
+        <div id="consoleOutput">Waiting for execution...</div>
+
+        <label>Generated Output Files</label>
+        <div id="fileList"></div>
+    </div>
 
     <script>
-        // 1. 画面上のコンソールに強制出力する仕組み
-        const consoleDiv = document.getElementById("console");
-        function screenLog(msg, type = "info") {
-            const line = document.createElement("div");
-            line.className = "log-" + type;
-            line.innerText = `[${type.toUpperCase()}] ${msg}`;
-            consoleDiv.appendChild(line);
-            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+// SRS定義 (変更なし)
+const SRS_PROPERTIES_CONTENT=`
+L.NE=(0,0)(-1,0)(-1,+1)(0,-2)(-1,-2)
+L.ES=(0,0)(+1,0)(+1,-1)(0,+2)(+1,+2)
+L.SW=(0,0)(+1,0)(+1,+1)(0,-2)(+1,-2)
+L.WN=(0,0)(-1,0)(-1,-1)(0,+2)(-1,+2)
+
+L.NW=(0,0)(+1,0)(+1,+1)(0,-2)(+1,+2)
+L.WS=(0,0)(-1,0)(-1,-1)(0,+2)(-1,+2)
+L.SE=(0,0)(-1,0)(-1,+1)(0,-2)(-1,-2)
+L.EN=(0,0)(+1,0)(+1,-1)(0,+2)(+1,+2)
+
+J.NE=&L.NE
+J.ES=&L.ES
+J.SW=&L.SW
+J.WN=&L.WN
+
+J.NW=&L.NW
+J.WS=&L.WS
+J.SE=&L.SE
+J.EN=&L.EN
+
+S.NE=&L.NE
+S.ES=&L.ES
+S.SW=&L.SW
+S.WN=&L.WN
+
+S.NW=&L.NW
+S.WS=&L.WS
+S.SE=&L.SE
+S.EN=&L.EN
+
+Z.NE=&L.NE
+Z.ES=&L.ES
+Z.SW=&L.SW
+Z.WN=&L.WN
+
+Z.NW=&L.NW
+Z.WS=&L.WS
+Z.SE=&L.SE
+Z.EN=&L.EN
+
+T.NE=(0,0)(-1,0)(-1,+1)(0,-2)(@-1,-2)
+T.ES=(0,0)(+1,0)(+1,-1)(0,+2)( +1,+2)
+T.SW=(0,0)(+1,0)(+1,+1)(0,-2)(@+1,-2)
+T.WN=(0,0)(-1,0)(-1,-1)(0,+2)( -1,+2)
+
+T.NW=(0,0)(+1,0)(+1,+1)(0,-2)(@+1,-2)
+T.WS=(0,0)(-1,0)(-1,-1)(0,+2)( -1,+2)
+T.SE=(0,0)(-1,0)(-1,+1)(0,-2)(@-1,-2)
+T.EN=(0,0)(+1,0)(+1,-1)(0,+2)( +1,+2)
+
+I.NE=(+1, 0)(-1, 0)(+2, 0)(-1,-1)(+2,+2)
+I.ES=( 0,-1)(-1,-1)(+2,-1)(-1,+1)(+2,-2)
+I.SW=(-1, 0)(+1, 0)(-2, 0)(+1,+1)(-2,-2)
+I.WN=( 0,+1)(+1,+1)(-2,+1)(+1,-1)(-2,+2)
+
+I.NW=( 0,-1)(-1,-1)(+2,-1)(-1,+1)(+2,-2)
+I.WS=(+1, 0)(-1, 0)(+2, 0)(-1,-1)(+2,+2)
+I.SE=( 0,+1)(+1,+1)(-2,+1)(+1,-1)(-2,+2)
+I.EN=(-1, 0)(+1, 0)(-2, 0)(+1,+1)(-2,-2)
+
+O.NE=( 0,+1)
+O.ES=(+1, 0)
+O.SW=( 0,-1)
+O.WN=(-1, 0)
+
+O.NW=(+1, 0)
+O.WS=( 0,+1)
+O.SE=(-1, 0)
+O.EN=( 0,-1)
+`;
+
+        let logPoller = null;
+        let lastLogSize = 0;
+
+        (async function init() {
+            try {
+                console.log("Initializing CheerpJ...");
+                
+                // 1. sfinder.jar が実際にそこにあるか確認する
+                const jarUrl = "sfinder.jar";
+                const response = await fetch(jarUrl, { method: 'HEAD' });
+                if (!response.ok) {
+                    throw new Error(`sfinder.jar not found at ${jarUrl}. Status: ${response.status}`);
+                }
+                console.log("sfinder.jar found.");
+
+                await cheerpjInit({
+                    enablePreciseApp: true, // 正確性重視（無くても動くが安定する）
+                    javaProperties: {
+                        "java.protocol.handler.pkgs": "com.leaningtech.handlers",
+                        "user.dir": "/files/" // 作業ディレクトリを明示的に仮想FSルートにする
+                    }
+                });
+                
+                document.getElementById("status").innerText = "Environment Ready. sfinder.jar loaded.";
+                document.getElementById("runBtn").innerText = "Run Sfinder";
+                document.getElementById("runBtn").disabled = false;
+                console.log("CheerpJ Ready.");
+            } catch (e) {
+                document.getElementById("status").innerText = "Init Error";
+                document.getElementById("status").className = "error-msg";
+                console.error(e);
+            }
+        })();
+
+        // 仮想ファイル書き込みヘルパー
+        async function writeVirtualFile(pathStr, content) {
+            const File = await cheerpjRunLibrary("java.io.File");
+            const FileWriter = await cheerpjRunLibrary("java.io.FileWriter");
+            
+            // パスが /files/ で始まっていなければ付与する（安全策）
+            if (!pathStr.startsWith("/")) {
+                pathStr = "/files/" + pathStr;
+            }
+
+            console.log(`Writing file to virtual FS: ${pathStr}`);
+
+            // 親ディレクトリ作成
+            const fileObj = await new File(pathStr);
+            const parent = await fileObj.getParentFile();
+            if (parent && !(await parent.exists())) {
+                await parent.mkdirs();
+            }
+            
+            const writer = await new FileWriter(fileObj);
+            await writer.write(content);
+            await writer.close();
         }
 
-        // 2. ブラウザの隠れたエラーを全部捕まえる
-        window.onerror = function(message, source, lineno, colno, error) {
-            screenLog(`Global Error: ${message} (${source}:${lineno})`, "error");
-            return true;
-        };
-        window.addEventListener("unhandledrejection", function(event) {
-            screenLog(`Unhandled Promise Rejection: ${event.reason}`, "error");
-        });
+        // 標準出力・標準エラー出力をファイルにリダイレクトする
+        async function redirectOutputToFile(logPath) {
+            console.log(`Redirecting stdout/stderr to: ${logPath}`);
+            const FileOutputStream = await cheerpjRunLibrary("java.io.FileOutputStream");
+            const PrintStream = await cheerpjRunLibrary("java.io.PrintStream");
+            const System = await cheerpjRunLibrary("java.lang.System");
+            const File = await cheerpjRunLibrary("java.io.File");
 
-        // 3. console.log / console.error をジャックする
-        const originalLog = console.log;
-        const originalError = console.error;
-        console.log = function(...args) {
-            originalLog.apply(console, args);
-            screenLog(args.join(" "), "info");
-        };
-        console.error = function(...args) {
-            originalError.apply(console, args);
-            screenLog(args.join(" "), "error");
-        };
+            // ログファイルの親ディレクトリを作る
+            const logFile = await new File(logPath);
+            const parent = await logFile.getParentFile();
+            if(parent && !(await parent.exists())) {
+                await parent.mkdirs();
+            }
 
-        // --- ここから診断ロジック ---
+            // Append mode = false (毎回上書き)
+            const fos = await new FileOutputStream(logFile, false);
+            // AutoFlush = true
+            const ps = await new PrintStream(fos, true);
 
-        async function startDiagnosis() {
-            document.getElementById("runBtn").disabled = true;
-            consoleDiv.innerHTML = ""; // クリア
-            screenLog("--- 診断を開始します ---", "sys");
+            await System.setOut(ps);
+            await System.setErr(ps);
+        }
+
+        async function runApp() {
+            const btn = document.getElementById("runBtn");
+            btn.disabled = true;
+            console.log("\n--- Started Execution ---");
+            document.getElementById("fileList").innerHTML = "";
+
+            // ログポーリング開始
+            if (logPoller) clearInterval(logPoller);
+            lastLogSize = 0;
+            const logPath = "/files/output/session.log"; // 絶対パス指定
 
             try {
-                // STEP 1: CheerpJの初期化確認
-                screenLog("Step 1: CheerpJのロード中...", "sys");
-                if (typeof cheerpjInit === "undefined") {
-                    throw new Error("CheerpJのスクリプトがロードされていません。インターネット接続を確認してください。");
-                }
-                await cheerpjInit({
-                    enablePreciseApp: true, // アプリ互換性モード
-                    enableUrlLoader: true   // URLからの読み込み許可
-                });
-                screenLog("OK: CheerpJ Initialized.", "sys");
+                // ファイル準備
+                // sfinderはカレントディレクトリからの相対パスでファイルを探すため
+                // /files/input/field.txt などに配置する
+                await writeVirtualFile("kicks/srs.properties", SRS_PROPERTIES_CONTENT);
+                await writeVirtualFile("input/field.txt", document.getElementById("fieldTxt").value);
+                await writeVirtualFile("input/patterns.txt", document.getElementById("patternsTxt").value);
 
-                // STEP 2: sfinder.jar がブラウザから見えるか確認
-                screenLog("Step 2: sfinder.jar のフェッチ確認...", "sys");
-                try {
-                    const response = await fetch("sfinder.jar", { method: 'HEAD' });
-                    if (!response.ok) {
-                        throw new Error(`sfinder.jar にアクセスできません。Status: ${response.status}`);
-                    }
-                    const size = response.headers.get("content-length");
-                    screenLog(`OK: sfinder.jar found. Size: ${size} bytes`, "sys");
-                    
-                    if (size && parseInt(size) < 1000) {
-                        screenLog("警告: ファイルサイズが小さすぎます。ダウンロードが正しく行われていない可能性があります。", "warn");
-                    }
-                } catch (e) {
-                    throw new Error("sfinder.jar の読み込みに失敗しました。" + e.message);
-                }
+                // 出力先のリダイレクト設定
+                await redirectOutputToFile(logPath);
 
-                // STEP 3: Java環境の生存確認 (バージョンチェック)
-                screenLog("Step 3: Java仮想マシンのテスト実行...", "sys");
-                const System = await cheerpjRunLibrary("java.lang.System");
-                const version = await System.getProperty("java.version");
-                screenLog(`Java Environment Version: ${version}`, "sys");
+                // ログ監視開始
+                logPoller = setInterval(() => checkLogFile(logPath), 200);
 
-                // STEP 4: 実際にJARを叩く
-                const argsStr = document.getElementById("argsInput").value;
-                const args = argsStr.split(" ").filter(s => s.length > 0);
+                let cmdString = document.getElementById("commandInput").value.trim();
+                let args = cmdString.split(/\s+/);
                 
-                screenLog(`Step 4: sfinder.jar を実行します。引数: [${args}]`, "sys");
-                screenLog("--- Java Output Start ---", "sys");
+                console.log(`Command Args: ${JSON.stringify(args)}`);
+                console.log("Invoking sfinder.jar...");
 
-                // ここで実際に実行
-                // pathは /app/sfinder.jar にマウントされるのが一般的
+                // JAR実行
+                // /app/sfinder.jar はWebサーバー上のルートにある sfinder.jar を指す
                 const exitCode = await cheerpjRunJar("/app/sfinder.jar", ...args);
+                
+                console.log(`--- Finished (Exit Code: ${exitCode}) ---`);
+                
+            } catch (e) {
+                console.error("Execution Fatal Error:");
+                console.error(e);
+            } finally {
+                // 最後に一回ログを読んでから停止
+                await checkLogFile(logPath);
+                if (logPoller) clearInterval(logPoller);
+                
+                await listOutputFiles();
+                btn.disabled = false;
+            }
+        }
 
-                screenLog(`--- Java Output End ---`, "sys");
-                screenLog(`Exit Code: ${exitCode}`, "sys");
+        // ログファイルを読み込んで画面に追記する関数
+        async function checkLogFile(logPath) {
+            try {
+                const Paths = await cheerpjRunLibrary("java.nio.file.Paths");
+                const Files = await cheerpjRunLibrary("java.nio.file.Files");
+                const pathObj = await Paths.get(logPath);
+                
+                if (!(await Files.exists(pathObj))) return;
 
-                if (exitCode !== 0) {
-                    screenLog("異常終了しました。引数が間違っているか、内部エラーです。", "warn");
+                const bytes = await Files.readAllBytes(pathObj);
+                if (bytes.length > lastLogSize) {
+                    const jsBytes = new Uint8Array(bytes);
+                    // Shift_JISやUTF-8など、sfinderのエンコードに合わせる。今回はUTF-8と仮定
+                    const text = new TextDecoder("utf-8").decode(jsBytes);
+                    
+                    // 単純にログファイル全体を表示（前回の差分だけ表示するのは複雑なため）
+                    // ユーザーの目に見える形で強制上書きではなく、
+                    // コンソール出力エリアの "末尾" にこの内容を表示したいが、
+                    // ログファイルは「全量」なので、ログエリアを「全量置換」したほうが辻褄が合う
+                    // ただし、console.logで出したデバッグ情報も消えてしまうので、
+                    // ここでは「ログファイルの内容を表示する専用エリア」があるべきだが、
+                    // 簡易的に console.log に吐き出すとループするので、
+                    // 直接DOMに書き込む処理をする
+                    
+                    // 既存のシステムログ（JSが出したもの）と混ざると見にくいので
+                    // ログファイルの内容は「--- Java Output ---」として追記する形にする
+                    // が、ポーリングのたびに追記すると重複するので、今回は「全量」を
+                    // consoleOutputの特定の部分に更新するか、一番下に「最新のJavaログ」として出す
+                    
+                    // 簡易実装: ログファイルの中身を console.log で出す（ただし前回からの差分のみ）
+                    const newPart = text.substring(lastLogSize); // バイト数ではなく文字数でのカットは危険だが、ASCIIならOK
+                    // 正確にはバイトスライスしてからデコードすべき
+                    const newTextBytes = jsBytes.slice(lastLogSize);
+                    const newText = new TextDecoder("utf-8").decode(newTextBytes);
+                    
+                    if (newText.length > 0) {
+                        // 画面に出力
+                        const el = document.getElementById("consoleOutput");
+                        const span = document.createElement("div");
+                        span.style.color = "#fff";
+                        span.innerText = newText;
+                        el.appendChild(span);
+                        el.scrollTop = el.scrollHeight;
+                    }
+
+                    lastLogSize = bytes.length;
+                }
+            } catch (e) {
+                // ポーリング中のエラーは頻発するとうるさいのでconsoleには出さない
+            }
+        }
+
+        async function listOutputFiles() {
+            const fileListDiv = document.getElementById("fileList");
+            fileListDiv.innerHTML = "";
+            try {
+                const File = await cheerpjRunLibrary("java.io.File");
+                const Files = await cheerpjRunLibrary("java.nio.file.Files");
+                const Paths = await cheerpjRunLibrary("java.nio.file.Paths");
+                
+                // sfinderはカレントディレクトリ(/files/)の output フォルダに出力するはず
+                const outputDir = await new File("/files/output");
+                
+                if (!(await outputDir.exists())) {
+                    console.log("No output directory found.");
+                    return;
                 }
 
+                const fileArray = await outputDir.list();
+                if (!fileArray) {
+                    console.log("Output directory is empty or cannot list.");
+                    return;
+                }
+
+                console.log(`Found ${fileArray.length} files in output.`);
+
+                for (let i = 0; i < fileArray.length; i++) {
+                    const name = fileArray[i];
+                    if(name.startsWith(".") || name === "session.log") continue; 
+                    
+                    const fullPath = "/files/output/" + name;
+                    const pathObj = await Paths.get(fullPath);
+                    const bytes = await Files.readAllBytes(pathObj);
+                    const jsBytes = new Uint8Array(bytes);
+                    const blob = new Blob([jsBytes], { type: "text/plain" }); 
+                    const url = URL.createObjectURL(blob);
+                    
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = name;
+                    link.className = "download-link";
+                    link.innerHTML = `📄 ${name}`;
+                    fileListDiv.appendChild(link);
+                }
             } catch (e) {
-                screenLog("診断中に致命的なエラーが発生しました:", "error");
-                screenLog(e.stack || e, "error");
-            } finally {
-                document.getElementById("runBtn").disabled = false;
+                console.error("File listing failed", e);
             }
         }
     </script>
