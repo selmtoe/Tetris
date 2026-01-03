@@ -37,14 +37,14 @@
     <p>動画を解析し、P1/P2の時系列データを統合してテト譜リンクを生成します。</p>
 
     <div class="panel">
-        <h2>1. 準備</h2>
+        <h2>1.準備</h2>
         <div class="controls">
-            <div>
-                <label>1. ONNXモデル (tetris.onnx)</label>
+            <div id="modelInputContainer">
+                <label>1.ONNXモデル (tetris.onnx)</label>
                 <input type="file" id="modelInput" accept=".onnx">
             </div>
             <div>
-                <label>2. 解析する動画 (MP4/WebM)</label>
+                <label>2.解析する動画 (MP4/WebM)</label>
                 <input type="file" id="videoInput" accept="video/*">
             </div>
         </div>
@@ -281,11 +281,13 @@ function analyzeNextHoldOnly(canvas, originalBitmap, cropData, config) {
     const currentScale = cropData.cropW / 1280;
     const radius = 5 * currentScale;
 
-    for (let i = 0; i < config.nextCoords.length; i++) {
+        for (let i = 0; i < config.nextCoords.length; i++) {
         const coord = config.nextCoords[i];
         const avgColor = getAverageColorNonBlack(rawCtx, coord.x * currentScale, coord.y * currentScale, radius);
         if (i === 0) {
-            holdMino = findClosestColor(avgColor.r, avgColor.g, avgColor.b);
+            const isBlack = avgColor.r < 50 && avgColor.g < 50 && avgColor.b < 50;
+            if (isBlack) holdMino = null;
+            else holdMino = findClosestMinoOnly(avgColor.r, avgColor.g, avgColor.b);
         } else {
             const isBlack = avgColor.r < 50 && avgColor.g < 50 && avgColor.b < 50;
             if (i === 1 && isBlack) break;
@@ -375,11 +377,13 @@ async function analyzePlayerRaw(canvas, originalBitmap, cropData, config) {
     const currentScale = cropData.cropW / 1280;
     const radius = 5 * currentScale;
 
-    for (let i = 0; i < config.nextCoords.length; i++) {
+        for (let i = 0; i < config.nextCoords.length; i++) {
         const coord = config.nextCoords[i];
         const avgColor = getAverageColorNonBlack(rawCtx, coord.x * currentScale, coord.y * currentScale, radius);
         if (i === 0) {
-            holdMino = findClosestColor(avgColor.r, avgColor.g, avgColor.b);
+            const isBlack = avgColor.r < 50 && avgColor.g < 50 && avgColor.b < 50;
+            if (isBlack) holdMino = null;
+            else holdMino = findClosestMinoOnly(avgColor.r, avgColor.g, avgColor.b);
         } else {
             const isBlack = avgColor.r < 50 && avgColor.g < 50 && avgColor.b < 50;
             if (i === 1 && isBlack) break;
@@ -471,7 +475,6 @@ modelInput.addEventListener('change', async (e) => {
     }
 });
 
-// tetris.onnx 自動読み込み
 window.addEventListener('DOMContentLoaded', async () => {
     try {
         const res = await fetch('./tetris.onnx');
@@ -479,9 +482,12 @@ window.addEventListener('DOMContentLoaded', async () => {
             log("tetris.onnx を自動検出しました。ロード中...", 'info');
             const buffer = await res.arrayBuffer();
             loadModelBuffer(buffer);
+            const container = document.getElementById('modelInputContainer');
+            if (container) container.style.display = 'none';
         }
     } catch (e) { console.log('Auto-load skipped'); }
 });
+
 
 videoInput.addEventListener('change', checkReady);
 
