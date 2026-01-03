@@ -269,6 +269,32 @@ function extractFeaturesJS(pixelsRGBA, w, h) {
 
     return new Float32Array(feats);
 }
+// --- 新規追加: ONNXを使わずNext/Holdのみを高速判定する関数 ---
+function analyzeNextHoldOnly(canvas, originalBitmap, cropData, config) {
+    // 3. Next/Hold Logic (analyzePlayerRawからロジックを流用・軽量化)
+    const nextQueue = [];
+    let holdMino = null;
+    const rawCropCanvas = document.createElement('canvas');
+    rawCropCanvas.width = cropData.cropW; rawCropCanvas.height = cropData.cropH;
+    const rawCtx = rawCropCanvas.getContext('2d', { willReadFrequently: true });
+    rawCtx.drawImage(originalBitmap, cropData.cropX, cropData.cropY, cropData.cropW, cropData.cropH, 0, 0, cropData.cropW, cropData.cropH);
+    const currentScale = cropData.cropW / 1280;
+    const radius = 5 * currentScale;
+
+    for (let i = 0; i < config.nextCoords.length; i++) {
+        const coord = config.nextCoords[i];
+        const avgColor = getAverageColorNonBlack(rawCtx, coord.x * currentScale, coord.y * currentScale, radius);
+        if (i === 0) {
+            holdMino = findClosestColor(avgColor.r, avgColor.g, avgColor.b);
+        } else {
+            const isBlack = avgColor.r < 50 && avgColor.g < 50 && avgColor.b < 50;
+            if (i === 1 && isBlack) break;
+            const foundMino = findClosestMinoOnly(avgColor.r, avgColor.g, avgColor.b);
+            if (foundMino) nextQueue.push(foundMino);
+        }
+    }
+    return { hold: holdMino, next: nextQueue };
+}
 
 // プレイヤー1人分の解析を実行し、生データを返す（後で多数決する）
 async function analyzePlayerRaw(canvas, originalBitmap, cropData, config) {
@@ -499,116 +525,168 @@ stopBtn.addEventListener('click', () => {
     log("停止リクエスト...", 'warn');
 });
 
-// プレイヤーごとの解析ループ
+// プレイヤーごとの解析ループ (Phase 1: 高速スキャン, Phase 2: 詳細解析)
 async function processPlayer(playerId, video, duration) {
     log(`${playerId.toUpperCase()} 解析開始...`, 'info');
-    const scanInterval = parseFloat(document.getElementById('scanInterval').value) || 0.2;
     const progressEl = document.getElementById(`${playerId}Progress`);
     const statusEl = document.getElementById(`${playerId}Status`);
+
+    // --- Phase 1: イベント境界の検出 (0.05秒間隔) ---
+    log(`${playerId.toUpperCase()} Phase 1: タイムラインスキャン中...`, 'info');
+    const scanStep = 0.05;
+    const events = []; // { start, end }
     
-    const timeline = []; // { time, board, hold, next }
-    const aggregator = new VoteAggregator();
-    
-    let currentNextStr = "";
-    let lastStableHold = "";
-    let lastStableNext = "";
-    
-    // スキャンループ
-    for(let t = 0; t < duration; t += scanInterval) {
+    let lastEventTime = 0;
+    let prevHold = null;
+    let prevNext = [];
+
+    // ヘルパー: ネクスト配列の差分数をカウント
+    const getDiffCount = (a1, a2) => {
+        if(!a1 || !a2) return 99;
+        let diff = Math.abs(a1.length - a2.length);
+        const len = Math.min(a1.length, a2.length);
+        for(let i=0; i<len; i++) { if(a1[i] !== a2[i]) diff++; }
+        return diff;
+    };
+
+    for(let t = 0; t < duration; t += scanStep) {
         if(stopRequested) break;
-        
-               // 動画シーク
         video.currentTime = t;
         await new Promise(r => { video.onseeked = r; });
-        
-        // Canvas描画
+
         const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = video.videoWidth;
-        tempCanvas.height = video.videoHeight;
-        tempCanvas.getContext('2d').drawImage(video, 0, 0);
-        const { canvas: pCanvas, cropData } = processImageTo1080p(tempCanvas);
+        tempCanvas.width = video.videoWidth; tempCanvas.height = video.videoHeight;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(video, 0, 0);
         
-        // 推論実行
-        const rawData = await analyzePlayerRaw(pCanvas, tempCanvas, cropData, CONFIG[playerId]);
-        
-        // ネクスト比較用の文字列
-        const nextStr = rawData.next.join('');
-        
-        // 初回
-        if (currentNextStr === "") {
-            currentNextStr = nextStr;
-            lastStableHold = rawData.hold;
-            lastStableNext = rawData.next; // Array
-        }
-        
-        // ネクストが変わったか？ (区間切り替わり判定)
-        // ノイズ対策: ネクストが空になった場合などは無視する簡易ガード
-        if (nextStr !== currentNextStr && nextStr.length >= 2) {
-            // 前の区間を確定して保存
-            const winnerBoard = aggregator.getWinnerBoard();
-            if (winnerBoard) {
-                // ガベージ行・削除行のクリーンアップ処理 (Source 2 Logic adaptation)
-                const cleanedBoard = cleanUpBoard(winnerBoard);
-                
-                timeline.push({
-                    time: t - scanInterval, // 区間の終わり = 変化検知時刻
-                    board: cleanedBoard,
-                    hold: lastStableHold,
-                    next: lastStableNext.join('')
-                });
-                
-                log(`${playerId.toUpperCase()} Turn: Next changed [${currentNextStr}] -> [${nextStr}] at ${t.toFixed(1)}s`, 'info');
-            }
-            
-            // 新しい区間の開始
-            aggregator.reset();
-            currentNextStr = nextStr;
-        }
-        
-        // 現在の区間に投票
-        if (nextStr === currentNextStr) {
-            aggregator.add(rawData.board);
-            lastStableHold = rawData.hold; // ホールドは最新を維持
-            lastStableNext = rawData.next;
+        // 軽量解析 (ONNXなし)
+        const { cropData } = processImageTo1080p(tempCanvas);
+        const { hold, next } = analyzeNextHoldOnly(null, tempCanvas, cropData, CONFIG[playerId]);
+
+        if (t === 0) {
+            prevHold = hold; prevNext = next;
+            continue;
         }
 
-        // 進捗更新
-        const pct = Math.floor((t / duration) * 100);
+        // 変化判定: Hold変化 または Nextが2つ以上変化
+        const diff = getDiffCount(prevNext, next);
+        if (hold !== prevHold || diff >= 2) {
+            // イベント確定
+            events.push({ start: lastEventTime, end: t });
+            lastEventTime = t;
+            prevHold = hold; prevNext = next;
+        }
+
+        const pct = Math.floor((t / duration) * 50); // Phase 1は50%まで
         progressEl.value = pct;
-        statusEl.textContent = `${pct}% (${t.toFixed(0)}s)`;
+        statusEl.textContent = `Scanning... ${t.toFixed(1)}s`;
     }
+    // 最後の区間
+    events.push({ start: lastEventTime, end: duration });
 
-    // 最後の区間を保存
-    const winnerBoard = aggregator.getWinnerBoard();
-    if (winnerBoard) {
-        const cleanedBoard = cleanUpBoard(winnerBoard);
-        timeline.push({
-            time: duration,
-            board: cleanedBoard,
-            hold: lastStableHold,
-            next: lastStableNext.join('')
-        });
+    // --- Phase 2: 区間ごとの詳細解析 (10分割 & 多数決) ---
+    log(`${playerId.toUpperCase()} Phase 2: 盤面詳細解析中 (${events.length} events)...`, 'info');
+    const timeline = [];
+    const SAMPLES_PER_SECTION = 10;
+
+    for (let i = 0; i < events.length; i++) {
+        if(stopRequested) break;
+        const evt = events[i];
+        const sectionDuration = evt.end - evt.start;
+        if (sectionDuration <= 0.05) continue; // 短すぎる区間はスキップ
+
+        const aggregator = new VoteAggregator();
+        // Hold/Nextも多数決をとるための簡易集計
+        const holdCounts = {};
+        const nextCounts = {}; // JSON stringifyしてキーにする
+
+        // 区間をN等分してサンプリング
+        const step = sectionDuration / (SAMPLES_PER_SECTION + 1);
+        for (let k = 1; k <= SAMPLES_PER_SECTION; k++) {
+            const t = evt.start + (step * k);
+            
+            video.currentTime = t;
+            await new Promise(r => { video.onseeked = r; });
+            
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = video.videoWidth; tempCanvas.height = video.videoHeight;
+            tempCanvas.getContext('2d').drawImage(video, 0, 0);
+            const { canvas: pCanvas, cropData } = processImageTo1080p(tempCanvas);
+            
+            // フル解析 (ONNXあり)
+            const rawData = await analyzePlayerRaw(pCanvas, tempCanvas, cropData, CONFIG[playerId]);
+            
+            aggregator.add(rawData.board);
+            
+            // Hold集計
+            const hKey = rawData.hold || 'null';
+            holdCounts[hKey] = (holdCounts[hKey] || 0) + 1;
+            
+            // Next集計
+            const nKey = JSON.stringify(rawData.next);
+            nextCounts[nKey] = (nextCounts[nKey] || 0) + 1;
+        }
+
+        // 多数決結果の取得
+        const winnerBoard = aggregator.getWinnerBoard();
+        if (winnerBoard) {
+            // 最頻Hold
+            const bestHold = Object.keys(holdCounts).reduce((a, b) => holdCounts[a] > holdCounts[b] ? a : b);
+            // 最頻Next
+            const bestNextJson = Object.keys(nextCounts).reduce((a, b) => nextCounts[a] > nextCounts[b] ? a : b);
+            
+            const cleanedBoard = cleanUpBoard(winnerBoard);
+            
+            timeline.push({
+                time: evt.end,
+                board: cleanedBoard,
+                hold: (bestHold === 'null' ? null : bestHold),
+                next: JSON.parse(bestNextJson).join('')
+            });
+        }
+
+        const pct = 50 + Math.floor((i / events.length) * 50);
+        progressEl.value = pct;
+        statusEl.textContent = `Analyzing... ${Math.floor(i/events.length*100)}%`;
     }
 
     return timeline;
 }
-
-// ボードの事後処理 (Full Board化, ガベージ処理など)
+// ボードの事後処理 (Full Board化, ガベージ処理, 浮遊ブロック除去)
 function cleanUpBoard(board20) {
     // 20行 -> 40行拡張
     const fullBoard = Array.from({ length: 40 }, () => Array(10).fill(null));
     for(let r=0; r<20; r++) fullBoard[20+r] = board20[r];
 
-    // Source 2 Logic: Bottom-up garbage cleanup
+    // 1. Garbage cleanup (既存ロジック: 最下段の非G行より上のGを消す)
     let firstNonGarbageRowFromBottom = -1;
     for (let y = 39; y >= 0; y--) { 
-        if (!fullBoard[y].includes('G')) { firstNonGarbageRowFromBottom = y; break; } 
+        if (!fullBoard[y].includes('G')) { firstNonGarbageRowFromBottom = y;
+        break; } 
     }
     if (firstNonGarbageRowFromBottom !== -1) { 
         for (let y = firstNonGarbageRowFromBottom - 1; y >= 0; y--) { 
-            for (let x = 0; x < 10; x++) { if (fullBoard[y][x] === 'G') fullBoard[y][x] = null; } 
+            for (let x = 0; x < 10; x++) { if (fullBoard[y][x] === 'G') fullBoard[y][x] = null;
+            } 
         } 
     }
+
+    // 2. Floating block removal (新規追加: 空行より上のブロックを全削除)
+    // 下(39)から上(0)へスキャンし、完全に空の行が見つかったら、それより上の行をすべてクリアする
+    let foundEmptyLine = false;
+    for (let y = 39; y >= 0; y--) {
+        const isRowEmpty = fullBoard[y].every(cell => cell === null);
+        
+        if (isRowEmpty) {
+            foundEmptyLine = true;
+        }
+        
+        if (foundEmptyLine) {
+            // 空行到達以降（より上の行）はすべて消去
+            fullBoard[y].fill(null);
+        }
+    }
+
     return fullBoard;
 }
 
