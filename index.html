@@ -49,8 +49,8 @@
             </div>
         </div>
         <div style="margin-top: 15px;">
-            <label>スキャン間隔 (秒): <input type="number" id="scanInterval" value="0.2" step="0.1" style="width: 60px;"></label>
-            <span style="font-size: 0.8em; color: #aaa;">※ 値が小さいほど精度が上がりますが時間がかかります。</span>
+            <label>解析サンプル数: <input type="number" id="sampleCount" value="10" step="1" style="width: 60px;"></label>
+            <span style="font-size: 0.8em; color: #aaa;">※ 1イベントあたりの解析回数</span>
         </div>
     </div>
 
@@ -454,9 +454,8 @@ const stopBtn = document.getElementById('stopBtn');
 const p1Progress = document.getElementById('p1Progress');
 const p2Progress = document.getElementById('p2Progress');
 
-async function initModel(file) {
+async function loadModelBuffer(buffer) {
     try {
-        const buffer = await file.arrayBuffer();
         session = await ort.InferenceSession.create(buffer, { executionProviders: ['wasm'] });
         log("モデルロード完了", 'success');
         checkReady();
@@ -465,9 +464,25 @@ async function initModel(file) {
     }
 }
 
-modelInput.addEventListener('change', (e) => {
-    if(e.target.files[0]) initModel(e.target.files[0]);
+modelInput.addEventListener('change', async (e) => {
+    if(e.target.files[0]) {
+        const buffer = await e.target.files[0].arrayBuffer();
+        loadModelBuffer(buffer);
+    }
 });
+
+// tetris.onnx 自動読み込み
+window.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const res = await fetch('./tetris.onnx');
+        if (res.ok) {
+            log("tetris.onnx を自動検出しました。ロード中...", 'info');
+            const buffer = await res.arrayBuffer();
+            loadModelBuffer(buffer);
+        }
+    } catch (e) { console.log('Auto-load skipped'); }
+});
+
 videoInput.addEventListener('change', checkReady);
 
 function checkReady() {
@@ -587,10 +602,12 @@ async function processPlayer(playerId, video, duration) {
     // --- Phase 2: 区間ごとの詳細解析 (10分割 & 多数決) ---
     log(`${playerId.toUpperCase()} Phase 2: 盤面詳細解析中 (${events.length} events)...`, 'info');
     const timeline = [];
-    const SAMPLES_PER_SECTION = 10;
+    const sampleVal = document.getElementById('sampleCount').value;
+    const SAMPLES_PER_SECTION = parseInt(sampleVal, 10) || 10;
 
     for (let i = 0; i < events.length; i++) {
         if(stopRequested) break;
+        
         const evt = events[i];
         const sectionDuration = evt.end - evt.start;
         if (sectionDuration <= 0.05) continue; // 短すぎる区間はスキップ
