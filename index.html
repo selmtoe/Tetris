@@ -2,46 +2,522 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>JAR Runner in Browser</title>
-    <script src="https://cjrtnc.leaningtech.com/3.0/cj3loader.js"></script>
-</head>
-<body style="font-family: sans-serif; padding: 20px;">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Physics Stacking Game v2</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #222;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            touch-action: none;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            color: white;
+        }
 
-    <h2>ブラウザでJAR実行 (CheerpJ)</h2>
-    
-    <p>実行したいJARファイルを選択してください（Swing/AWT対応）:</p>
-    <input type="file" id="jarInput" accept=".jar">
-    
-    <div id="console" style="background: #eee; padding: 10px; margin-top: 10px; height: 100px; overflow: auto; border: 1px solid #ccc;">
-        コンソールログ...
+        #game-container {
+            flex: 1;
+            position: relative;
+            background: linear-gradient(to bottom, #333, #111);
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        /* 選択画面オーバーレイ */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+
+        #selection-area {
+            display: flex;
+            gap: 15px;
+            pointer-events: auto;
+            opacity: 0;
+            transition: opacity 0.3s;
+            transform: scale(0.9);
+        }
+
+        #selection-area.active {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .block-card {
+            width: 90px;
+            height: 110px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            transition: transform 0.2s, background 0.2s;
+        }
+
+        .block-card:active {
+            transform: scale(0.95);
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        .card-preview {
+            width: 50px;
+            height: 50px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .card-preview div {
+            border: 1px solid rgba(255,255,255,0.8);
+        }
+
+        .card-name {
+            font-size: 12px;
+            font-weight: bold;
+            color: #ddd;
+        }
+
+        .card-material {
+            font-size: 10px;
+            color: #aaa;
+        }
+
+        /* ステータス表示 */
+        #status-bar {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            font-size: 18px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            pointer-events: none;
+        }
+
+        /* コントローラー */
+        #controls {
+            height: 120px;
+            background: #1a1a1a;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 10px;
+            z-index: 20;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.5);
+        }
+
+        .btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            border: none;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 5px 0 #000;
+            cursor: pointer;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            transition: transform 0.1s;
+        }
+
+        .btn:active {
+            transform: translateY(5px);
+            box-shadow: none;
+        }
+        
+        .btn:disabled {
+            opacity: 0.3;
+            transform: translateY(5px);
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+
+        #btn-left { background: #3498db; }
+        #btn-drop { 
+            background: #e74c3c; 
+            width: 90px; 
+            height: 90px; 
+            font-size: 32px;
+            border: 2px solid #fff;
+        }
+        #btn-right { background: #3498db; }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="status-bar">準備中...</div>
+        <div id="ui-layer">
+            <div id="selection-area">
+                </div>
+        </div>
     </div>
 
-    <div id="jar-container" style="margin-top: 20px; border: 2px solid #333; width: 640px; height: 480px;"></div>
+    <div id="controls">
+        <button id="btn-left" class="btn">↺</button>
+        <button id="btn-drop" class="btn">▼</button>
+        <button id="btn-right" class="btn">↻</button>
+    </div>
 
-    <script>
-        // CheerpJの初期化
-        cheerpjInit();
+<script>
+    const Engine = Matter.Engine,
+          Render = Matter.Render,
+          Runner = Matter.Runner,
+          Bodies = Matter.Bodies,
+          Composite = Matter.Composite,
+          Events = Matter.Events,
+          Body = Matter.Body,
+          Vector = Matter.Vector;
 
-        document.getElementById('jarInput').addEventListener('change', async (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
+    // --- ゲーム設定 ---
+    const CONFIG = {
+        spawnY: 100, // スポーン位置の高さ
+        platformWidth: 200, // 足場の幅
+        rotationSpeed: 0.1, // 回転速度
+    };
 
-            const consoleDiv = document.getElementById('console');
-            consoleDiv.innerHTML += `<div>Loading ${file.name}...</div>`;
+    // --- マテリアル（材質）定義 ---
+    const MATERIALS = {
+        wood: { label: '木', friction: 0.5, restitution: 0.1, density: 0.001, color: '#e67e22' },
+        ice:  { label: '氷', friction: 0.005, restitution: 0.1, density: 0.0009, color: '#a0d8ef' },
+        rubber: { label: 'ゴム', friction: 0.8, restitution: 0.9, density: 0.001, color: '#ff6b81' },
+        stone: { label: '石', friction: 0.9, restitution: 0.0, density: 0.005, color: '#7f8c8d' }
+    };
 
-            // 仮想ファイルシステムにファイルを書き込む
-            const arrayBuffer = await file.arrayBuffer();
-            const fileName = `/files/${file.name}`;
-            
-            // CheerpJの仮想FSに保存
-            cheerpjCreateFile(fileName, new Uint8Array(arrayBuffer));
+    // --- ブロック形状定義 ---
+    // create関数: (x, y, material) => Body
+    const SHAPES = [
+        {
+            name: 'Square',
+            create: (x, y, mat) => Bodies.rectangle(x, y, 60, 60, { ...mat, render: { fillStyle: mat.color } })
+        },
+        {
+            name: 'Long',
+            create: (x, y, mat) => Bodies.rectangle(x, y, 120, 30, { ...mat, render: { fillStyle: mat.color } })
+        },
+        {
+            name: 'Triangle',
+            create: (x, y, mat) => Bodies.polygon(x, y, 3, 40, { ...mat, render: { fillStyle: mat.color } })
+        },
+        {
+            name: 'Big Box',
+            create: (x, y, mat) => Bodies.rectangle(x, y, 80, 80, { ...mat, render: { fillStyle: mat.color } })
+        },
+        {
+            name: 'L-Shape',
+            create: (x, y, mat) => {
+                const partA = Bodies.rectangle(x - 20, y, 40, 100, { render: { fillStyle: mat.color } });
+                const partB = Bodies.rectangle(x + 20, y + 30, 40, 40, { render: { fillStyle: mat.color } });
+                return Body.create({
+                    parts: [partA, partB],
+                    ...mat
+                });
+            }
+        },
+        {
+            name: 'T-Shape',
+            create: (x, y, mat) => {
+                const partA = Bodies.rectangle(x, y - 20, 100, 30, { render: { fillStyle: mat.color } });
+                const partB = Bodies.rectangle(x, y + 20, 30, 50, { render: { fillStyle: mat.color } });
+                return Body.create({
+                    parts: [partA, partB],
+                    ...mat
+                });
+            }
+        }
+    ];
 
-            consoleDiv.innerHTML += `<div>Executing...</div>`;
+    // --- Matter.js 初期化 ---
+    const engine = Engine.create();
+    const container = document.getElementById('game-container');
+    
+    const render = Render.create({
+        element: container,
+        engine: engine,
+        options: {
+            width: container.clientWidth,
+            height: container.clientHeight,
+            wireframes: false,
+            background: 'transparent'
+        }
+    });
 
-            // JARを実行 (GUIを表示)
-            // cjDomを使ってHTML要素内に表示させることも可能ですが、デフォルトではオーバーレイ表示されます
-            cheerpjRunJar(fileName);
+    // 壁と床（足場）の作成
+    function createBoundaries() {
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+        const groundY = h - 50;
+
+        // 中央の狭い足場
+        const platform = Bodies.rectangle(w / 2, groundY, CONFIG.platformWidth, 40, { 
+            isStatic: true, 
+            render: { fillStyle: '#888' },
+            label: "Ground"
         });
-    </script>
+
+        // 画面外に落ちたブロックを削除するためのセンサー（底面）
+        const sensor = Bodies.rectangle(w / 2, h + 200, w * 5, 50, { isStatic: true, isSensor: true, label: "DeadZone" });
+
+        Composite.clear(engine.world);
+        Composite.add(engine.world, [platform, sensor]);
+    }
+
+    createBoundaries();
+    Render.run(render);
+    const runner = Runner.create();
+    Runner.run(runner, engine);
+
+    // --- ゲーム状態管理 ---
+    const State = {
+        SELECTING: 'selecting',   // 3択画面
+        POSITIONING: 'positioning', // 空中で場所決め中
+        DROPPING: 'dropping',     // 落下中
+        SETTLING: 'settling'      // 静止待ち
+    };
+
+    let currentState = State.SELECTING;
+    let currentBlock = null;
+
+    // UI要素
+    const uiSelection = document.getElementById('selection-area');
+    const statusBar = document.getElementById('status-bar');
+    const btnLeft = document.getElementById('btn-left');
+    const btnRight = document.getElementById('btn-right');
+    const btnDrop = document.getElementById('btn-drop');
+
+    // --- ゲームループ関連 ---
+
+    // 選択画面を表示
+    function startSelectionPhase() {
+        currentState = State.SELECTING;
+        statusBar.innerText = "ブロックを選択";
+        updateButtons();
+
+        // 候補を3つ生成
+        uiSelection.innerHTML = '';
+        const keys = Object.keys(MATERIALS);
+        
+        for (let i = 0; i < 3; i++) {
+            const shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+            const matKey = keys[Math.floor(Math.random() * keys.length)];
+            const mat = MATERIALS[matKey];
+
+            const card = document.createElement('div');
+            card.className = 'block-card';
+            
+            // 簡易プレビュー
+            const preview = document.createElement('div');
+            preview.className = 'card-preview';
+            const shapeDiv = document.createElement('div');
+            shapeDiv.style.backgroundColor = mat.color;
+            // 簡易的な見た目調整
+            if(shape.name.includes('Square')) { shapeDiv.style.width='30px'; shapeDiv.style.height='30px'; }
+            else if(shape.name.includes('Long')) { shapeDiv.style.width='40px'; shapeDiv.style.height='15px'; }
+            else if(shape.name.includes('Triangle')) { shapeDiv.style.width='0'; shapeDiv.style.height='0'; shapeDiv.style.borderLeft='15px solid transparent'; shapeDiv.style.borderRight='15px solid transparent'; shapeDiv.style.borderBottom=`30px solid ${mat.color}`; shapeDiv.style.backgroundColor='transparent'; shapeDiv.style.border='none'; }
+            else { shapeDiv.style.width='30px'; shapeDiv.style.height='30px'; } // 他は四角で代用
+            
+            preview.appendChild(shapeDiv);
+            
+            card.innerHTML = `
+                ${preview.outerHTML}
+                <div class="card-name">${shape.name}</div>
+                <div class="card-material">${mat.label}</div>
+            `;
+            
+            card.onclick = () => spawnBlock(shape, mat);
+            uiSelection.appendChild(card);
+        }
+        uiSelection.classList.add('active');
+    }
+
+    // ブロックを生成して配置モードへ
+    function spawnBlock(shape, mat) {
+        uiSelection.classList.remove('active');
+        currentState = State.POSITIONING;
+        statusBar.innerText = "位置を決めて ▼ で落下";
+        updateButtons();
+
+        const spawnX = container.clientWidth / 2;
+        
+        currentBlock = shape.create(spawnX, CONFIG.spawnY, mat);
+        
+        // 配置モード中は固定(Static)にする
+        Body.setStatic(currentBlock, true);
+        
+        Composite.add(engine.world, currentBlock);
+    }
+
+    // 落下開始
+    function dropBlock() {
+        if (!currentBlock || currentState !== State.POSITIONING) return;
+        
+        currentState = State.DROPPING;
+        statusBar.innerText = "落下中...";
+        updateButtons();
+
+        // 固定を解除して物理演算開始
+        Body.setStatic(currentBlock, false);
+        // 少し初速をつける（めり込み防止など）
+        Body.setVelocity(currentBlock, { x: 0, y: 5 });
+
+        // 静止判定監視を開始
+        monitorSettling();
+    }
+
+    // 静止判定
+    function monitorSettling() {
+        let stableCount = 0;
+        const checkInterval = setInterval(() => {
+            if (!currentBlock) { clearInterval(checkInterval); return; }
+
+            // 画面外判定
+            if (currentBlock.position.y > container.clientHeight + 100) {
+                // 落ちた場合
+                Composite.remove(engine.world, currentBlock);
+                currentBlock = null;
+                clearInterval(checkInterval);
+                statusBar.innerText = "落下しました...";
+                setTimeout(startSelectionPhase, 1000);
+                return;
+            }
+
+            const speed = currentBlock.speed;
+            const angularSpeed = currentBlock.angularSpeed;
+
+            // ほぼ止まっているか？
+            if (speed < 0.15 && angularSpeed < 0.1) {
+                stableCount++;
+            } else {
+                stableCount = 0;
+            }
+
+            // 1秒程度静止したら次へ
+            if (stableCount > 10) {
+                clearInterval(checkInterval);
+                currentBlock = null; // 操作対象から外す
+                startSelectionPhase();
+            }
+
+        }, 100);
+    }
+
+    // --- 入力処理 ---
+
+    // 画面タッチ/マウス移動でブロック移動 (Positioning中のみ)
+    function handleInputMove(e) {
+        if (currentState !== State.POSITIONING || !currentBlock) return;
+
+        let clientX;
+        if (e.touches) {
+            clientX = e.touches[0].clientX;
+        } else {
+            clientX = e.clientX;
+        }
+
+        // 画面幅内に制限
+        const x = Math.max(50, Math.min(container.clientWidth - 50, clientX));
+        
+        // Staticなボディを強制移動
+        Body.setPosition(currentBlock, { x: x, y: CONFIG.spawnY });
+        
+        // 速度を0にして慣性を消す
+        Body.setVelocity(currentBlock, { x: 0, y: 0 });
+    }
+
+    container.addEventListener('mousemove', handleInputMove);
+    container.addEventListener('touchmove', (e) => { e.preventDefault(); handleInputMove(e); }, { passive: false });
+    
+    // タップしただけでも移動するように
+    container.addEventListener('mousedown', handleInputMove);
+    container.addEventListener('touchstart', (e) => { handleInputMove(e); });
+
+
+    // ボタン操作
+    let rotateInterval;
+
+    function startRotate(dir) {
+        if (currentState !== State.POSITIONING || !currentBlock) return;
+        
+        const action = () => {
+            Body.rotate(currentBlock, dir * CONFIG.rotationSpeed);
+        };
+        action();
+        rotateInterval = setInterval(action, 50);
+    }
+
+    function stopRotate() {
+        clearInterval(rotateInterval);
+    }
+
+    // ボタンイベント紐づけ
+    const setupBtn = (btn, actionStart, actionEnd) => {
+        btn.addEventListener('mousedown', actionStart);
+        btn.addEventListener('touchstart', (e) => { e.preventDefault(); actionStart(); });
+        btn.addEventListener('mouseup', actionEnd);
+        btn.addEventListener('mouseleave', actionEnd);
+        btn.addEventListener('touchend', actionEnd);
+    };
+
+    setupBtn(btnLeft, () => startRotate(-1), stopRotate);
+    setupBtn(btnRight, () => startRotate(1), stopRotate);
+    
+    btnDrop.addEventListener('click', dropBlock);
+    btnDrop.addEventListener('touchstart', (e) => { e.preventDefault(); dropBlock(); });
+
+    // ボタンの有効/無効切り替え
+    function updateButtons() {
+        const isPos = (currentState === State.POSITIONING);
+        btnLeft.disabled = !isPos;
+        btnRight.disabled = !isPos;
+        btnDrop.disabled = !isPos;
+        
+        btnDrop.style.opacity = isPos ? '1' : '0.5';
+    }
+
+    // 衝突イベント（デッドゾーン）
+    Events.on(engine, 'collisionStart', (event) => {
+        const pairs = event.pairs;
+        pairs.forEach(pair => {
+            if (pair.bodyA.label === 'DeadZone' || pair.bodyB.label === 'DeadZone') {
+                const block = pair.bodyA.label === 'DeadZone' ? pair.bodyB : pair.bodyA;
+                Composite.remove(engine.world, block);
+            }
+        });
+    });
+
+    // リサイズ対応
+    window.addEventListener('resize', () => {
+        render.canvas.width = container.clientWidth;
+        render.canvas.height = container.clientHeight;
+        createBoundaries();
+    });
+
+    // 初期化
+    startSelectionPhase();
+
+</script>
 </body>
 </html>
