@@ -4070,28 +4070,37 @@ const status = debugDisplay.dataset.status || 'Waiting...';
         // AIヒント用Workerの初期化
         this.hintAiWorker = null;
         this.aiHintGhosts = []; // ヒント表示用座標配列
-        if (this.id === '1' && gameSettings.aiHintEnabled && !this.isAi) {            const blob = new Blob([aiWorkerScript_Simplified], { type: 'application/javascript' });
+        if (this.id === '1' && gameSettings.aiHintEnabled && !this.isAi) {                        const blob = new Blob([aiWorkerScript_Simplified], { type: 'application/javascript' });
             this.hintAiWorker = new Worker(URL.createObjectURL(blob));
             this.hintAiWorker.onmessage = (e) => {
-                // デバッグログ: 受信データの内容を確認
+                // デバッグログ: ノード数と受信データの確認
                 if (gameSettings.debugEnabled) {
                     const dbg = document.getElementById('ai-tree-debug-display');
                     if (dbg) {
                         dbg.style.display = 'block';
-                        let info = 'null';
-                        if (e.data) {
-                            if (e.data.piece) info = `BestMove: ${e.data.piece} (${e.data.x},${e.data.y})`;
-                            else if (e.data.type) info = e.data.type;
-                            else info = 'Unknown Data';
+                        // ノード数通知の場合（探索状況の更新）
+                        if (e.data && e.data.type === 'nodeCount') {
+                            // ログが流れすぎないよう、最新のノード数を目立つように最上部に固定表示する等の工夫も可だが、今回はログに追加
+                            dbg.innerHTML = `<div style="color:lime; font-size:10px;">[Hint Status] Searching... Nodes: ${e.data.count}</div>` + dbg.innerHTML;
+                        } 
+                        // それ以外（結果受信など）
+                        else {
+                            let info = 'null';
+                            if (e.data) {
+                                if (e.data.piece) info = `BestMove: ${e.data.piece} (${e.data.x},${e.data.y})`;
+                                else if (e.data.type) info = e.data.type;
+                                else info = 'Unknown Data';
+                            }
+                            dbg.innerHTML = `<div style="color:yellow; font-size:10px; border-bottom:1px solid #555;">[Hint RX] ${info}</div>` + dbg.innerHTML;
                         }
-                        dbg.innerHTML = `<div style="color:yellow; font-size:10px; border-bottom:1px solid #555;">[Hint RX] ${info}</div>` + dbg.innerHTML;
                     }
                 }
                 
-                // 修正: typeチェックではなく、pieceプロパティの有無で判定する
+                // 修正: type='stop'ではなく、pieceプロパティの有無で判定する（AIはpieceを含むオブジェクトを直接返してくるため）
                 if (e.data && e.data.piece) {
                     // 最善手の座標を受け取り、ゴーストブロック座標に変換して保存
                     if (true) {
+
                         const { piece, x, y, rotation } = e.data;
                         const offsets = GHOST_SHAPE_DEFINITIONS[piece][rotation];
                         this.aiHintGhosts = offsets.map(o => ({
