@@ -4070,21 +4070,28 @@ const status = debugDisplay.dataset.status || 'Waiting...';
         // AIヒント用Workerの初期化
         this.hintAiWorker = null;
         this.aiHintGhosts = []; // ヒント表示用座標配列
-        if (this.id === '1' && gameSettings.aiHintEnabled && !this.isAi) {
-            const blob = new Blob([aiWorkerScript_Simplified], { type: 'application/javascript' });
+        if (this.id === '1' && gameSettings.aiHintEnabled && !this.isAi) {            const blob = new Blob([aiWorkerScript_Simplified], { type: 'application/javascript' });
             this.hintAiWorker = new Worker(URL.createObjectURL(blob));
             this.hintAiWorker.onmessage = (e) => {
+                // デバッグログ: 受信データの内容を確認
                 if (gameSettings.debugEnabled) {
                     const dbg = document.getElementById('ai-tree-debug-display');
                     if (dbg) {
                         dbg.style.display = 'block';
-                        const info = e.data ? (e.data.type === 'stop' ? `Stop (Piece: ${e.data.piece})` : e.data.type) : 'null';
+                        let info = 'null';
+                        if (e.data) {
+                            if (e.data.piece) info = `BestMove: ${e.data.piece} (${e.data.x},${e.data.y})`;
+                            else if (e.data.type) info = e.data.type;
+                            else info = 'Unknown Data';
+                        }
                         dbg.innerHTML = `<div style="color:yellow; font-size:10px; border-bottom:1px solid #555;">[Hint RX] ${info}</div>` + dbg.innerHTML;
                     }
                 }
-                if (e.data && e.data.type === 'stop') {
+                
+                // 修正: typeチェックではなく、pieceプロパティの有無で判定する
+                if (e.data && e.data.piece) {
                     // 最善手の座標を受け取り、ゴーストブロック座標に変換して保存
-                    if (e.data.piece) {
+                    if (true) {
                         const { piece, x, y, rotation } = e.data;
                         const offsets = GHOST_SHAPE_DEFINITIONS[piece][rotation];
                         this.aiHintGhosts = offsets.map(o => ({
