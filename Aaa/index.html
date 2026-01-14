@@ -3854,11 +3854,13 @@ let gameSettings = {
     drawMoveDelay: 30,
     aiTemplates: { meisou: true, sangaku_2: 
 true },
-    aiHintEnabled: false,
+    aiHintMode: 'dynamic',
+    infiniteHold: false,
+    aiHintEnabled: 
+    false,
     debugEnabled: true,
     pieceForPieceMode: false,
-   
- layout: generateDefaultLayout() 
+    layout: generateDefaultLayout() 
 };
 const DRAW_SHAPE_MAP = {
     "1,0;2,0;3,0": { type: "I", rot: 0, offset: [0, 0] },
@@ -4177,7 +4179,7 @@ this.gravityTimer = gameSettings.gravity; this.lockTimer = 0;
 
     
         
-    spawnNewPiece() {
+    spawnNewPiece(updateHint = true) {
         this.player.pieceType = this.nextQueue.shift();
         const newMino = this.minoGenerator.next().value;
         this.nextQueue.push(newMino);
@@ -4187,19 +4189,21 @@ this.gravityTimer = gameSettings.gravity; this.lockTimer = 0;
         this.player.rotation = 0;
         this.canHold = true;
         this.lastMoveWasRotation = false;
-                this.player.x = Math.floor(BOARD_WIDTH / 2) - Math.floor(TETROMINOS[this.player.pieceType].center[0]) -1;
+        this.player.x = Math.floor(BOARD_WIDTH / 2) - Math.floor(TETROMINOS[this.player.pieceType].center[0]) -1;
 
         const shape = this.getShape(this.player.pieceType, this.player.rotation);
         this.player.y = 20;
-if (this.checkCollision(this.player.x, this.player.y, shape)) {
+        if (this.checkCollision(this.player.x, this.player.y, shape)) {
             this.player.y = 19;
-if (this.checkCollision(this.player.x, this.player.y, shape)) {
+            if (this.checkCollision(this.player.x, this.player.y, shape)) {
 
                  this.gameOver = true;
-}
+            }
         }
-        this.requestAiHint(); // 新しいピースが出現したらヒントをリクエスト
+        if (updateHint) this.requestAiHint();
+// 新しいピースが出現したらヒントをリクエスト
     }
+
 
     // AIヒントを計算リクエストするメソッド
     requestAiHint() {
@@ -4566,7 +4570,7 @@ if (this.isActionPressed('softDrop')) {
                 }
                 ctx.globalAlpha = 1.0;
             }
-        } // ★ここ！この「}」が抜けていたため、メソッドが閉じられていませんでした
+        }
         
         this.drawSpecialMoveText(bSize);
         if (this.gameOver) this.drawMessage("GAME OVER", bSize);
@@ -4593,12 +4597,11 @@ if (this.isActionPressed('softDrop')) {
     
 hold() {
         if (this.gameOver || !this.canHold || this.holdDisabled) return;
-
         if (!this.holdPiece && this.nextQueue[0] === 'E') {
             return;
         }
 
-        this.canHold = false;
+        if (!gameSettings.infiniteHold) this.canHold = false;
         this.lastMoveWasRotation = false;
         if (this.holdPiece) {
             [this.player.pieceType, this.holdPiece] = [this.holdPiece, this.player.pieceType];
@@ -4610,14 +4613,14 @@ hold() {
             this.player.y = 20;
                         if (this.checkCollision(this.player.x, this.player.y, shape)) {
                 this.player.y = 19;
-if (this.checkCollision(this.player.x, this.player.y, shape)) {
+                if (this.checkCollision(this.player.x, this.player.y, shape)) {
                      this.gameOver = true;
-}
+                }
             }
-            this.requestAiHint(); // ホールド後もヒントを再計算
+            if (gameSettings.aiHintMode === 'dynamic') this.requestAiHint();
         } else {
             this.holdPiece = this.player.pieceType;
-this.spawnNewPiece();
+            this.spawnNewPiece(gameSettings.aiHintMode === 'dynamic');
         }
     }
 
@@ -6224,12 +6227,12 @@ function populateGeneralSettingsTab() {
             if (key === 'garbageRandomness') gameSettings[key] = Math.max(0, Math.min(100, val)) / 100;
             else gameSettings[key] = Math.max(settingDetails[key].min, Math.min(settingDetails[key].max, val));
         };
-        item.append(label, input); list.appendChild(item);
+      item.append(label, input); list.appendChild(item);
     });
-    
-    const checkboxSettings = { showEffects: 'エフェクトを表示する', showTimer: 'タイマーを表示する', touchControlsEnabled: 'タッチ操作を有効にする (P1)' };
+    const checkboxSettings = { showEffects: 'エフェクトを表示する', showTimer: 'タイマーを表示する', touchControlsEnabled: 'タッチ操作を有効にする (P1)', infiniteHold: '無限ホールド' };
     Object.entries(checkboxSettings).forEach(([key, text], index) => {
         const item = document.createElement('div'); item.className = 'setting-item';
+
         if (index === 0) { item.style.cssText = 'margin-top:20px; border-top:1px solid var(--primary-color); padding-top:15px;'; }
         const label = document.createElement('label'); const checkbox = document.createElement('input');
         checkbox.type = 'checkbox'; checkbox.id = `setting-${key}`; checkbox.checked = !!gameSettings[key];
@@ -6384,12 +6387,32 @@ function populateAiSettingsTab() {
     hintCheckbox.onchange = e => {
         gameSettings.aiHintEnabled = e.target.checked;
     };
-    const hintSpan = document.createElement('span');
+        const hintSpan = document.createElement('span');
     hintSpan.textContent = 'AIヒントを表示 (Player 1のみ)';
     hintLabel.append(hintCheckbox, hintSpan);
     hintItem.appendChild(hintLabel);
     list.appendChild(hintItem);
+
+    const hintModeItem = document.createElement('div');
+    hintModeItem.className = 'setting-item';
+    const hintModeLabel = document.createElement('span');
+    hintModeLabel.textContent = 'AIヒント更新モード';
+    const hintModeSelect = document.createElement('select');
+    hintModeSelect.style.backgroundColor = 'var(--primary-color)';
+    hintModeSelect.style.color = 'var(--font-color)';
+    hintModeSelect.style.border = '1px solid var(--border-color)';
+    hintModeSelect.style.padding = '5px';
+    hintModeSelect.style.borderRadius = '4px';
+    hintModeSelect.innerHTML = `
+        <option value="dynamic">常時更新 (推奨)</option>
+        <option value="fixed">設置毎に更新</option>
+    `;
+    hintModeSelect.value = gameSettings.aiHintMode || 'dynamic';
+    hintModeSelect.onchange = e => { gameSettings.aiHintMode = e.target.value; };
+    hintModeItem.append(hintModeLabel, hintModeSelect);
+    list.appendChild(hintModeItem);
 }
+
 
 function populateLayoutSettingsTab() {
     const list = document.getElementById('layout-settings-list');
