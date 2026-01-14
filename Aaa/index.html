@@ -3854,10 +3854,8 @@ let gameSettings = {
     drawMoveDelay: 30,
     aiTemplates: { meisou: true, sangaku_2: 
 true },
-    aiHintMode: 'dynamic',
     infiniteHold: false,
-    aiHintEnabled: 
-    false,
+    aiHintEnabled:　false,
     debugEnabled: true,
     pieceForPieceMode: false,
     layout: generateDefaultLayout() 
@@ -4613,14 +4611,13 @@ hold() {
             this.player.y = 20;
                         if (this.checkCollision(this.player.x, this.player.y, shape)) {
                 this.player.y = 19;
-                if (this.checkCollision(this.player.x, this.player.y, shape)) {
+            if (this.checkCollision(this.player.x, this.player.y, shape)) {
                      this.gameOver = true;
                 }
             }
-            if (gameSettings.aiHintMode === 'dynamic') this.requestAiHint();
         } else {
             this.holdPiece = this.player.pieceType;
-            this.spawnNewPiece(gameSettings.aiHintMode === 'dynamic');
+            
         }
     }
 
@@ -6392,25 +6389,6 @@ function populateAiSettingsTab() {
     hintLabel.append(hintCheckbox, hintSpan);
     hintItem.appendChild(hintLabel);
     list.appendChild(hintItem);
-
-    const hintModeItem = document.createElement('div');
-    hintModeItem.className = 'setting-item';
-    const hintModeLabel = document.createElement('span');
-    hintModeLabel.textContent = 'AIヒント更新モード';
-    const hintModeSelect = document.createElement('select');
-    hintModeSelect.style.backgroundColor = 'var(--primary-color)';
-    hintModeSelect.style.color = 'var(--font-color)';
-    hintModeSelect.style.border = '1px solid var(--border-color)';
-    hintModeSelect.style.padding = '5px';
-    hintModeSelect.style.borderRadius = '4px';
-    hintModeSelect.innerHTML = `
-        <option value="dynamic">常時更新 (推奨)</option>
-        <option value="fixed">設置毎に更新</option>
-    `;
-    hintModeSelect.value = gameSettings.aiHintMode || 'dynamic';
-    hintModeSelect.onchange = e => { gameSettings.aiHintMode = e.target.value; };
-    hintModeItem.append(hintModeLabel, hintModeSelect);
-    list.appendChild(hintModeItem);
 }
 
 
