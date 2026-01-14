@@ -4611,15 +4611,16 @@ hold() {
             this.player.y = 20;
                         if (this.checkCollision(this.player.x, this.player.y, shape)) {
                 this.player.y = 19;
-            if (this.checkCollision(this.player.x, this.player.y, shape)) {
+                if (this.checkCollision(this.player.x, this.player.y, shape)) {
                      this.gameOver = true;
                 }
             }
         } else {
             this.holdPiece = this.player.pieceType;
-            
+            this.spawnNewPiece();
         }
     }
+
 
 lockPiece() {
         if (!this.player.pieceType) return;
