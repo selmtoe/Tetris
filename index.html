@@ -175,9 +175,16 @@
         }
         .file-info { flex: 1; cursor: pointer; }
         .file-date { font-size: 10px; color: #aaa; }
-        .delete-btn { color: #ff4b4b; background: none; border: none; cursor: pointer; padding: 5px; }
-        
+        .delete-btn { color: #ff4b4b; background: none; border: none; cursor: pointer; padding: 5px;}
+        .control-btn {
+            flex: 1; padding: 8px; background: rgba(255,255,255,0.1); border: 1px solid var(--accent-color);
+            color: #fff; border-radius: 5px; cursor: pointer; font-size: 12px; text-align: center; transition: background 0.2s;
+        }
+        .control-btn:hover { background: rgba(255,255,255,0.2); }
+        .modal-controls { display: flex; gap: 10px; margin-bottom: 15px; }
+
         .toast {
+
             position: fixed;
             top: 20px; left: 50%; transform: translateX(-50%);
             background: rgba(0,0,0,0.8); color: white; padding: 10px 20px;
@@ -223,7 +230,7 @@
         </button>
 
         <button class="fab-btn sub-btn active" id="btn-editor" onclick="switchTab('editor')" title="エディタへ">
-            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+    <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
         </button>
     </div>
 
@@ -232,12 +239,20 @@
             <div class="modal-header">
                 <h3>保存データ一覧</h3>
                 <button onclick="document.getElementById('fileModal').style.display='none'" style="background:none;border:none;color:white;cursor:pointer;">✕</button>
+   
+         </div>
+            <div class="modal-controls">
+                <button class="control-btn" onclick="exportData()">書き出し</button>
+                <button class="control-btn" onclick="triggerImport()">読み込み</button>
+                <button class="control-btn" onclick="deleteAllFiles()" style="border-color:#ff4b4b; color:#ff4b4b;">全削除</button>
             </div>
             <div id="fileList"></div>
         </div>
     </div>
+    <input type="file" id="importFile" style="display:none" accept=".json" onchange="importData(this)">
 
     <div id="toast" class="toast"></div>
+
 
     <script>
         const editorFrame = document.getElementById('iframe-editor');
@@ -426,12 +441,15 @@
                 div.className = 'file-item';
                 div.innerHTML = `
                     <div class="file-info" onclick="loadFile(${item.id})">
-                        <div style="font-weight:bold;">${escapeHtml(item.name)}</div>
+               <div style="font-weight:bold;">${escapeHtml(item.name)}</div>
                         <div class="file-date">${item.date}</div>
                     </div>
-                    <button class="delete-btn" onclick="deleteFile(${item.id})">🗑️</button>
+                    <button class="delete-btn" onclick="renameFile(${item.id})" style="color:#aaa; margin-right:5px;">：</button>
+                    <button class="delete-btn" onclick="deleteFile(${item.id})">×</button>
                 `;
-                list.appendChild(div);
+ 
+               list.appendChild(div);
+
             });
             document.getElementById('fileModal').style.display = 'flex';
             toggleMenu();
@@ -460,10 +478,78 @@
             let saved = JSON.parse(localStorage.getItem('tetrisHubData') || '[]');
             saved = saved.filter(i => i.id !== id);
             localStorage.setItem('tetrisHubData', JSON.stringify(saved));
-            openFileManager(); // Refresh list
+            openFileManager();// Refresh list
         };
 
-        function showToast(msg) {
+        window.renameFile = function(id) {
+            const saved = JSON.parse(localStorage.getItem('tetrisHubData') || '[]');
+            const index = saved.findIndex(i => i.id === id);
+            if (index === -1) return;
+            const newName = prompt("新しい名前を入力してください:", saved[index].name);
+            if (newName && newName.trim() !== "") {
+                saved[index].name = newName.trim();
+                localStorage.setItem('tetrisHubData', JSON.stringify(saved));
+                openFileManager();
+            }
+        };
+
+        window.deleteAllFiles = function() {
+            if (confirm("保存されたデータをすべて削除しますか？\nこの操作は取り消せません。")) {
+                localStorage.removeItem('tetrisHubData');
+                openFileManager();
+                showToast("全削除しました");
+            }
+        };
+
+        window.exportData = function() {
+            const saved = localStorage.getItem('tetrisHubData') || '[]';
+            if (saved === '[]') { alert("保存されたデータがありません。"); return; }
+            const blob = new Blob([saved], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `tetris_hub_backup_${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast("書き出しました");
+        };
+
+        window.triggerImport = function() {
+            document.getElementById('importFile').click();
+        };
+
+        window.importData = function(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (!Array.isArray(imported)) throw new Error('Invalid format');
+                    
+                    const current = JSON.parse(localStorage.getItem('tetrisHubData') || '[]');
+                    // IDの衝突を避けるため再生成して結合
+                    const newItems = imported.map(item => ({
+                        ...item,
+                        id: Date.now() + Math.floor(Math.random() * 100000)
+                    }));
+                    
+                    const merged = [...newItems, ...current];
+                    localStorage.setItem('tetrisHubData', JSON.stringify(merged));
+                    openFileManager();
+                    showToast("読み込みました");
+                } catch(err) {
+                    alert("ファイルの読み込みに失敗しました: " + err.message);
+                }
+                input.value = '';
+            };
+            reader.readAsText(file);
+        };
+
+function showToast(msg) {
+
             const t = document.getElementById('toast');
             t.textContent = msg;
             t.style.opacity = 1;
