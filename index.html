@@ -175,11 +175,20 @@
         }
         .file-info { flex: 1; cursor: pointer; }
         .file-date { font-size: 10px; color: #aaa; }
-        .delete-btn { color: #ff4b4b; background: none; border: none; cursor: pointer; padding: 5px;}
+        .delete-btn { color: #ff4b4b; background: none; border: none; cursor: pointer;
+            padding: 5px; font-size: 24px; font-weight: bold; line-height: 1;}
+        .rename-btn { color: #aaa; background: none; border: none; cursor: pointer;
+            padding: 5px; font-size: 24px; font-weight: bold; line-height: 1; margin-right: 5px;}
+        .tab-container { display: flex; gap: 5px; margin-bottom: 10px; }
+        .tab-btn { flex: 1; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid #444; color: #888; cursor: pointer; border-radius: 5px 5px 0 0; }
+        .tab-btn.active { background: var(--accent-color); color: #fff; border-color: var(--accent-color); }
         .control-btn {
-            flex: 1; padding: 8px; background: rgba(255,255,255,0.1); border: 1px solid var(--accent-color);
-            color: #fff; border-radius: 5px; cursor: pointer; font-size: 12px; text-align: center; transition: background 0.2s;
+            flex: 1;
+            padding: 8px; background: rgba(255,255,255,0.1); border: 1px solid var(--accent-color);
+            color: #fff; border-radius: 5px; cursor: pointer; font-size: 12px; text-align: center;
+            transition: background 0.2s;
         }
+
         .control-btn:hover { background: rgba(255,255,255,0.2); }
         .modal-controls { display: flex; gap: 10px; margin-bottom: 15px; }
 
@@ -239,12 +248,15 @@
             <div class="modal-header">
                 <h3>保存データ一覧</h3>
                 <button onclick="document.getElementById('fileModal').style.display='none'" style="background:none;border:none;color:white;cursor:pointer;">✕</button>
-   
-         </div>
+            </div>
+            <div class="tab-container">
+                <button class="tab-btn active" id="tab-manual" onclick="switchSaveTab('manual')">手動セーブ</button>
+                <button class="tab-btn" id="tab-auto" onclick="switchSaveTab('auto')">自動セーブ</button>
+            </div>
             <div class="modal-controls">
-                <button class="control-btn" onclick="exportData()">書き出し</button>
-                <button class="control-btn" onclick="triggerImport()">読み込み</button>
-                <button class="control-btn" onclick="deleteAllFiles()" style="border-color:#ff4b4b; color:#ff4b4b;">全削除</button>
+                <button class="control-btn" onclick="exportData()">全エクスポート</button>
+                <button class="control-btn" onclick="triggerImport()">インポート</button>
+                <button class="control-btn" onclick="deleteAllFiles()" style="border-color:#ff4b4b; color:#ff4b4b;">現在のタブを全削除</button>
             </div>
             <div id="fileList"></div>
         </div>
@@ -263,38 +275,46 @@
         const mainToggle = document.querySelector('.main-toggle');
         let isSplit = false;
         let activeTab = 'editor';
-        let pendingSnapshot = { editor: null, sim: null };
+        let currentFileTab = 'manual';
+        let pendingSnapshot = { editor: null, sim: null, mode: 'manual' };
 
-        // --- メッセージルーティング (ハブの中核) ---
+        setInterval(() => {
+            requestSnapshot('auto');
+        }, 300000);
+
+        function requestSnapshot(mode) {
+            pendingSnapshot = { editor: null, sim: null, mode: mode };
+            editorFrame.contentWindow.postMessage({ type: 'requestState' }, '*');
+            simFrame.contentWindow.postMessage({ type: 'requestState' }, '*');
+        }
+
         window.addEventListener('message', (e) => {
             const data = e.data;
             if (!data) return;
-
-            // 1. データ転送と自動切り替え
             if (data.target === 'sim' && data.type === 'loadState') {
                 simFrame.contentWindow.postMessage(data, '*');
                 if (!isSplit) switchTab('sim');
                 showToast("Editor -> Simulator");
+                requestSnapshot('auto');
             } 
             else if (data.target === 'editor' && data.type === 'loadFumen') {
                 editorFrame.contentWindow.postMessage(data, '*');
                 if (!isSplit) switchTab('editor');
                 showToast("Simulator -> Editor");
+                requestSnapshot('auto');
             }
-            // 2. スナップショット応答の収集
             else if (data.target === 'hub' && data.type === 'saveSnapshotResponse') {
                 if (data.source === 'editor') pendingSnapshot.editor = data.data;
                 if (data.source === 'sim') pendingSnapshot.sim = data.data;
-                
-                // 両方揃ったら保存実行
                 if (pendingSnapshot.editor && pendingSnapshot.sim) {
-                    // データを退避してpendingを即リセット (重複実行防止)
+                    const mode = pendingSnapshot.mode;
                     const snapshotData = { ...pendingSnapshot };
-                    pendingSnapshot = { editor: null, sim: null };
-                    finalizeSave(snapshotData);
+                    pendingSnapshot = { editor: null, sim: null, mode: 'manual' };
+                    finalizeSave(snapshotData, mode);
                 }
             }
         });
+
 
         // --- UI操作 ---
         function toggleMenu() {
@@ -395,20 +415,20 @@
 
         // --- 保存・読み込みロジック ---
         function saveCurrentState() {
-            // リクエスト送信
-            pendingSnapshot = { editor: null, sim: null };
-            editorFrame.contentWindow.postMessage({ type: 'requestState' }, '*');
-            simFrame.contentWindow.postMessage({ type: 'requestState' }, '*');
-            
             showToast("状態を取得中...");
+            requestSnapshot('manual');
             toggleMenu();
         }
 
-        function finalizeSave(snapshot) {
+        function finalizeSave(snapshot, mode) {
             const timestamp = new Date().toLocaleString();
-            const name = prompt("保存名を入力してください:", timestamp);
-            if (!name) return;
-
+            let name = timestamp;
+            if (mode === 'manual') {
+                name = prompt("保存名を入力してください:", timestamp);
+                if (!name) return;
+            } else {
+                name = "[Auto] " + timestamp;
+            }
             const saveItem = {
                 id: Date.now(),
                 name: name,
@@ -416,43 +436,55 @@
                 editor: snapshot.editor,
                 sim: snapshot.sim
             };
-
+            const storageKey = mode === 'auto' ? 'tetrisHubAutoData' : 'tetrisHubData';
             try {
-                const saved = JSON.parse(localStorage.getItem('tetrisHubData') || '[]');
+                let saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
                 saved.unshift(saveItem);
-                localStorage.setItem('tetrisHubData', JSON.stringify(saved));
-                showToast("保存しました");
+                if (mode === 'auto' && saved.length > 20) saved = saved.slice(0, 20);
+                localStorage.setItem(storageKey, JSON.stringify(saved));
+                if (mode === 'manual') showToast("保存しました");
             } catch (e) {
-                alert("保存に失敗しました (容量オーバーの可能性があります)");
+                if (mode === 'manual') alert("保存に失敗しました");
             }
         }
 
+        function switchSaveTab(tab) {
+            currentFileTab = tab;
+            document.getElementById('tab-manual').classList.toggle('active', tab === 'manual');
+            document.getElementById('tab-auto').classList.toggle('active', tab === 'auto');
+            renderFileList();
+        }
+
         function openFileManager() {
+            renderFileList();
+            document.getElementById('fileModal').style.display = 'flex';
+            toggleMenu();
+        }
+
+        function renderFileList() {
             const list = document.getElementById('fileList');
             list.innerHTML = '';
-            const saved = JSON.parse(localStorage.getItem('tetrisHubData') || '[]');
-
+            const storageKey = currentFileTab === 'auto' ? 'tetrisHubAutoData' : 'tetrisHubData';
+            const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
             if (saved.length === 0) {
                 list.innerHTML = '<div style="padding:10px;text-align:center;color:#888;">データがありません</div>';
+                return;
             }
-
             saved.forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'file-item';
                 div.innerHTML = `
                     <div class="file-info" onclick="loadFile(${item.id})">
-               <div style="font-weight:bold;">${escapeHtml(item.name)}</div>
+                        <div style="font-weight:bold;">${escapeHtml(item.name)}</div>
                         <div class="file-date">${item.date}</div>
                     </div>
-                    <button class="delete-btn" onclick="renameFile(${item.id})" style="color:#aaa; margin-right:5px;">：</button>
+                    <button class="rename-btn" onclick="shareIndividual(${item.id})" title="共有用URLコピー">🔗</button>
+                    <button class="rename-btn" onclick="exportIndividual(${item.id})" title="ダウンロード">💾</button>
+                    <button class="rename-btn" onclick="renameFile(${item.id})">：</button>
                     <button class="delete-btn" onclick="deleteFile(${item.id})">×</button>
                 `;
- 
-               list.appendChild(div);
-
+                list.appendChild(div);
             });
-            document.getElementById('fileModal').style.display = 'flex';
-            toggleMenu();
         }
 
         window.loadFile = function(id) {
@@ -475,31 +507,75 @@
 
         window.deleteFile = function(id) {
             if (!confirm("削除しますか？")) return;
-            let saved = JSON.parse(localStorage.getItem('tetrisHubData') || '[]');
+            const storageKey = currentFileTab === 'auto' ? 'tetrisHubAutoData' : 'tetrisHubData';
+            let saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
             saved = saved.filter(i => i.id !== id);
-            localStorage.setItem('tetrisHubData', JSON.stringify(saved));
-            openFileManager();// Refresh list
+            localStorage.setItem(storageKey, JSON.stringify(saved));
+            renderFileList();
         };
-
         window.renameFile = function(id) {
-            const saved = JSON.parse(localStorage.getItem('tetrisHubData') || '[]');
+            const storageKey = currentFileTab === 'auto' ? 'tetrisHubAutoData' : 'tetrisHubData';
+            const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
             const index = saved.findIndex(i => i.id === id);
             if (index === -1) return;
             const newName = prompt("新しい名前を入力してください:", saved[index].name);
             if (newName && newName.trim() !== "") {
                 saved[index].name = newName.trim();
-                localStorage.setItem('tetrisHubData', JSON.stringify(saved));
-                openFileManager();
+                localStorage.setItem(storageKey, JSON.stringify(saved));
+                renderFileList();
             }
         };
-
         window.deleteAllFiles = function() {
-            if (confirm("保存されたデータをすべて削除しますか？\nこの操作は取り消せません。")) {
-                localStorage.removeItem('tetrisHubData');
-                openFileManager();
+            const storageKey = currentFileTab === 'auto' ? 'tetrisHubAutoData' : 'tetrisHubData';
+            if (confirm("表示中のタブのデータをすべて削除しますか？")) {
+                localStorage.removeItem(storageKey);
+                renderFileList();
                 showToast("全削除しました");
             }
         };
+
+        window.exportIndividual = function(id) {
+            const storageKey = currentFileTab === 'auto' ? 'tetrisHubAutoData' : 'tetrisHubData';
+            const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
+            const item = saved.find(i => i.id === id);
+            if (!item) return;
+            const blob = new Blob([JSON.stringify([item])], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${item.name}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        };
+
+        window.shareIndividual = function(id) {
+            const storageKey = currentFileTab === 'auto' ? 'tetrisHubAutoData' : 'tetrisHubData';
+            const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
+            const item = saved.find(i => i.id === id);
+            if (!item) return;
+            const dataStr = btoa(unescape(encodeURIComponent(JSON.stringify(item))));
+            const shareUrl = window.location.origin + window.location.pathname + "#data=" + dataStr;
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                showToast("共有URLをコピーしました");
+            });
+        };
+
+        window.addEventListener('load', () => {
+            const hash = window.location.hash;
+            if (hash.startsWith('#data=')) {
+                try {
+                    const dataStr = decodeURIComponent(escape(atob(hash.substring(6))));
+                    const item = JSON.parse(dataStr);
+                    if (item.editor) editorFrame.contentWindow.postMessage({ type: 'loadFumen', data: item.editor }, '*');
+                    if (item.sim) simFrame.contentWindow.postMessage({ type: 'loadState', data: item.sim }, '*');
+                    showToast("URLから読み込みました");
+                    history.replaceState(null, null, ' ');
+                } catch (e) {
+                    console.error("URLデータのパース失敗", e);
+                }
+            }
+        });
+
 
         window.exportData = function() {
             const saved = localStorage.getItem('tetrisHubData') || '[]';
