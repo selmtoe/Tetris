@@ -297,7 +297,7 @@ async function analyzePlayerRaw(canvas, config) {
     const flatInput = new Float32Array(200 * 63);
     for (let i = 0; i < 200; i++) flatInput.set(batchFeats[i], i * 63);
     const tensor = new ort.Tensor('float32', flatInput, [200, 63]);
-    const results = await session.run({ [session.inputNames[0]]: tensor });
+    const results = await session.run({ [session.inputNames[0]]: tensor }, [session.outputNames[0]]);
     const labels = results[session.outputNames[0]].data;
 
     const recognized = [];
