@@ -62,7 +62,7 @@
         <div class="controls">
             <div class="control-group">
                 <h4>スキャン設定</h4>
-                <div class="input-row"><label>Next検知間隔 (秒)</label><input type="number" id="nextScanInterval" value="0.1" step="0.1"></div>
+                <div class="input-row"><label>Next検知間隔 (秒)</label><input type="number" id="nextScanInterval" value="0.1" step="0.01" min="0.01"></div>
                 <div class="input-row"><label>区間内ONNX推論回数</label><input type="number" id="onnxSamples" value="3" min="1"></div>
                 <div class="input-row"><label>ビームサーチ幅</label><input type="number" id="beamWidth" value="5" min="1"></div>
             </div>
@@ -460,13 +460,14 @@ function runBeamSearch(timeline, params) {
         for (const state of beam) {
             for (const mino of possibleMinos) {
                 const moves = generateLegalMoves(state.board, mino);
-                for (const newBoard of moves) {
+                                for (const newBoard of moves) {
                     const stepScore = calculateMatchScore(newBoard, obsBoard, params.weights);
                     const newHistory = [...state.history, {
                         time: timeline[i].time,
                         board: newBoard, // 補完された盤面
-                        rawBoard: timeline[i].rawBoard, // 元の観測盤面
+                        rawBoard: timeline[i].rawBoard, // 元の観測盤面           
                         hold: timeline[i].hold,
+                        active: timeline[i].active,
                         next: timeline[i].next,
                         repImage: timeline[i].repImage
                     }];
@@ -580,6 +581,7 @@ async function processPlayer(playerId, video, duration, params) {
     let lastStableNext = [];
     let activeMino = "";
     let currentStart = 0;
+    let isFirstDetected = false;
     for(let t = 0; t < duration; t += params.nextScanInterval) {
         if(stopRequested) break;
         video.currentTime = t;
@@ -595,12 +597,16 @@ async function processPlayer(playerId, video, duration, params) {
         const obsHold = queueData.hold || "";
         const obsNext = queueData.next;
 
-        if (lastStableNext.length === 0 && obsNext.length > 0) {
+        if (!isFirstDetected && obsNext.length >= 3) {
             lastStableHold = obsHold;
             lastStableNext = obsNext;
             activeMino = "";
+            pass1Timeline.push({ start: 0, end: t, hold: "", next: obsNext, active: "" });
+            currentStart = t;
+            isFirstDetected = true;
             continue;
         }
+        if (!isFirstDetected) continue;
 
         const transition = checkQueueTransition(obsHold, obsNext, lastStableHold, lastStableNext, activeMino);
         
@@ -611,7 +617,7 @@ async function processPlayer(playerId, video, duration, params) {
         } else if (transition.action === 'hold') {
             activeMino = lastStableHold;
         } else if (transition.action === 'place' || transition.action === 'place_and_hold') {
-            pass1Timeline.push({ start: currentStart, end: t, hold: lastStableHold, next: lastStableNext });
+            pass1Timeline.push({ start: currentStart, end: t, hold: lastStableHold, next: lastStableNext, active: activeMino });
             currentStart = t;
             activeMino = lastStableNext[0];
         }
@@ -627,7 +633,7 @@ async function processPlayer(playerId, video, duration, params) {
         statusEl.textContent = `Pass1: ${pct * 2}%`;
     }
     if (currentStart < duration) {
-        pass1Timeline.push({ start: currentStart, end: duration, hold: lastStableHold, next: lastStableNext });
+        pass1Timeline.push({ start: currentStart, end: duration, hold: lastStableHold, next: lastStableNext, active: activeMino });
     }
 
     // --- Pass 2: Board Inference ---
@@ -674,9 +680,11 @@ async function processPlayer(playerId, video, duration, params) {
             board: cleanUpBoard(winnerBoard),
             rawBoard: cleanUpBoard(winnerBoard), // デバッグ用の生データ
             hold: phase.hold,
-            next: phase.next.join(''),
+            active: phase.active,
+            next: (phase.next || []).join(''),
             repImage: repImageURL
         });
+
         
         const pct = 50 + Math.floor(((i + 1) / pass1Timeline.length) * 50);
         progressEl.value = pct;
@@ -790,18 +798,18 @@ function drawBoardToCanvas(board40, canvasEl) {
 
 function renderDebugTimeline(playerId, timeline) {
     const container = document.getElementById(`debug${playerId.toUpperCase()}`);
-    let html = `<table class="debug-table">
-        <tr><th>Time (s)</th><th>Next / Hold</th><th>Representative Image</th><th>Vote Avg Board</th><th>Beam Search Board</th></tr>`;
-    
-    timeline.forEach((item, idx) => {
+let html = `<table class="debug-table">
+        <tr><th>Time (s)</th><th>Hold / Active / Next</th><th>Representative Image</th><th>Vote Avg Board</th><th>Beam Search Board</th></tr>`;
+timeline.forEach((item, idx) => {
         html += `<tr>
             <td>${item.time.toFixed(1)}</td>
-            <td>Hold: ${item.hold}<br>Next: ${item.next}</td>
+            <td>Hold: ${item.hold}<br>Active: ${item.active || 'none'}<br>Next: ${item.next}</td>
             <td><img src="${item.repImage || ''}" class="rep-img" alt="no img"></td>
             <td><canvas id="canvas-raw-${playerId}-${idx}" class="board-canvas" width="60" height="120"></canvas></td>
             <td><canvas id="canvas-clean-${playerId}-${idx}" class="board-canvas" width="60" height="120"></canvas></td>
         </tr>`;
-    });
+   
+ });
     html += `</table>`;
     container.innerHTML = html;
 
