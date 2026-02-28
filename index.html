@@ -225,7 +225,21 @@ const log = (msg, type='info') => {
     el.scrollTop = el.scrollHeight;
 };
 
-const waitForSeek = v => new Promise(r => { v.onseeked = r; });
+const seekVideo = (v, time) => new Promise(resolve => {
+    // 既に目的の時間なら何もしない（無限待ち回避）
+    if (v.currentTime === time) {
+        resolve();
+        return;
+    }
+    // 1回だけ発火するイベントリスナーを登録
+    const onSeeked = () => {
+        v.removeEventListener('seeked', onSeeked);
+        resolve();
+    };
+    v.addEventListener('seeked', onSeeked);
+    v.currentTime = time; // リスナー登録後にシークを実行
+});
+
 
 function getQueueDiffCount(prev, curr) {
     if(!prev) return 0;
@@ -408,9 +422,7 @@ document.getElementById('startBtn').addEventListener('click', async () => {
     let p1Prev = null, p2Prev = null;
 
     while(t <= video.duration) {
-        video.currentTime = t;
-        await waitForSeek(video);
-        
+        await seekVideo(video, t);
         // 16:9クロップ
         const tarW = video.videoHeight * 16/9;
         const cx = (video.videoWidth - tarW)/2;
@@ -436,8 +448,7 @@ document.getElementById('startBtn').addEventListener('click', async () => {
             
             const boards = [];
             for(const st of samples) {
-                video.currentTime = st;
-                await waitForSeek(video);
+                await seekVideo(video, st);
                 const tarW = video.videoHeight * 16/9;
                 ctx.drawImage(video, (video.videoWidth - tarW)/2, 0, tarW, video.videoHeight, 0, 0, 1920, 1080);
                 boards.push(await VisionLib.runONNX(ctx, config.boardRect));
