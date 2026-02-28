@@ -452,8 +452,8 @@ function runBeamSearch(timeline, params) {
         const prevNext = timeline[i-1].next;
         
         let possibleMinos = ALL_MINOS;
-        if (timeline[i].active && ALL_MINOS.includes(timeline[i].active)) {
-            possibleMinos = [timeline[i].active];
+        if (timeline[i-1].active && ALL_MINOS.includes(timeline[i-1].active)) {
+            possibleMinos = [timeline[i-1].active];
         } else if (prevNext && prevNext.length > 0 && ALL_MINOS.includes(prevNext[0])) {
             possibleMinos = [prevNext[0]];
         }
