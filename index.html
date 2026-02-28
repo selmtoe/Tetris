@@ -451,32 +451,50 @@ function runBeamSearch(timeline, params) {
         const currentNext = timeline[i].next;
         const prevNext = timeline[i-1].next;
         
-        let possibleMinos = ALL_MINOS;
-        if (timeline[i-1].active && ALL_MINOS.includes(timeline[i-1].active)) {
-            possibleMinos = [timeline[i-1].active];
-        } else if (prevNext && prevNext.length > 0 && ALL_MINOS.includes(prevNext[0])) {
-            possibleMinos = [prevNext[0]];
+        let possibleMinos = [];
+        if (timeline[i].active && ALL_MINOS.includes(timeline[i].active)) {
+            possibleMinos = [timeline[i].active];
         }
 
         let nextBeam = [];
-        for (const state of beam) {
-            for (const mino of possibleMinos) {
-                const moves = generateLegalMoves(state.board, mino);
-                                for (const newBoard of moves) {
-                    const stepScore = calculateMatchScore(newBoard, obsBoard, params.weights);
-                    const newHistory = [...state.history, {
-                        time: timeline[i].time,
-                        board: newBoard, // 補完された盤面
-                        rawBoard: timeline[i].rawBoard, // 元の観測盤面           
-                        hold: timeline[i].hold,
-                        active: timeline[i].active,
-                        next: timeline[i].next,
-                        repImage: timeline[i].repImage
-                    }];
-                    nextBeam.push({ board: newBoard, history: newHistory, score: state.score + stepScore });
+        if (possibleMinos.length === 0) {
+            // 設置すべきミノがない(activeがnone)場合、設置処理をスキップして盤面をそのまま維持する
+            for (const state of beam) {
+                const stepScore = calculateMatchScore(state.board, obsBoard, params.weights);
+                const newHistory = [...state.history, {
+                    time: timeline[i].time,
+                    board: cloneBoard(state.board),
+                    rawBoard: timeline[i].rawBoard,
+             
+       hold: timeline[i].hold,
+                    active: timeline[i].active,
+                    next: timeline[i].next,
+                    repImage: timeline[i].repImage
+                }];
+                nextBeam.push({ board: cloneBoard(state.board), history: newHistory, score: state.score + stepScore });
+            }
+        } else {
+            for (const state of beam) {
+                for (const mino of possibleMinos) {
+                    const moves = generateLegalMoves(state.board, mino);
+                    for (const newBoard of moves) {
+                        const stepScore = calculateMatchScore(newBoard, obsBoard, params.weights);
+                        const newHistory = [...state.history, {
+                            time: timeline[i].time,
+                            board: newBoard, // 補完された盤面
+                            rawBoard: timeline[i].rawBoard, // 元の観測盤面
+                     
+           hold: timeline[i].hold,
+                            active: timeline[i].active,
+                            next: timeline[i].next,
+                            repImage: timeline[i].repImage
+                        }];
+                        nextBeam.push({ board: newBoard, history: newHistory, score: state.score + stepScore });
+                    }
                 }
             }
         }
+
 
         nextBeam.sort((a, b) => b.score - a.score);
         beam = nextBeam.slice(0, params.beamWidth);
