@@ -15,12 +15,12 @@
     button { background: var(--accent); color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; }
     button:disabled { background: #555; cursor: not-allowed; }
     button:hover:not(:disabled) { opacity: 0.9; }
-    input[type="file"], input[type="number"] { padding: 8px; background: rgba(0,0,0,0.3); border-radius: 4px; color: white; border: 1px solid var(--primary); width: 100%; box-sizing: border-box; }
+    input[type="file"] { padding: 10px; background: rgba(0,0,0,0.3); border-radius: 4px; width: 100%; box-sizing: border-box; }
     .progress-section { margin-top: 20px; }
     progress { width: 100%; height: 20px; border-radius: 10px; }
     #logArea { background: #000; border: 1px solid #555; height: 300px; overflow-y: scroll; font-family: monospace; white-space: pre-wrap; padding: 10px; font-size: 12px; margin-top: 10px; }
     .log-info { color: #4db8ff; } .log-warn { color: #ffff00; } .log-error { color: #ff4444; } .log-success { color: #00ff00; }
-    .result-link { font-size: 1.2em; word-break: break-all; background: #000; padding: 15px; border-radius: 5px; border: 1px solid var(--accent); margin-top: 10px; }
+    .result-link { font-size: 1.2em; word-break: break-all; background: #000; padding: 15px; border-radius: 5px; border: 1px solid var(--accent); margin-top: 10px;}
     a { color: var(--accent); }
     #videoPlayer, #processCanvas { display: none; }
 </style>
@@ -28,30 +28,24 @@
 <body>
 
 <div class="container">
-    <h1>Tetris Video Analyzer (Beam Search)</h1>
-    <p>動画を解析し、認識結果とビームサーチによる合法手探索を組み合わせて正確な譜面を生成します。</p>
+    <h1>Tetris Video Analyzer (Beam Search Edition)</h1>
+    <p>動画を解析し、多数決とビームサーチを用いて物理的に矛盾のないテト譜を自動生成します。</p>
 
     <div class="panel">
         <h2>1. 準備</h2>
         <div class="controls">
             <div>
-                <label>ONNXモデル (tetris.onnx)</label>
+                <label>1. ONNXモデル (tetris.onnx)</label>
                 <input type="file" id="modelInput" accept=".onnx">
             </div>
             <div>
-                <label>解析する動画 (MP4/WebM)</label>
+                <label>2. 解析する動画 (MP4/WebM)</label>
                 <input type="file" id="videoInput" accept="video/*">
             </div>
         </div>
-        <div class="controls" style="margin-top: 15px;">
-            <div>
-                <label>スキャン間隔 (秒)</label>
-                <input type="number" id="scanInterval" value="0.2" step="0.1">
-            </div>
-            <div>
-                <label>ビームサーチ幅 (候補数)</label>
-                <input type="number" id="beamWidth" value="5" min="1" max="20">
-            </div>
+        <div style="margin-top: 15px; display: flex; gap: 20px;">
+            <label>スキャン間隔: <input type="number" id="scanInterval" value="0.2" step="0.1" style="width: 60px;"> 秒</label>
+            <label>ビーム幅: <input type="number" id="beamWidth" value="5" step="1" style="width: 60px;"> (探索の広さ)</label>
         </div>
     </div>
 
@@ -61,20 +55,24 @@
         <button id="stopBtn" disabled style="background-color: #f00;">停止</button>
         
         <div class="progress-section">
-            <div>Video Scan Progress: <span id="scanStatus">待機中</span></div>
-            <progress id="scanProgress" value="0" max="100"></progress>
+            <div>P1 Progress: <span id="p1Status">待機中</span></div>
+            <progress id="p1Progress" value="0" max="100"></progress>
+        </div>
+        <div class="progress-section">
+            <div>P2 Progress: <span id="p2Status">待機中</span></div>
+            <progress id="p2Progress" value="0" max="100"></progress>
         </div>
         
         <h3>System Log</h3>
         <div id="logArea"></div>
     </div>
 
-    <div class="panel" id="resultPanel" style="display:none;">
+    <div class="panel hidden" id="resultPanel" style="display:none;">
         <h2>3. 結果</h2>
-        <div>P1 リンク:</div>
-        <div class="result-link"><a id="p1Link" href="#" target="_blank">生成中...</a></div>
-        <div style="margin-top: 15px;">P2 リンク:</div>
-        <div class="result-link"><a id="p2Link" href="#" target="_blank">生成中...</a></div>
+        <p>※出力されたリンクをコピーして、エディタのブラウザタブで開いてください。</p>
+        <div class="result-link">
+            <a id="finalLink" href="#" target="_blank">生成中...</a>
+        </div>
     </div>
 </div>
 
@@ -83,7 +81,7 @@
 
 <script>
 // ==========================================
-// 1. Config & Tetromino Logic
+//  Constants & Configurations
 // ==========================================
 const CONFIG = {
     p1: {
@@ -97,510 +95,36 @@ const CONFIG = {
 };
 
 const CLASS_NAMES = ['null', 'G', 'S', 'Z', 'L', 'J', 'O', 'I', 'T'];
+const MINO_TYPES = ['I', 'O', 'T', 'L', 'J', 'S', 'Z'];
 
-// 相対座標でのミノ定義 (Center基準)
-const TETROMINOS = {
-    'I': { shape: [[0, 0], [1, 0], [2, 0], [3, 0]], center: [1.5, 0.5] },
-    'O': { shape: [[0, 0], [1, 0], [0, -1], [1, -1]], center: [0.5, -0.5] },
-    'T': { shape: [[0, 0], [-1, 0], [0, -1], [1, 0]], center: [0, 0] },
-    'L': { shape: [[-1, 0], [0, 0], [1, 0], [1, -1]], center: [0, 0] },
-    'J': { shape: [[0, 0], [-1, 0], [1, 0], [-1, -1]], center: [0, 0] },
-    'S': { shape: [[1, -1], [-1, 0], [0, 0], [0, -1]], center: [0, 0] },
-    'Z': { shape: [[0, 0], [1, 0], [0, -1], [-1, -1]], center: [0, 0] }
+// 中心からの相対座標 (ユーザー指定のフォーマット)
+const MINO_SHAPES = {
+    'I': [[-1,0], [0,0], [1,0], [2,0]],
+    'O': [[0,0], [1,0], [0,-1], [1,-1]],
+    'T': [[-1,0], [0,0], [1,0], [0,-1]],
+    'L': [[-1,0], [0,0], [1,0], [1,-1]],
+    'J': [[-1,0], [0,0], [1,0], [-1,-1]],
+    'S': [[-1,0], [0,0], [0,-1], [1,-1]],
+    'Z': [[0,0], [1,0], [0,-1], [-1,-1]]
 };
 
-function getShape(p, r) { 
-    if(!p || p==='G' || p==='null') return []; 
-    const o = TETROMINOS[p].shape; 
-    if(r===0 || p==='O') return o; 
-    const c = TETROMINOS[p].center;
-    return o.map(b => {
-        let [x,y] = [b[0]-c[0], b[1]-c[1]]; 
-        for(let i=0; i<r; i++){ [x,y] = [-y,x]; } 
-        return [x+c[0]+(p==='O'?0.5:0), y+c[1]+(p==='O'?0.5:0)];
-    });
-}
+const SCAN_COLOR_PALETTE = { 
+    'NULL': ['#000000', '#302838'], 'G': ['#999999', '#D8D8D8'], 'I': ['#019899', '#0199D5'], 
+    'O': ['#999A02', '#F9B900'], 'T': ['#980099', '#871E88'], 'L': ['#996700', '#F56100'], 
+    'J': ['#0000BB', '#004BA5'], 'S': ['#10971F', '#5CB523'], 'Z': ['#990000', '#DA1822'] 
+};
 
-function checkCollision(board, x, y, shape) {
-    for(const b of shape) {
-        const bx = Math.floor(x + b[0]);
-        const by = Math.floor(y + b[1]);
-        if(bx < 0 || bx >= 10 || by >= 40) return true;
-        if(by >= 0 && board[by][bx] !== null) return true;
-    }
-    return false;
-}
+const hexToRgb = (hex) => ({ r: parseInt(hex.slice(1,3),16), g: parseInt(hex.slice(3,5),16), b: parseInt(hex.slice(5,7),16) });
+const PARSED_SCAN_COLORS = {};
+for (const key in SCAN_COLOR_PALETTE) PARSED_SCAN_COLORS[key] = SCAN_COLOR_PALETTE[key].map(hexToRgb);
+const colorDistanceSq = (c1, c2) => ((c1.r - c2.r)**2 + (c1.g - c2.g)**2 + (c1.b - c2.b)**2);
 
-function isGrounded(board, x, y, shape) {
-    return checkCollision(board, x, y + 1, shape);
-}
-
-function placeAndClearLines(board, x, y, shape, pieceType) {
-    const newBoard = board.map(row => [...row]);
-    for(const b of shape) {
-        const bx = Math.floor(x + b[0]);
-        const by = Math.floor(y + b[1]);
-        if(by >= 0 && by < 40 && bx >= 0 && bx < 10) {
-            newBoard[by][bx] = pieceType;
-        }
-    }
-    
-    // ライン消去
-    const keptRows = newBoard.filter(row => row.some(cell => cell === null));
-    const clearedCount = 40 - keptRows.length;
-    for(let i=0; i<clearedCount; i++) {
-        keptRows.unshift(Array(10).fill(null));
-    }
-    return keptRows;
-}
-
-// ==========================================
-// 2. Image Processing & ONNX (Strict Match)
-// ==========================================
 let session = null;
 let isRunning = false;
 let stopRequested = false;
 
-const SCAN_COLOR_PALETTE = { 'NULL': ['#000000', '#302838'], 'G': ['#999999', '#D8D8D8'], 'I': ['#019899', '#0199D5'], 'O': ['#999A02', '#F9B900'], 'T': ['#980099', '#871E88'], 'L': ['#996700', '#F56100'], 'J': ['#0000BB', '#004BA5'], 'S': ['#10971F', '#5CB523'], 'Z': ['#990000', '#DA1822'] };
-const hexToRgb = (hex) => { const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16); return { r, g, b }; };
-const PARSED_SCAN_COLORS = {};
-for (const key in SCAN_COLOR_PALETTE) { PARSED_SCAN_COLORS[key] = SCAN_COLOR_PALETTE[key].map(hexToRgb); }
-const colorDistanceSq = (c1, c2) => (Math.pow(c1.r - c2.r, 2) + Math.pow(c1.g - c2.g, 2) + Math.pow(c1.b - c2.b, 2));
-
-function findClosestColor(r, g, b) { 
-    const inputColor = { r, g, b };
-    for (const nullColor of PARSED_SCAN_COLORS.NULL) { if (colorDistanceSq(inputColor, nullColor) < 6000) return null; } 
-    for (const gColor of PARSED_SCAN_COLORS.G) { if (colorDistanceSq(inputColor, gColor) < 10000) return 'G'; } 
-    let minDistance = Infinity, closestKey = null;
-    const minoKeys = Object.keys(PARSED_SCAN_COLORS).filter(k => k !== 'NULL' && k !== 'G');
-    for (const key of minoKeys) { 
-        for (const targetColor of PARSED_SCAN_COLORS[key]) { 
-            const distance = colorDistanceSq(inputColor, targetColor);
-            if (distance < minDistance) { minDistance = distance; closestKey = key; } 
-        } 
-    } 
-    return (minDistance > 25000) ? null : closestKey; 
-}
-
-function findClosestMinoOnly(r, g, b) { 
-    const inputColor = { r, g, b };
-    let minDistance = Infinity, closestKey = 'I'; 
-    const minoKeys = Object.keys(PARSED_SCAN_COLORS).filter(k => k !== 'NULL' && k !== 'G');
-    for (const key of minoKeys) { 
-        for (const targetColor of PARSED_SCAN_COLORS[key]) { 
-            const distance = colorDistanceSq(inputColor, targetColor);
-            if (distance < minDistance) { minDistance = distance; closestKey = key; } 
-        } 
-    } 
-    return closestKey;
-}
-
-function getAverageColorNonBlack(ctx, cx, cy, radius) {
-    const startX = Math.max(0, Math.floor(cx - radius)), startY = Math.max(0, Math.floor(cy - radius)), diameter = Math.ceil(radius * 2), endX = Math.min(ctx.canvas.width, startX + diameter), endY = Math.min(ctx.canvas.height, startY + diameter), width = endX - startX, height = endY - startY;
-    if (width <= 0 || height <= 0) return { r: 0, g: 0, b: 0 };
-    const imageData = ctx.getImageData(startX, startY, width, height).data;
-    let totalR = 0, totalG = 0, totalB = 0, count = 0;
-    const radiusSq = radius * radius;
-    const blackThreshold = 50;
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const dx = (startX + x) - cx;
-        const dy = (startY + y) - cy;
-        if (dx * dx + dy * dy <= radiusSq) {
-          const i = (y * width + x) * 4;
-          const r = imageData[i], g = imageData[i + 1], b = imageData[i + 2];
-          if (r > blackThreshold || g > blackThreshold || b > blackThreshold) {
-            totalR += r; totalG += g; totalB += b; count++;
-          }
-        }
-      }
-    }
-    return count === 0 ? { r: 0, g: 0, b: 0 } : { r: totalR / count, g: totalG / count, b: totalB / count };
-}
-
-function processImageTo1080p(imgBitmap) {
-    const srcW = imgBitmap.width, srcH = imgBitmap.height, targetAspect = 16 / 9, srcAspect = srcW / srcH;
-    let cropW, cropH, cropX, cropY;
-    if (srcAspect > targetAspect) { cropH = srcH; cropW = srcH * targetAspect; cropX = (srcW - cropW) / 2; cropY = 0; } 
-    else { cropW = srcW; cropH = srcW / targetAspect; cropX = 0; cropY = (srcH - cropH) / 2; }
-    const canvas = document.createElement('canvas');
-    canvas.width = 1920; canvas.height = 1080;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(imgBitmap, cropX, cropY, cropW, cropH, 0, 0, 1920, 1080);
-    return { canvas, cropData: { cropX, cropY, cropW, cropH } };
-}
-
-function extractCellPixels(sourceImgData, x, y, w, h) {
-    const sw = sourceImgData.width, ix = Math.floor(x), iy = Math.floor(y), iw = Math.floor(w), ih = Math.floor(h);
-    const data = new Uint8ClampedArray(iw * ih * 4);
-    for (let row = 0; row < ih; row++) {
-        const srcRowStart = ((iy + row) * sw + ix) * 4;
-        const destRowStart = (row * iw) * 4;
-        data.set(sourceImgData.data.subarray(srcRowStart, srcRowStart + iw * 4), destRowStart);
-    }
-    return data;
-}
-
-function extractFeaturesJS(pixelsRGBA, w, h) {
-    const numPixels = w * h;
-    const feats = [];
-    const bCh = new Float32Array(numPixels), gCh = new Float32Array(numPixels), rCh = new Float32Array(numPixels);
-    const hCh = new Float32Array(numPixels), sCh = new Float32Array(numPixels), vCh = new Float32Array(numPixels);
-    for (let i = 0; i < numPixels; i++) {
-        const r = pixelsRGBA[i * 4], g = pixelsRGBA[i * 4 + 1], b = pixelsRGBA[i * 4 + 2];
-        bCh[i] = b; gCh[i] = g; rCh[i] = r;
-        const maxVal = Math.max(r, g, b), minVal = Math.min(r, g, b);
-        const diff = maxVal - minVal;
-        const v = maxVal;
-        let s = (maxVal !== 0) ? (diff / maxVal) * 255 : 0;
-        let h_val = 0;
-        if (maxVal === minVal) h_val = 0;
-        else if (maxVal === r) h_val = (60 * (g - b) / diff + 360) % 360;
-        else if (maxVal === g) h_val = (60 * (b - r) / diff + 120) % 360;
-        else if (maxVal === b) h_val = (60 * (r - g) / diff + 240) % 360;
-        h_val = h_val / 2;
-        vCh[i] = v; sCh[i] = s; hCh[i] = h_val;
-    }
-    const getStats = (arr) => {
-        let sum = 0; for(let v of arr) sum += v;
-        const mean = sum / arr.length;
-        let sqDiffSum = 0; for(let v of arr) sqDiffSum += (v - mean) ** 2;
-        return [mean, Math.sqrt(sqDiffSum / arr.length)];
-    };
-    const statsB = getStats(bCh), statsG = getStats(gCh), statsR = getStats(rCh);
-    feats.push(statsB[0], statsB[1], statsG[0], statsG[1], statsR[0], statsR[1]);
-    const statsH = getStats(hCh), statsS = getStats(sCh), statsV = getStats(vCh);
-    feats.push(statsH[0], statsH[1], statsS[0], statsS[1], statsV[0], statsV[1]);
-    const stepX = w / 4, stepY = h / 4;
-    const tinyFeats = [];
-    for (let ty = 0; ty < 4; ty++) {
-        for (let tx = 0; tx < 4; tx++) {
-            const sx = Math.floor(tx * stepX), sy = Math.floor(ty * stepY);
-            const ex = Math.floor((tx + 1) * stepX), ey = Math.floor((ty + 1) * stepY);
-            let sumB=0, sumG=0, sumR=0, count=0;
-            for(let py=sy; py<ey; py++){
-                for(let px=sx; px<ex; px++){
-                    const idx = py * w + px;
-                    if(idx < numPixels) { sumB += bCh[idx]; sumG += gCh[idx]; sumR += rCh[idx]; count++; }
-                }
-            }
-            if(count===0) tinyFeats.push(0,0,0);
-            else tinyFeats.push(sumB/count, sumG/count, sumR/count);
-        }
-    }
-    feats.push(...tinyFeats);
-    const cx = Math.floor(w/2), cy = Math.floor(h/2), cw = Math.floor(w/4), ch = Math.floor(h/4);
-    const startX = cx - cw, endX = cx + cw, startY = cy - ch, endY = cy + ch;
-    let cSumB=0, cSumG=0, cSumR=0, cCount=0;
-    for(let py=startY; py<endY; py++){
-        for(let px=startX; px<endX; px++){
-            if(px>=0 && px<w && py>=0 && py<h){
-                const idx = py * w + px;
-                cSumB += bCh[idx]; cSumG += gCh[idx]; cSumR += rCh[idx]; cCount++;
-            }
-        }
-    }
-    if(cCount===0) feats.push(0,0,0);
-    else feats.push(cSumB/cCount, cSumG/cCount, cSumR/cCount);
-
-    return new Float32Array(feats);
-}
-
-async function analyzePlayerRaw(canvas, originalBitmap, cropData, config) {
-    const ctx = canvas.getContext('2d');
-    const boardRect = config.boardRect;
-    const boardImgData = ctx.getImageData(boardRect.x, boardRect.y, boardRect.w, boardRect.h);
-    const cellW = boardRect.w / 10, cellH = boardRect.h / 20;
-    
-    // Classic Logic (Correction)
-    const classicBoard = [];
-    for (let r = 0; r < 20; r++) {
-        const row = [];
-        for (let c = 0; c < 10; c++) {
-            const sampleX = boardRect.x + (c + 0.5) * cellW, sampleY = boardRect.y + (r + 0.5) * cellH;
-            const sampleSize = Math.max(1, Math.floor(cellW * 0.25));
-            const imageData = ctx.getImageData(sampleX - sampleSize / 2, sampleY - sampleSize / 2, sampleSize, sampleSize).data;
-            let avgR = 0, avgG = 0, avgB = 0;
-            for (let i = 0; i < imageData.length; i += 4) { avgR += imageData[i]; avgG += imageData[i+1]; avgB += imageData[i+2]; }
-            const pixelCount = imageData.length / 4;
-            avgR /= pixelCount; avgG /= pixelCount; avgB /= pixelCount;
-            row.push(findClosestColor(avgR, avgG, avgB));
-        }
-        classicBoard.push(row);
-    }
-
-    // ONNX Logic
-    const batchFeatures = [];
-    for (let r = 0; r < 20; r++) {
-        for (let c = 0; c < 10; c++) {
-            const x = c * cellW, y = r * cellH;
-            const cellPixels = extractCellPixels(boardImgData, x, y, cellW, cellH);
-            batchFeatures.push(extractFeaturesJS(cellPixels, Math.floor(cellW), Math.floor(cellH)));
-        }
-    }
-
-    const flatInput = new Float32Array(batchFeatures.length * 63);
-    for (let i = 0; i < batchFeatures.length; i++) flatInput.set(batchFeatures[i], i * 63);
-    
-    const tensor = new ort.Tensor('float32', flatInput, [200, 63]);
-    const results = await session.run({ [session.inputNames[0]]: tensor }, [session.outputNames[0]]);
-    const labelData = results[session.outputNames[0]].data;
-
-    const recognizedBoard = [];
-    for (let i = 0; i < 200; i++) {
-        const r = Math.floor(i / 10), c = i % 10;
-        if(c === 0) recognizedBoard.push([]);
-        const label = CLASS_NAMES[Number(labelData[i])];
-        recognizedBoard[r].push((label === 'null') ? null : label);
-    }
-
-    // Merge Correction
-    for (let r = 0; r < 20; r++) {
-        const onnxRow = recognizedBoard[r];
-        if (onnxRow.every(cell => cell === null || cell === 'G')) {
-            const gCountOnnx = onnxRow.filter(cell => cell === 'G').length;
-            if (gCountOnnx !== 10) {
-                const classicRow = classicBoard[r];
-                if (classicRow.filter(cell => cell === 'G').length === 9 && classicRow.filter(cell => cell === null).length === 1) {
-                    recognizedBoard[r] = [...classicRow];
-                }
-            }
-        }
-    }
-
-    // Full Board化
-    const fullBoard = Array.from({ length: 40 }, () => Array(10).fill(null));
-    for(let r=0; r<20; r++) fullBoard[20+r] = recognizedBoard[r];
-
-    // Garbage Cleanup (Bottom-up)
-    let firstNonG = -1;
-    for (let y = 39; y >= 0; y--) { if (!fullBoard[y].includes('G')) { firstNonG = y; break; } }
-    if (firstNonG !== -1) { 
-        for (let y = firstNonG - 1; y >= 0; y--) { 
-            for (let x = 0; x < 10; x++) { if (fullBoard[y][x] === 'G') fullBoard[y][x] = null; } 
-        } 
-    }
-
-    // Next/Hold Logic
-    const nextQueue = [];
-    let holdMino = null;
-    const rawCropCanvas = document.createElement('canvas');
-    rawCropCanvas.width = cropData.cropW; rawCropCanvas.height = cropData.cropH;
-    const rawCtx = rawCropCanvas.getContext('2d', { willReadFrequently: true });
-    rawCtx.drawImage(originalBitmap, cropData.cropX, cropData.cropY, cropData.cropW, cropData.cropH, 0, 0, cropData.cropW, cropData.cropH);
-    const scale = cropData.cropW / 1280;
-    const radius = 5 * scale;
-    
-    for (let i = 0; i < config.nextCoords.length; i++) {
-        const coord = config.nextCoords[i];
-        const avgColor = getAverageColorNonBlack(rawCtx, coord.x * scale, coord.y * scale, radius);
-        const isBlack = avgColor.r < 50 && avgColor.g < 50 && avgColor.b < 50;
-        
-        if (i === 0) {
-            if (!isBlack) holdMino = findClosestMinoOnly(avgColor.r, avgColor.g, avgColor.b);
-        } else {
-            if (i === 1 && isBlack) break;
-            const foundMino = findClosestMinoOnly(avgColor.r, avgColor.g, avgColor.b);
-            if (foundMino) nextQueue.push(foundMino);
-        }
-    }
-
-    return { board: fullBoard, hold: holdMino, next: nextQueue };
-}
-
 // ==========================================
-// 3. Voting & Turn Detection Logic
-// ==========================================
-class VoteAggregator {
-    constructor() { this.reset(); }
-    reset() {
-        this.votes = Array.from({length: 40}, () => Array.from({length: 10}, () => ({})));
-        this.count = 0;
-    }
-    add(board) {
-        this.count++;
-        for(let y=0; y<40; y++){
-            for(let x=0; x<10; x++){
-                const val = board[y][x] || 'null';
-                this.votes[y][x][val] = (this.votes[y][x][val] || 0) + 1;
-            }
-        }
-    }
-    getWinnerBoard() {
-        if(this.count === 0) return null;
-        const result = [];
-        for(let y=0; y<40; y++){
-            const row = [];
-            for(let x=0; x<10; x++){
-                let maxVote = -1, winner = null;
-                for(const [val, cnt] of Object.entries(this.votes[y][x])){
-                    if(cnt > maxVote) { maxVote = cnt; winner = val; }
-                }
-                row.push(winner === 'null' ? null : winner);
-            }
-            result.push(row);
-        }
-        return result;
-    }
-}
-
-// ノイズ対策: Nextが2箇所以上変わっていれば「変化」とみなす
-function countNextDiff(nextA, nextB) {
-    if (!nextA || !nextB) return 6; // nullの場合は全変化扱い
-    let diff = 0;
-    const len = Math.max(nextA.length, nextB.length);
-    for(let i=0; i<len; i++) {
-        if(nextA[i] !== nextB[i]) diff++;
-    }
-    return diff;
-}
-
-// ==========================================
-// 4. Beam Search Logic
-// ==========================================
-function evaluateBoardSimilarity(simBoard, obsBoard) {
-    let score = 0;
-    // 評価領域は表示されている下半分（Y: 20〜39）
-    for(let y=20; y<40; y++){
-        for(let x=0; x<10; x++){
-            const simCell = simBoard[y][x];
-            const obsCell = obsBoard[y][x];
-            
-            if(simCell === null && obsCell === null) {
-                score += 1;
-            } else if(simCell !== null && obsCell !== null) {
-                score += 5; // ブロックが存在する位置が一致
-                if(simCell === obsCell) score += 2; // 色も一致
-            } else {
-                score -= 2; // 不一致ペナルティ
-            }
-        }
-    }
-    return score;
-}
-
-function generateLegalMoves(board, pieceType) {
-    const moves = [];
-    if(!pieceType || pieceType === 'null') return moves;
-    
-    // 全座標、全回転を走査
-    for(let r=0; r<4; r++){
-        const shape = getShape(pieceType, r);
-        // 重複判定用 (回転対称なOなどの不要な重複を除外するため、単純な実装)
-        if(pieceType === 'O' && r > 0) continue;
-        if(['I','S','Z'].includes(pieceType) && r > 1) continue;
-
-        for(let x=-2; x<12; x++){
-            for(let y=0; y<40; y++){
-                if(!checkCollision(board, x, y, shape)) {
-                    // 接地しているか？ (緩い合法手条件)
-                    if(isGrounded(board, x, y, shape)) {
-                        moves.push({ x, y, r, pieceType });
-                    }
-                }
-            }
-        }
-    }
-    return moves;
-}
-
-// ターンごとのビームサーチ
-function beamSearchStep(beam, obsData, beamWidth) {
-    let nextCandidates = [];
-    const obsBoard = obsData.board;
-    
-    for(const state of beam) {
-        // 使用可能ミノ: 現在の落下予定(Nextの先頭) と Hold
-        const availablePieces = [];
-        if (state.nextQueue.length > 0) availablePieces.push({ piece: state.nextQueue[0], useHold: false });
-        if (state.hold) availablePieces.push({ piece: state.hold, useHold: true });
-        // Holdが空の場合はNextの先頭をHoldに突っ込んで次を使う動きも可能だが、
-        // 単純化のためObsDataのHold状態を信頼しつつフォールバックする
-        if (!state.hold && state.nextQueue.length > 1) {
-            availablePieces.push({ piece: state.nextQueue[1], useHold: 'initial' });
-        }
-
-        // 重複排除
-        const uniquePieces = [];
-        const seen = new Set();
-        for(const ap of availablePieces) {
-            if(!seen.has(ap.piece)) {
-                seen.add(ap.piece);
-                uniquePieces.push(ap);
-            }
-        }
-
-        for(const ap of uniquePieces) {
-            const moves = generateLegalMoves(state.board, ap.piece);
-            for(const move of moves) {
-                const newBoard = placeAndClearLines(state.board, move.x, move.y, getShape(move.pieceType, move.r), move.pieceType);
-                const score = state.score + evaluateBoardSimilarity(newBoard, obsBoard);
-                
-                // 次の状態のQueue/Holdの更新
-                let newHold = state.hold;
-                let newQueue = [...state.nextQueue];
-                if(ap.useHold === true) {
-                    newHold = newQueue.shift(); // Holdを使ったので現在のNextがHoldへ
-                } else if(ap.useHold === 'initial') {
-                    newHold = newQueue.shift(); // 最初のNextをHoldへ
-                    newQueue.shift(); // 使ったピースを消費
-                } else {
-                    newQueue.shift(); // 普通に使った
-                }
-                
-                // 観測データのNext/Hold情報による補正（ノイズに負けないようにObsに寄せる）
-                if (obsData.hold) newHold = obsData.hold;
-                if (obsData.next && obsData.next.length > 0) {
-                    // ObsのNextで上書きしつつ不足分を補う
-                    newQueue = [...obsData.next];
-                }
-
-                nextCandidates.push({
-                    board: newBoard,
-                    hold: newHold,
-                    nextQueue: newQueue,
-                    score: score,
-                    path: [...state.path, { move, obsTime: obsData.time }]
-                });
-            }
-        }
-    }
-    
-    // 重複する盤面状態を間引く（簡易ハッシュ化）
-    const uniqueCandidates = [];
-    const boardHashes = new Set();
-    // スコア降順ソート
-    nextCandidates.sort((a, b) => b.score - a.score);
-    
-    for(const c of nextCandidates) {
-        const hash = c.board.map(r => r.map(cell => cell||'_').join('')).join('') + '|' + c.hold;
-        if(!boardHashes.has(hash)) {
-            boardHashes.add(hash);
-            uniqueCandidates.push(c);
-            if(uniqueCandidates.length >= beamWidth) break;
-        }
-    }
-
-    // もし候補が0になってしまったら（エフェクトで画面が崩壊して合法手が見つからなかった等）、
-    // フォールバックとして観測盤面をそのまま採用してビームを再構築
-    if(uniqueCandidates.length === 0 && beam.length > 0) {
-        log("Warning: 合法手候補ゼロ。観測盤面で強制フォールバックします。", "warn");
-        const fallback = beam[0];
-        uniqueCandidates.push({
-            board: obsData.board,
-            hold: obsData.hold || fallback.hold,
-            nextQueue: obsData.next || fallback.nextQueue,
-            score: fallback.score,
-            path: fallback.path
-        });
-    }
-
-    return uniqueCandidates;
-}
-
-
-// ==========================================
-// 5. Main App Logic
+//  Logging & UI
 // ==========================================
 function log(msg, type='info') {
     const logArea = document.getElementById('logArea');
@@ -611,196 +135,487 @@ function log(msg, type='info') {
     logArea.scrollTop = logArea.scrollHeight;
 }
 
-const modelInput = document.getElementById('modelInput');
-const videoInput = document.getElementById('videoInput');
-const startBtn = document.getElementById('startBtn');
-const stopBtn = document.getElementById('stopBtn');
-const scanProgressEl = document.getElementById('scanProgress');
-const scanStatusEl = document.getElementById('scanStatus');
+// ==========================================
+//  Image Recognition Core (Ported completely)
+// ==========================================
+function findClosestColor(r, g, b) { 
+    const input = { r, g, b };
+    for (const c of PARSED_SCAN_COLORS.NULL) if (colorDistanceSq(input, c) < 6000) return null;
+    for (const c of PARSED_SCAN_COLORS.G) if (colorDistanceSq(input, c) < 10000) return 'G';
+    let minD = Infinity, closest = null;
+    for (const key of MINO_TYPES) {
+        for (const tc of PARSED_SCAN_COLORS[key]) {
+            const d = colorDistanceSq(input, tc);
+            if (d < minD) { minD = d; closest = key; }
+        }
+    }
+    return (minD > 25000) ? null : closest; 
+}
 
-async function initModel(file) {
-    try {
-        const buffer = await file.arrayBuffer();
-        session = await ort.InferenceSession.create(buffer, { executionProviders: ['wasm'] });
-        log("ONNXモデルロード完了", 'success');
-        checkReady();
-    } catch (e) {
-        log("モデルロード失敗: " + e.message, 'error');
+function findClosestMinoOnly(r, g, b) { 
+    const input = { r, g, b };
+    let minD = Infinity, closest = 'I'; 
+    for (const key of MINO_TYPES) {
+        for (const tc of PARSED_SCAN_COLORS[key]) {
+            const d = colorDistanceSq(input, tc);
+            if (d < minD) { minD = d; closest = key; }
+        }
+    }
+    return closest;
+}
+
+function getAverageColorNonBlack(ctx, cx, cy, radius) {
+    const sx = Math.max(0, Math.floor(cx - radius)), sy = Math.max(0, Math.floor(cy - radius));
+    const d = Math.ceil(radius * 2);
+    const ex = Math.min(ctx.canvas.width, sx + d), ey = Math.min(ctx.canvas.height, sy + d);
+    const w = ex - sx, h = ey - sy;
+    if (w <= 0 || h <= 0) return { r: 0, g: 0, b: 0 };
+    const imgData = ctx.getImageData(sx, sy, w, h).data;
+    let tr=0, tg=0, tb=0, c=0;
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            if ((sx+x-cx)**2 + (sy+y-cy)**2 <= radius**2) {
+                const i = (y*w+x)*4;
+                if (imgData[i]>50 || imgData[i+1]>50 || imgData[i+2]>50) {
+                    tr+=imgData[i]; tg+=imgData[i+1]; tb+=imgData[i+2]; c++;
+                }
+            }
+        }
+    }
+    return c === 0 ? { r: 0, g: 0, b: 0 } : { r: tr/c, g: tg/c, b: tb/c };
+}
+
+function processImageTo1080p(imgCanvas) {
+    const srcW = imgCanvas.width, srcH = imgCanvas.height;
+    const tAspect = 16 / 9, sAspect = srcW / srcH;
+    let cW, cH, cX, cY;
+    if (sAspect > tAspect) { cH = srcH; cW = srcH * tAspect; cX = (srcW - cW) / 2; cY = 0; } 
+    else { cW = srcW; cH = srcW / tAspect; cX = 0; cY = (srcH - cH) / 2; }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 1920; canvas.height = 1080;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(imgCanvas, cX, cY, cW, cH, 0, 0, 1920, 1080);
+    return { canvas, cropData: { cX, cY, cW, cH } };
+}
+
+function extractCellPixels(imgData, x, y, w, h) {
+    const sw = imgData.width, ix = Math.floor(x), iy = Math.floor(y), iw = Math.floor(w), ih = Math.floor(h);
+    const d = new Uint8ClampedArray(iw * ih * 4);
+    for (let r = 0; r < ih; r++) {
+        const s = ((iy + r) * sw + ix) * 4;
+        d.set(imgData.data.subarray(s, s + iw * 4), r * iw * 4);
+    }
+    return d;
+}
+
+function extractFeaturesJS(pixelsRGBA, w, h) {
+    const numPixels = w * h;
+    const feats = [];
+    const bCh = new Float32Array(numPixels), gCh = new Float32Array(numPixels), rCh = new Float32Array(numPixels);
+    const hCh = new Float32Array(numPixels), sCh = new Float32Array(numPixels), vCh = new Float32Array(numPixels);
+
+    for (let i = 0; i < numPixels; i++) {
+        const r = pixelsRGBA[i*4], g = pixelsRGBA[i*4+1], b = pixelsRGBA[i*4+2];
+        bCh[i] = b; gCh[i] = g; rCh[i] = r;
+        const maxV = Math.max(r,g,b), minV = Math.min(r,g,b), diff = maxV - minV;
+        vCh[i] = maxV;
+        sCh[i] = maxV !== 0 ? (diff/maxV)*255 : 0;
+        let hv = 0;
+        if (maxV !== minV) {
+            if (maxV === r) hv = (60*(g-b)/diff+360)%360;
+            else if (maxV === g) hv = (60*(b-r)/diff+120)%360;
+            else if (maxV === b) hv = (60*(r-g)/diff+240)%360;
+        }
+        hCh[i] = hv / 2;
+    }
+
+    const getStats = (arr) => {
+        let sum = 0; for(let v of arr) sum += v;
+        const mean = sum / arr.length;
+        let sq = 0; for(let v of arr) sq += (v - mean)**2;
+        return [mean, Math.sqrt(sq / arr.length)];
+    };
+
+    feats.push(...getStats(bCh), ...getStats(gCh), ...getStats(rCh));
+    feats.push(...getStats(hCh), ...getStats(sCh), ...getStats(vCh));
+
+    const sX = w/4, sY = h/4;
+    for (let ty = 0; ty < 4; ty++) {
+        for (let tx = 0; tx < 4; tx++) {
+            const stX=Math.floor(tx*sX), stY=Math.floor(ty*sY), enX=Math.floor((tx+1)*sX), enY=Math.floor((ty+1)*sY);
+            let sB=0, sG=0, sR=0, c=0;
+            for(let py=stY; py<enY; py++) for(let px=stX; px<enX; px++) {
+                const idx = py*w+px;
+                if(idx < numPixels) { sB+=bCh[idx]; sG+=gCh[idx]; sR+=rCh[idx]; c++; }
+            }
+            if(c===0) feats.push(0,0,0); else feats.push(sB/c, sG/c, sR/c);
+        }
+    }
+
+    const cx = Math.floor(w/2), cy = Math.floor(h/2), cw = Math.floor(w/4), ch = Math.floor(h/4);
+    let cB=0, cG=0, cR=0, cc=0;
+    for(let py=cy-ch; py<cy+ch; py++) for(let px=cx-cw; px<cx+cw; px++) {
+        if(px>=0&&px<w&&py>=0&&py<h) { const idx=py*w+px; cB+=bCh[idx]; cG+=gCh[idx]; cR+=rCh[idx]; cc++; }
+    }
+    if(cc===0) feats.push(0,0,0); else feats.push(cB/cc, cG/cc, cR/cc);
+
+    return new Float32Array(feats);
+}
+
+async function analyzePlayerRaw(canvas, config) {
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const bRect = config.boardRect;
+    const bImg = ctx.getImageData(bRect.x, bRect.y, bRect.w, bRect.h);
+    const cellW = bRect.w / 10, cellH = bRect.h / 20;
+    
+    // Classic (補正用)
+    const classicBoard = [];
+    for (let r = 0; r < 20; r++) {
+        const row = [];
+        for (let c = 0; c < 10; c++) {
+            const sSize = Math.max(1, Math.floor(cellW * 0.25));
+            const sX = bRect.x + (c+0.5)*cellW - sSize/2, sY = bRect.y + (r+0.5)*cellH - sSize/2;
+            const data = ctx.getImageData(sX, sY, sSize, sSize).data;
+            let aR=0, aG=0, aB=0;
+            for(let i=0; i<data.length; i+=4) { aR+=data[i]; aG+=data[i+1]; aB+=data[i+2]; }
+            const pCnt = data.length/4;
+            row.push(findClosestColor(aR/pCnt, aG/pCnt, aB/pCnt));
+        }
+        classicBoard.push(row);
+    }
+
+    // ONNX
+    const batchFeats = [];
+    for (let r = 0; r < 20; r++) {
+        for (let c = 0; c < 10; c++) {
+            const cPix = extractCellPixels(bImg, c*cellW, r*cellH, cellW, cellH);
+            batchFeats.push(extractFeaturesJS(cPix, Math.floor(cellW), Math.floor(cellH)));
+        }
+    }
+
+    const flatInput = new Float32Array(200 * 63);
+    for (let i = 0; i < 200; i++) flatInput.set(batchFeats[i], i * 63);
+    const tensor = new ort.Tensor('float32', flatInput, [200, 63]);
+    const results = await session.run({ [session.inputNames[0]]: tensor });
+    const labels = results[session.outputNames[0]].data;
+
+    const recognized = [];
+    for (let i = 0; i < 200; i++) {
+        if(i%10 === 0) recognized.push([]);
+        const lbl = CLASS_NAMES[Number(labels[i])];
+        recognized[Math.floor(i/10)].push(lbl === 'null' ? null : lbl);
+    }
+
+    // Merge Correction
+    for (let r = 0; r < 20; r++) {
+        if (recognized[r].every(c => c===null||c==='G')) {
+            if (recognized[r].filter(c=>c==='G').length !== 10) {
+                if (classicBoard[r].filter(c=>c==='G').length === 9 && classicBoard[r].filter(c=>c===null).length === 1) {
+                    recognized[r] = [...classicBoard[r]];
+                }
+            }
+        }
+    }
+
+    // Next/Hold
+    const nextQ = []; let hold = null;
+    const scale = canvas.width / 1920; 
+    for (let i = 0; i < config.nextCoords.length; i++) {
+        const coord = config.nextCoords[i];
+        const avg = getAverageColorNonBlack(ctx, coord.x * scale, coord.y * scale, 5 * scale);
+        const isBlack = avg.r<50 && avg.g<50 && avg.b<50;
+        if (i === 0) hold = isBlack ? null : findClosestColor(avg.r, avg.g, avg.b);
+        else {
+            if (i === 1 && isBlack) break;
+            const fm = findClosestMinoOnly(avg.r, avg.g, avg.b);
+            if (fm) nextQ.push(fm);
+        }
+    }
+
+    return { board: recognized, hold, next: nextQ };
+}
+
+// ==========================================
+//  Majority Voting
+// ==========================================
+class VoteAggregator {
+    constructor() { this.reset(); }
+    reset() {
+        this.votes = Array.from({length: 20}, () => Array.from({length: 10}, () => ({})));
+        this.count = 0;
+    }
+    add(board20) {
+        this.count++;
+        for(let y=0; y<20; y++) {
+            for(let x=0; x<10; x++) {
+                const v = board20[y][x] || 'null';
+                this.votes[y][x][v] = (this.votes[y][x][v] || 0) + 1;
+            }
+        }
+    }
+    getWinner() {
+        if(this.count === 0) return null;
+        const res = [];
+        for(let y=0; y<20; y++) {
+            const row = [];
+            for(let x=0; x<10; x++) {
+                let max = -1, win = null;
+                for(const [val, cnt] of Object.entries(this.votes[y][x])) {
+                    if(cnt > max) { max = cnt; win = val; }
+                }
+                row.push(win === 'null' ? null : win);
+            }
+            res.push(row);
+        }
+        return res;
     }
 }
 
-modelInput.addEventListener('change', (e) => { if(e.target.files[0]) initModel(e.target.files[0]); });
-videoInput.addEventListener('change', checkReady);
-function checkReady() { if(session && videoInput.files.length > 0) startBtn.disabled = false; }
+// ==========================================
+//  Beam Search & State Generation
+// ==========================================
 
-startBtn.addEventListener('click', async () => {
-    isRunning = true; stopRequested = false;
-    startBtn.disabled = true; stopBtn.disabled = false;
+// 盤面を40行に拡張し、下から詰めるヘルパー
+function convertTo40LineBoard(board20) {
+    const full = Array.from({ length: 40 }, () => Array(10).fill(null));
+    for(let r=0; r<20; r++) full[20+r] = board20[r];
     
-    const file = videoInput.files[0];
-    const video = document.getElementById('videoPlayer');
-    video.src = URL.createObjectURL(file);
-
-    try {
-        await new Promise(r => { video.onloadedmetadata = r; });
-        const duration = video.duration;
-        log(`動画読み込み完了: ${duration.toFixed(1)}秒`, 'info');
-        
-        // P1 と P2 を順番に処理
-        log("--- P1 解析開始 ---", 'info');
-        const p1Obs = await extractObservations('p1', video, duration);
-        if(stopRequested) return;
-        const p1History = runBeamSearch(p1Obs);
-        
-        log("--- P2 解析開始 ---", 'info');
-        const p2Obs = await extractObservations('p2', video, duration);
-        if(stopRequested) return;
-        const p2History = runBeamSearch(p2Obs);
-
-        log("データ統合・Fumen出力...", 'info');
-        const p1Link = generateFumenUrl(p1History, '1P');
-        const p2Link = generateFumenUrl(p2History, '1P'); // エディタは1Pずつ独立して出す仕様にする
-        
-        document.getElementById('p1Link').href = p1Link;
-        document.getElementById('p1Link').textContent = "P1 テト譜を開く";
-        document.getElementById('p2Link').href = p2Link;
-        document.getElementById('p2Link').textContent = "P2 テト譜を開く";
-        document.getElementById('resultPanel').style.display = 'block';
-        
-        log("全処理完了！", 'success');
-    } catch (e) {
-        log("処理エラー: " + e.stack, 'error');
-    } finally {
-        isRunning = false; startBtn.disabled = false; stopBtn.disabled = true;
+    // ガベージ・不要行のクリーンアップ (動画解析のロジック準拠)
+    let firstNonG = -1;
+    for(let y=39; y>=0; y--) { if(!full[y].includes('G')) { firstNonG = y; break; } }
+    if(firstNonG !== -1) {
+        for(let y=firstNonG-1; y>=0; y--) {
+            for(let x=0; x<10; x++) { if(full[y][x]==='G') full[y][x] = null; }
+        }
     }
-});
+    return full;
+}
 
-stopBtn.addEventListener('click', () => { stopRequested = true; log("停止リクエスト...", 'warn'); });
+function cloneBoard(board) { return board.map(row => [...row]); }
 
-// 動画をシークしてターンごとの観測データを抽出
-async function extractObservations(playerId, video, duration) {
-    const scanInterval = parseFloat(document.getElementById('scanInterval').value) || 0.2;
-    const tempCanvas = document.createElement('canvas');
-    const ctx = tempCanvas.getContext('2d');
+// ミノを回転させて座標を取得
+function getRotatedShape(type, rot) {
+    const shape = MINO_SHAPES[type];
+    if (type === 'O') return shape;
+    return shape.map(b => {
+        let [x, y] = [b[0], b[1]];
+        for(let i=0; i<rot; i++) [x,y] = [-y, x];
+        return [x, y];
+    });
+}
+
+// 衝突判定
+function checkCollision(board, type, rot, cx, cy) {
+    const shape = getRotatedShape(type, rot);
+    for (const [dx, dy] of shape) {
+        const nx = cx + dx, ny = cy + dy;
+        if (nx < 0 || nx >= 10 || ny >= 40) return true;
+        if (ny >= 0 && board[ny][nx] !== null) return true;
+    }
+    return false;
+}
+
+// 接地判定（1マス下が衝突するか）
+function isGrounded(board, type, rot, cx, cy) {
+    return checkCollision(board, type, rot, cx, cy + 1);
+}
+
+// 合法手生成（壁にめり込まず、空中に浮いていない全ての配置）
+function generateLegalMoves(board, type) {
+    const moves = [];
+    // 緩い条件：各回転状態について、全マスを走査
+    const rots = (type === 'O') ? [0] : (type === 'I' || type === 'S' || type === 'Z' ? [0, 1] : [0, 1, 2, 3]);
     
-    const observations = [];
-    const aggregator = new VoteAggregator();
+    for (const rot of rots) {
+        for (let y = 0; y < 40; y++) {
+            for (let x = 0; x < 10; x++) {
+                if (!checkCollision(board, type, rot, x, y) && isGrounded(board, type, rot, x, y)) {
+                    moves.push({ x, y, rot, type });
+                }
+            }
+        }
+    }
+    return moves;
+}
+
+// 盤面にミノを適用し、ライン消去を行う
+function applyMove(board, move) {
+    const newBoard = cloneBoard(board);
+    const shape = getRotatedShape(move.type, move.rot);
+    for (const [dx, dy] of shape) {
+        const nx = move.x + dx, ny = move.y + dy;
+        if (ny >= 0 && ny < 40) newBoard[ny][nx] = move.type;
+    }
     
-    let currentNextStr = "";
-    let currentHold = null;
-    let currentNextArr = [];
+    // ライン消去
+    let linesCleared = 0;
+    for (let y = 39; y >= 0; y--) {
+        if (newBoard[y].every(c => c !== null && c !== 'G')) {
+            newBoard.splice(y, 1);
+            newBoard.unshift(Array(10).fill(null));
+            linesCleared++;
+            y++; // 再チェック
+        }
+    }
+    return { board: newBoard, linesCleared };
+}
+
+// 盤面の一致度スコア計算（観測盤面との比較）
+function calculateMatchScore(predBoard, obsBoard20) {
+    let score = 0;
+    // 観測盤面は下半分(20~39)
+    for (let y = 0; y < 20; y++) {
+        for (let x = 0; x < 10; x++) {
+            const obs = obsBoard20[y][x];
+            const pred = predBoard[20 + y][x];
+            if (obs === null && pred === null) score += 1;
+            else if (obs === pred) score += 5; // 正解ブロック一致は高評価
+            else score -= 2; // 不一致ペナルティ
+        }
+    }
+    return score;
+}
+
+// ビームサーチ本体
+// timeline: { time, board20(Majority), hold, next } の配列
+function runBeamSearch(timeline, beamWidth) {
+    if (timeline.length === 0) return [];
     
-    for(let t = 0; t < duration; t += scanInterval) {
+    log(`ビームサーチ開始 (ステップ数: ${timeline.length}, ビーム幅: ${beamWidth})`, 'info');
+    
+    // 初期状態 (最初の観測盤面を信じる)
+    const initialBoard = convertTo40LineBoard(timeline[0].board20);
+    let beam = [ { board: initialBoard, score: 0, history: [ { board: initialBoard, time: timeline[0].time, hold: timeline[0].hold, next: timeline[0].next } ] } ];
+
+    // ステップ1以降を探索
+    for (let t = 1; t < timeline.length; t++) {
+        const obs = timeline[t];
+        let nextBeam = [];
+        
+        for (const state of beam) {
+            // このターンで使われた可能性のあるミノを推測
+            // 厳密なNext/Hold管理はズレやすいため、全7種を試すロバストなアプローチ
+            for (const piece of MINO_TYPES) {
+                const legalMoves = generateLegalMoves(state.board, piece);
+                
+                for (const move of legalMoves) {
+                    const { board: nextBoard } = applyMove(state.board, move);
+                    const matchScore = calculateMatchScore(nextBoard, obs.board20);
+                    
+                    nextBeam.push({
+                        board: nextBoard,
+                        score: state.score + matchScore,
+                        history: [...state.history, { board: nextBoard, time: obs.time, hold: obs.hold, next: obs.next }]
+                    });
+                }
+            }
+            
+            // 何もしない（ノイズによるターンの誤検知対策）という遷移も許容
+            nextBeam.push({
+                board: state.board,
+                score: state.score + calculateMatchScore(state.board, obs.board20) - 10, // ペナルティ
+                history: [...state.history, { board: state.board, time: obs.time, hold: obs.hold, next: obs.next }]
+            });
+        }
+        
+        // スコア降順ソート＆ビーム幅でカット
+        nextBeam.sort((a, b) => b.score - a.score);
+        beam = nextBeam.slice(0, beamWidth);
+        
+        if (t % 10 === 0) log(`BeamSearch 進捗: ${t} / ${timeline.length}`, 'info');
+    }
+    
+    log(`ビームサーチ完了。最高スコア: ${beam[0].score}`, 'success');
+    return beam[0].history;
+}
+
+
+// ==========================================
+//  Video Processing Loop
+// ==========================================
+function diffCount(str1, str2) {
+    if (!str1 || !str2) return 99;
+    let d = 0;
+    const len = Math.min(str1.length, str2.length);
+    for(let i=0; i<len; i++) if(str1[i] !== str2[i]) d++;
+    d += Math.abs(str1.length - str2.length);
+    return d;
+}
+
+async function processPlayer(playerId, video, duration, scanInterval) {
+    log(`${playerId.toUpperCase()} 動画スキャン開始...`, 'info');
+    const pEl = document.getElementById(`${playerId}Progress`);
+    const sEl = document.getElementById(`${playerId}Status`);
+    
+    const rawTimeline = [];
+    const agg = new VoteAggregator();
+    
+    let curNextStr = "";
+    let lastHold = "";
+    let lastNext = [];
+    
+    for(let t = 0; t <= duration; t += scanInterval) {
         if(stopRequested) break;
         video.currentTime = t;
         await new Promise(r => { video.onseeked = r; });
         
+        const tempCanvas = document.createElement('canvas');
         tempCanvas.width = video.videoWidth; tempCanvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0);
-        const { canvas: pCanvas, cropData } = processImageTo1080p(tempCanvas);
+        tempCanvas.getContext('2d').drawImage(video, 0, 0);
         
-        const rawData = await analyzePlayerRaw(pCanvas, tempCanvas, cropData, CONFIG[playerId]);
-        const newNextStr = rawData.next.join('');
+        const { canvas: pCanvas } = processImageTo1080p(tempCanvas);
+        const res = await analyzePlayerRaw(pCanvas, CONFIG[playerId]);
         
-        if (currentNextStr === "") {
-            currentNextStr = newNextStr;
-            currentHold = rawData.hold;
-            currentNextArr = rawData.next;
+        const nextStr = res.next.join('');
+        
+        if (curNextStr === "") {
+            curNextStr = nextStr; lastHold = res.hold; lastNext = res.next;
         }
         
-        // 2箇所以上変わっていればターン切り替わり
-        if (countNextDiff(currentNextArr, rawData.next) >= 2) {
-            const winnerBoard = aggregator.getWinnerBoard();
-            if (winnerBoard) {
-                observations.push({
-                    time: t,
-                    board: winnerBoard,
-                    hold: currentHold,
-                    next: currentNextArr
-                });
-                log(`[${playerId.toUpperCase()}] Turn detected at ${t.toFixed(1)}s (Next: ${currentNextStr} -> ${newNextStr})`);
+        // 変化箇所が2箇所以上かチェック (Holdの変更も含める)
+        let changedPoints = diffCount(curNextStr, nextStr);
+        if (res.hold !== lastHold) changedPoints += 1;
+
+        if (changedPoints >= 2) {
+            // 区間確定
+            const winner = agg.getWinner();
+            if (winner) {
+                rawTimeline.push({ time: t - scanInterval, board20: winner, hold: lastHold, next: lastNext.join('') });
             }
-            aggregator.reset();
-            currentNextStr = newNextStr;
-            currentHold = rawData.hold;
-            currentNextArr = rawData.next;
+            agg.reset();
+            curNextStr = nextStr;
         }
         
-        // ターン内は多数決に投じる
-        if (countNextDiff(currentNextArr, rawData.next) < 2) {
-            aggregator.add(rawData.board);
-            if (rawData.hold) currentHold = rawData.hold;
+        if (changedPoints < 2) {
+            agg.add(res.board);
+            lastHold = res.hold; lastNext = res.next;
         }
 
         const pct = Math.floor((t / duration) * 100);
-        scanProgressEl.value = pct;
-        scanStatusEl.textContent = `${playerId.toUpperCase()} Scanning: ${pct}%`;
+        pEl.value = pct; sEl.textContent = `${pct}% (${t.toFixed(1)}s)`;
     }
-    
-    // 最後の区間
-    const winnerBoard = aggregator.getWinnerBoard();
-    if (winnerBoard) {
-        observations.push({ time: duration, board: winnerBoard, hold: currentHold, next: currentNextArr });
-    }
-    return observations;
-}
 
-// 抽出した観測系列に対してビームサーチを実行
-function runBeamSearch(observations) {
-    if(!observations || observations.length === 0) return [];
-    
-    const beamWidth = parseInt(document.getElementById('beamWidth').value, 10) || 5;
-    
-    // 初期状態は観測された最初の盤面
-    let beam = [{
-        board: observations[0].board,
-        hold: observations[0].hold,
-        nextQueue: observations[0].next,
-        score: 0,
-        path: [] // 最初の盤面は手がない
-    }];
-    
-    log(`ビームサーチ開始 (観測数: ${observations.length}, 幅: ${beamWidth})`);
+    // Last segment
+    const winner = agg.getWinner();
+    if (winner) rawTimeline.push({ time: duration, board20: winner, hold: lastHold, next: lastNext.join('') });
 
-    // ターン遷移
-    for(let i = 1; i < observations.length; i++) {
-        const obsData = observations[i];
-        beam = beamSearchStep(beam, obsData, beamWidth);
-    }
+    log(`${playerId.toUpperCase()} スキャン完了。ターン数: ${rawTimeline.length}`, 'success');
     
-    // 最もスコアの高いパスを採用し、履歴配列として復元
-    if(beam.length === 0) return [];
-    const bestState = beam[0];
+    const beamWidth = parseInt(document.getElementById('beamWidth').value) || 5;
+    const cleanedTimeline = runBeamSearch(rawTimeline, beamWidth);
     
-    // Fumen出力用に、初手から順番に状態を配列化する
-    const history = [];
-    // 初期状態
-    let currentBoard = observations[0].board;
-    history.push({ board: currentBoard, hold: observations[0].hold, next: observations[0].next.join('') });
-    
-    // パスをたどって盤面を再現
-    for(const step of bestState.path) {
-        currentBoard = placeAndClearLines(currentBoard, step.move.x, step.move.y, getShape(step.move.pieceType, step.move.r), step.move.pieceType);
-        // この時点のObsのNext/Holdを便宜上くっつける (完全再現用)
-        history.push({ board: currentBoard, hold: step.move.pieceType, next: "" }); 
-    }
-    
-    // 最終状態をFumen側のHold/Nextに補正
-    history[history.length-1].hold = bestState.hold || '';
-    history[history.length-1].next = bestState.nextQueue.join('');
-    
-    return history;
+    pEl.value = 100; sEl.textContent = "完了";
+    return cleanedTimeline;
 }
 
 // ==========================================
-// 6. Fumen v2 Export
+//  Fumen Serialization (Tetofu v2 Logic)
 // ==========================================
 function boardToString1D(board) {
     const res = [];
     for(let y=0; y<40; y++) {
-        for(let x=0; x<10; x++) {
-            res.push(board[y][x] === null ? '_' : board[y][x]);
-        }
+        for(let x=0; x<10; x++) res.push(board[y][x] === null ? '_' : board[y][x]);
     }
     return res;
 }
@@ -808,53 +623,125 @@ function boardToString1D(board) {
 function encodeRLE(data) {
     if (!data || data.length === 0) return [];
     const rle = [];
-    let lastValue = data[0];
-    let count = 1;
+    let last = data[0], cnt = 1;
     for (let i = 1; i < data.length; i++) {
-        if (data[i] === lastValue) count++;
-        else { rle.push([lastValue, count]); lastValue = data[i]; count = 1; }
+        if (data[i] === last) cnt++;
+        else { rle.push([last, cnt]); last = data[i]; cnt = 1; }
     }
-    rle.push([lastValue, count]);
+    rle.push([last, cnt]);
     return rle;
 }
 
-function getDifference(prev1D, curr1D) {
+function getDifference(prev, curr) {
     const diff = [];
-    for (let i = 0; i < prev1D.length; i++) {
-        diff.push(prev1D[i] === curr1D[i] ? 'E' : curr1D[i]);
-    }
+    for (let i = 0; i < prev.length; i++) diff.push(prev[i] === curr[i] ? 'E' : curr[i]);
     return diff;
 }
 
-function generateFumenUrl(historyData, mode) {
-    const pages = [];
-    let prevBoard1D = null;
+function generateFumenUrl(p1Timeline, p2Timeline) {
+    const allTimes = new Set([...p1Timeline.map(e=>e.time), ...p2Timeline.map(e=>e.time)]);
+    const sortedTimes = Array.from(allTimes).sort((a,b) => a-b);
     
-    for (let i = 0; i < historyData.length; i++) {
-        const hData = historyData[i];
-        const page = { p1: {} };
-        const current1D = boardToString1D(hData.board);
+    let p1Idx = 0, p2Idx = 0;
+    const pages = [];
+    let prevP1 = null, prevP2 = null;
+
+    for (let t of sortedTimes) {
+        while(p1Idx < p1Timeline.length - 1 && p1Timeline[p1Idx+1].time <= t) p1Idx++;
+        while(p2Idx < p2Timeline.length - 1 && p2Timeline[p2Idx+1].time <= t) p2Idx++;
         
-        if (i === 0) {
-            page.p1.b = encodeRLE(current1D);
-        } else {
-            const diff = getDifference(prevBoard1D, current1D);
-            page.p1.b = encodeRLE(diff);
+        const p1 = p1Timeline[p1Idx];
+        const p2 = p2Timeline[p2Idx];
+        
+        const page = { p1: {}, p2: {} };
+        
+        if (p1) {
+            const b1d = boardToString1D(p1.board);
+            page.p1.b = prevP1 ? encodeRLE(getDifference(prevP1, b1d)) : encodeRLE(b1d);
+            page.p1.h = p1.hold || ''; page.p1.n = p1.next || '';
+            prevP1 = b1d;
         }
-        page.p1.h = hData.hold || '';
-        page.p1.n = hData.next || '';
         
-        prevBoard1D = current1D;
+        if (p2) {
+            const b1d = boardToString1D(p2.board);
+            page.p2.b = prevP2 ? encodeRLE(getDifference(prevP2, b1d)) : encodeRLE(b1d);
+            page.p2.h = p2.hold || ''; page.p2.n = p2.next || '';
+            prevP2 = b1d;
+        }
+        
         pages.push(page);
     }
 
-    const exportObj = { v: 'f2', m: mode, p: pages };
-    const jsonString = JSON.stringify(exportObj);
-    const uint8Array = new TextEncoder().encode(jsonString);
-    const base64Data = btoa(String.fromCharCode.apply(null, uint8Array));
+    const exportObj = { v: 'f2', m: '2P', p: pages };
+    const jsonStr = JSON.stringify(exportObj);
+    const b64 = btoa(String.fromCharCode.apply(null, new TextEncoder().encode(jsonStr)));
     
-    return `https://selmtoe.github.io/Tetris_Simulator/F/index.html#${base64Data}`;
+    // エディタのURL (同一階層のFフォルダを想定)
+    return `https://selmtoe.github.io/Tetris_Simulator/F/index.html#${b64}`;
 }
+
+// ==========================================
+//  Main Application Logic
+// ==========================================
+document.getElementById('modelInput').addEventListener('change', async (e) => {
+    if(e.target.files[0]) {
+        try {
+            const buf = await e.target.files[0].arrayBuffer();
+            session = await ort.InferenceSession.create(buf, { executionProviders: ['wasm'] });
+            log("ONNXモデル ロード完了", 'success');
+            checkReady();
+        } catch(err) { log("モデルロード失敗: " + err, 'error'); }
+    }
+});
+
+const videoInput = document.getElementById('videoInput');
+videoInput.addEventListener('change', checkReady);
+
+function checkReady() {
+    if(session && videoInput.files.length > 0) document.getElementById('startBtn').disabled = false;
+}
+
+document.getElementById('startBtn').addEventListener('click', async () => {
+    isRunning = true; stopRequested = false;
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('stopBtn').disabled = false;
+    
+    const file = videoInput.files[0];
+    const video = document.getElementById('videoPlayer');
+    video.src = URL.createObjectURL(file);
+
+    try {
+        await new Promise(r => { video.onloadedmetadata = r; });
+        const dur = video.duration;
+        const interval = parseFloat(document.getElementById('scanInterval').value) || 0.2;
+        log(`動画解析開始: ${dur.toFixed(1)}秒`, 'info');
+
+        const p1Time = await processPlayer('p1', video, dur, interval);
+        if(stopRequested) throw new Error("Stopped by user");
+        const p2Time = await processPlayer('p2', video, dur, interval);
+        if(stopRequested) throw new Error("Stopped by user");
+
+        log("データ統合中...", 'info');
+        const url = generateFumenUrl(p1Time, p2Time);
+        
+        const link = document.getElementById('finalLink');
+        link.href = url; link.textContent = url;
+        document.getElementById('resultPanel').style.display = 'block';
+        log("全処理完了！", 'success');
+
+    } catch (e) {
+        log("処理終了: " + e.message, 'error');
+    } finally {
+        isRunning = false;
+        document.getElementById('startBtn').disabled = false;
+        document.getElementById('stopBtn').disabled = true;
+    }
+});
+
+document.getElementById('stopBtn').addEventListener('click', () => {
+    stopRequested = true;
+    log("停止リクエスト送信...", 'warn');
+});
 
 </script>
 </body>
