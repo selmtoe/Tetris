@@ -558,71 +558,48 @@ async function processPlayer(playerId, video, duration, params) {
     const progressEl = document.getElementById(`${playerId}Progress`);
     const statusEl = document.getElementById(`${playerId}Status`);
     
+    // --- Pass 1: Next Tracking ---
     log(`${playerId.toUpperCase()} Pass1: Next区間検索開始...`, 'info');
     let pass1Timeline = [];
-    let currentHold = "";
-    let currentActive = null;
-    let currentNext = null;
+    let lastStableHold = null;
+    let lastStableNext = null;
     let currentStart = 0;
-    
+
     for(let t = 0; t < duration; t += params.nextScanInterval) {
         if(stopRequested) break;
         video.currentTime = t;
         await new Promise(r => { video.onseeked = r; });
         
         const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = video.videoWidth;
-        tempCanvas.height = video.videoHeight;
+        tempCanvas.width = video.videoWidth; tempCanvas.height = video.videoHeight;
         tempCanvas.getContext('2d').drawImage(video, 0, 0);
         const { canvas: pCanvas, cropData } = processImageTo1080p(tempCanvas);
+        
         const queueData = await analyzeNextQueue(pCanvas, tempCanvas, cropData, CONFIG[playerId]);
         
-        if (currentNext === null) {
-            currentHold = queueData.hold || "";
-            currentNext = queueData.next;
+        if (lastStableNext === null) {
+            lastStableHold = queueData.hold || "";
+            lastStableNext = queueData.next;
             continue;
         }
         
-        const newHold = queueData.hold || "";
-        const newNext = queueData.next;
-        let nextShifted = false;
-        
-        if (currentNext.length > 0 && newNext.length > 0) {
-            if (currentNext[0] !== newNext[0]) nextShifted = true;
-        } else if (currentNext.length !== newNext.length) {
-            nextShifted = true;
-        }
-        
-        let piecePlaced = false;
-        
-        if (currentActive === null && nextShifted) {
-            currentActive = currentNext[0];
-        } else if (currentHold === "" && newHold !== "" && nextShifted) {
-            currentActive = currentNext[0];
-        } else if (currentHold !== "" && currentHold !== newHold && !nextShifted) {
-            currentActive = currentHold;
-        } else if (nextShifted) {
-            piecePlaced = true;
-        }
-        
-        if (piecePlaced) {
-            pass1Timeline.push({ start: currentStart, end: t, hold: currentHold, next: currentNext });
+        const diffCount = countQueueDiff(lastStableHold, lastStableNext, queueData.hold || "", queueData.next);
+        if (diffCount >= 2) {
+            pass1Timeline.push({ start: currentStart, end: t, hold: lastStableHold, next: lastStableNext });
             currentStart = t;
-            currentActive = currentNext[0];
+            lastStableHold = queueData.hold || "";
+            lastStableNext = queueData.next;
         }
         
-        currentHold = newHold;
-        currentNext = newNext;
-        
-        const pct = Math.floor((t / duration) * 50);
+        const pct = Math.floor((t / duration) * 50); // Pass1は進捗の前半50%
         progressEl.value = pct;
         statusEl.textContent = `Pass1: ${pct * 2}%`;
     }
-    
     if (currentStart < duration) {
-        pass1Timeline.push({ start: currentStart, end: duration, hold: currentHold, next: currentNext });
+        pass1Timeline.push({ start: currentStart, end: duration, hold: lastStableHold, next: lastStableNext });
     }
 
+    // --- Pass 2: Board Inference ---
     log(`${playerId.toUpperCase()} Pass2: 盤面ONNX推論開始 (区間数: ${pass1Timeline.length})...`, 'info');
     const timeline = [];
     for (let i = 0; i < pass1Timeline.length; i++) {
