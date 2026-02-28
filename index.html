@@ -312,9 +312,11 @@ async function analyzePlayerRaw(canvas, originalBitmap, cropData, config) {
     for (let i = 0; i < config.nextCoords.length; i++) {
         const coord = config.nextCoords[i];
         const avgColor = getAverageColorNonBlack(rawCtx, coord.x * currentScale, coord.y * currentScale, radius);
-        if (i === 0) holdMino = findClosestColor(avgColor.r, avgColor.g, avgColor.b);
-        else {
+        if (i === 0) {
+            if (!(avgColor.r < 50 && avgColor.g < 50 && avgColor.b < 50)) holdMino = findClosestMinoOnly(avgColor.r, avgColor.g, avgColor.b);
+        } else {
             if (i === 1 && avgColor.r < 50 && avgColor.g < 50 && avgColor.b < 50) break;
+
             const foundMino = findClosestMinoOnly(avgColor.r, avgColor.g, avgColor.b);
             if (foundMino) nextQueue.push(foundMino);
         }
