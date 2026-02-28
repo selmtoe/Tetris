@@ -558,23 +558,22 @@ async function processPlayer(playerId, video, duration, params) {
     const progressEl = document.getElementById(`${playerId}Progress`);
     const statusEl = document.getElementById(`${playerId}Status`);
     
-    // --- Pass 1: Next Tracking ---
     log(`${playerId.toUpperCase()} Pass1: Next区間検索開始...`, 'info');
     let pass1Timeline = [];
     let lastStableHold = null;
     let lastStableNext = null;
     let currentStart = 0;
-
+    let hasStarted = false;
     for(let t = 0; t < duration; t += params.nextScanInterval) {
         if(stopRequested) break;
         video.currentTime = t;
         await new Promise(r => { video.onseeked = r; });
         
         const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = video.videoWidth; tempCanvas.height = video.videoHeight;
+        tempCanvas.width = video.videoWidth;
+        tempCanvas.height = video.videoHeight;
         tempCanvas.getContext('2d').drawImage(video, 0, 0);
         const { canvas: pCanvas, cropData } = processImageTo1080p(tempCanvas);
-        
         const queueData = await analyzeNextQueue(pCanvas, tempCanvas, cropData, CONFIG[playerId]);
         
         if (lastStableNext === null) {
@@ -583,15 +582,40 @@ async function processPlayer(playerId, video, duration, params) {
             continue;
         }
         
-        const diffCount = countQueueDiff(lastStableHold, lastStableNext, queueData.hold || "", queueData.next);
-        if (diffCount >= 2) {
+        const currentHold = queueData.hold || "";
+        const diffCount = countQueueDiff(lastStableHold, lastStableNext, currentHold, queueData.next);
+        
+        let shiftMatch = 0;
+        const minShiftLen = Math.min(lastStableNext.length - 1, queueData.next.length);
+        for (let j = 0; j < minShiftLen; j++) {
+            if (lastStableNext[j + 1] === queueData.next[j]) shiftMatch++;
+        }
+        const isShifted = (minShiftLen > 0 && shiftMatch >= Math.min(3, minShiftLen - 1));
+        
+        let isPlacement = false;
+        if (isShifted) {
+            if (lastStableHold === "" && currentHold !== "") {
+            } else if (!hasStarted) {
+                hasStarted = true;
+            } else {
+                isPlacement = true;
+            }
+        } else if (diffCount >= 4) {
+            isPlacement = true;
+        }
+        
+        if (isPlacement) {
             pass1Timeline.push({ start: currentStart, end: t, hold: lastStableHold, next: lastStableNext });
             currentStart = t;
-            lastStableHold = queueData.hold || "";
+        }
+        
+        if (isPlacement || isShifted || lastStableHold !== currentHold || diffCount >= 2) {
+            lastStableHold = currentHold;
             lastStableNext = queueData.next;
         }
         
-        const pct = Math.floor((t / duration) * 50); // Pass1は進捗の前半50%
+        const pct = Math.floor((t / duration) * 50);
+
         progressEl.value = pct;
         statusEl.textContent = `Pass1: ${pct * 2}%`;
     }
