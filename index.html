@@ -3,676 +3,636 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tetris Video Analyzer</title>
+<title>Tetris Video Analyzer (Beam Search)</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
 <style>
     :root {
-        --bg-color: #1a1a2e;
-        --primary-color: #4b4b7c;
-        --primary-hover-color: #6a6aff;
-        --font-color: #e0e0e0;
-        --canvas-bg-color: #0f0f18;
+        --bg-color: #1a1a2e; --primary-color: #4b4b7c; --primary-hover-color: #6a6aff;
+        --font-color: #e0e0e0; --canvas-bg-color: #0f0f18;
     }
     body {
         background-color: var(--bg-color); color: var(--font-color);
-        font-family: 'Noto Sans JP', sans-serif;
-        margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center;
+        font-family: 'Noto Sans JP', sans-serif; display: flex; flex-direction: column;
+        align-items: center; padding: 20px; margin: 0;
     }
     .panel {
-        background-color: rgba(15, 15, 24, 0.8);
-        border: 2px solid var(--primary-color); border-radius: 10px;
-        padding: 20px; width: 100%; max-width: 900px; margin-bottom: 20px;
+        background-color: rgba(15, 15, 24, 0.8); border: 2px solid var(--primary-color);
+        border-radius: 10px; padding: 20px; width: 100%; max-width: 900px; margin-bottom: 20px;
     }
+    h2 { font-family: 'Orbitron', sans-serif; color: var(--primary-hover-color); margin-top: 0; border-bottom: 1px solid var(--primary-color); padding-bottom: 5px;}
     button {
-        background-color: var(--primary-color); color: #fff;
-        border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer;
-        font-family: 'Orbitron', sans-serif; transition: 0.2s; margin: 5px;
+        background-color: var(--primary-color); color: white; border: none;
+        padding: 10px 15px; border-radius: 5px; cursor: pointer; font-family: 'Orbitron', sans-serif;
+        font-size: 14px; margin-right: 10px; transition: 0.2s;
     }
     button:hover { background-color: var(--primary-hover-color); }
-    button:disabled { background-color: #444; color: #888; cursor: not-allowed; }
-    canvas { border: 1px solid var(--primary-color); max-width: 100%; background: var(--canvas-bg-color); }
-    .flex-row { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
-    #log {
-        background: #000; color: #0f0; font-family: monospace; font-size: 12px;
-        padding: 10px; height: 150px; overflow-y: auto; width: 100%; box-sizing: border-box;
+    button:disabled { background-color: #333; cursor: not-allowed; }
+    input[type="file"] { margin-bottom: 15px; }
+    
+    .layout-grid { display: flex; gap: 20px; }
+    .layout-col { flex: 1; }
+    
+    #video-preview { max-width: 100%; border: 1px solid var(--primary-color); background: #000; border-radius: 5px; }
+    canvas.board-preview { background-color: var(--canvas-bg-color); border: 1px solid #444; }
+    
+    #log-area {
+        width: 100%; height: 150px; background: #000; color: #0f0;
+        font-family: monospace; font-size: 12px; padding: 10px; box-sizing: border-box;
+        overflow-y: auto; border: 1px solid #333; margin-top: 10px; border-radius: 5px;
     }
+    #result-link-area { display: none; margin-top: 15px; padding: 15px; background: rgba(0, 255, 0, 0.1); border: 1px solid #0f0; border-radius: 5px; }
+    #result-link { width: 100%; padding: 10px; box-sizing: border-box; background: #222; color: #fff; border: 1px solid #555; margin-top: 10px;}
 </style>
 </head>
 <body>
 
 <div class="panel">
-    <h2>1. Setup & Video Load</h2>
+    <h2>1. Upload Video & Config</h2>
+    <input type="file" id="video-upload" accept="video/mp4,video/webm,video/*">
+    <div style="margin-bottom: 15px;">
+        <label>ビーム幅 (探索の広さ): <input type="number" id="beam-width" value="15" style="width: 60px; background: #333; color: white; border: 1px solid #555;"></label>
+    </div>
     <div>
-        <label>ONNX Model Path: <input type="text" id="model-path" value="./Load%20PPT/tetris.onnx" style="width:250px;"></label>
-        <button id="btn-load-model">Load Model</button>
-        <span id="model-status" style="color: #ff4444;">Not Loaded</span>
-    </div>
-    <div style="margin-top: 10px;">
-        <input type="file" id="video-upload" accept="video/*" disabled>
+        <button id="btn-load-model">AIモデル読み込み</button>
+        <button id="btn-start-scan" disabled>解析スタート</button>
     </div>
 </div>
 
-<div class="panel" id="scan-setup-panel" style="display: none;">
-    <h2>2. Scan Area Setup (Click Bottom-Left, then Top-Right)</h2>
-    <div style="text-align: center;">
-        <canvas id="setup-canvas"></canvas>
+<div class="panel layout-grid">
+    <div class="layout-col">
+        <h2>Video Analysis</h2>
+        <video id="video-preview" muted controls></video>
+        <div id="log-area">Ready.</div>
     </div>
-    <div style="text-align: center; margin-top: 10px;">
-        <span id="setup-instruction">Click Bottom-Left of the board.</span><br>
-        <button id="btn-start-extraction" disabled>Start Frame Extraction</button>
-    </div>
-</div>
-
-<div class="panel" id="progress-panel" style="display: none;">
-    <h2>3. Processing</h2>
-    <div id="log"></div>
-    <div style="margin-top: 10px; text-align: center;">
-        <button id="btn-run-beamsearch" disabled>Run Beam Search</button>
+    <div class="layout-col" style="max-width: 200px;">
+        <h2>Current Best</h2>
+        <canvas id="board-canvas" class="board-preview" width="100" height="200"></canvas>
     </div>
 </div>
 
-<div class="panel" id="result-panel" style="display: none;">
-    <h2>4. Result</h2>
-    <input type="text" id="result-link" readonly style="width: 100%; padding: 10px; font-family: monospace;" placeholder="Editor link will appear here">
-    <div style="text-align: center; margin-top: 10px;">
-        <button id="btn-copy-link">Copy Link</button>
-        <button id="btn-open-editor">Open in Editor</button>
-    </div>
+<div class="panel" id="result-link-area">
+    <h2 style="color: #44ff44; border-color: #44ff44;">Analysis Complete!</h2>
+    <p>エディタ用のリンクが生成されました。コピーして開いてください。</p>
+    <textarea id="result-link" rows="3" readonly></textarea>
+    <button onclick="document.getElementById('result-link').select(); document.execCommand('copy');">コピー</button>
+    <button onclick="window.open(document.getElementById('result-link').value, '_blank');">エディタを開く</button>
 </div>
-
-<video id="hidden-video" style="display: none;" muted playsinline></video>
 
 <script>
-/**
- * ==========================================
- * テトリス画像認識モジュール (提供コードから完全移植)
- * ==========================================
- */
-const TetrisRecognizer = (() => {
-    let session = null;
-    const ONNX_CLASS_NAMES = ['null', 'G', 'S', 'Z', 'L', 'J', 'O', 'I', 'T'];
-    
-    // スキャン用のカラーパレット
-    const SCAN_COLOR_PALETTE = {
-        'NULL': ['#000000', '#302838'],
-        'G':    ['#999999', '#D8D8D8'],
-        'I':    ['#019899', '#0199D5'],
-        'O':    ['#999A02', '#F9B900'],
-        'T':    ['#980099', '#871E88'],
-        'L':    ['#996700', '#F56100'],
-        'J':    ['#0000BB', '#004BA5'],
-        'S':    ['#10971F', '#5CB523'],
-        'Z':    ['#990000', '#DA1822']
-    };
-    
-    const hexToRgb = (hex) => ({
-        r: parseInt(hex.slice(1, 3), 16),
-        g: parseInt(hex.slice(3, 5), 16),
-        b: parseInt(hex.slice(5, 7), 16)
+// ==========================================
+// 1. Core Logic & Definitions (エディタ互換)
+// ==========================================
+const BOARD_WIDTH = 10;
+const BOARD_HEIGHT = 40;
+const VISIBLE_HEIGHT = 20;
+
+// ミノの相対座標定義 (中心からの相対座標)
+const TETROMINOS = {
+    'I': { shape: [[0, 0], [1, 0], [2, 0], [3, 0]], center: [1.5, 0.5] },
+    'O': { shape: [[0, 0], [1, 0], [0, -1], [1, -1]], center: [0.5, -0.5] },
+    'T': { shape: [[0, 0], [-1, 0], [0, -1], [1, 0]], center: [0, 0] },
+    'L': { shape: [[-1, 0], [0, 0], [1, 0], [1, -1]], center: [0, 0] },
+    'J': { shape: [[0, 0], [-1, 0], [1, 0], [-1, -1]], center: [0, 0] },
+    'S': { shape: [[1, -1], [-1, 0], [0, 0], [0, -1]], center: [0, 0] },
+    'Z': { shape: [[0, 0], [1, 0], [0, -1], [-1, -1]], center: [0, 0] }
+};
+const COLORS = { 'I': '#00f0f0', 'O': '#f0f000', 'T': '#a000f0', 'L': '#f0a000', 'J': '#0000f0', 'S': '#00f000', 'Z': '#f00000', 'G': '#999999' };
+
+function getRotatedShape(type, rot) {
+    if(!type || !TETROMINOS[type]) return [];
+    const o = TETROMINOS[type].shape;
+    if(rot === 0 || type === 'O') return o;
+    const c = TETROMINOS[type].center;
+    return o.map(b => {
+        let [x, y] = [b[0] - c[0], b[1] - c[1]];
+        for(let i=0; i<rot; i++){ [x, y] = [-y, x]; }
+        return [x + c[0] + (type==='O'?0.5:0), y + c[1] + (type==='O'?0.5:0)];
     });
-    
-    const PARSED_SCAN_COLORS = {};
-    for (const key in SCAN_COLOR_PALETTE) {
-        PARSED_SCAN_COLORS[key] = SCAN_COLOR_PALETTE[key].map(hexToRgb);
-    }
+}
 
-    async function loadModel(path) {
+function cloneBoard(board) {
+    return board.map(row => [...row]);
+}
+
+function createEmptyBoard() {
+    return Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill(null));
+}
+
+function checkCollision(board, type, x, y, rot) {
+    const shape = getRotatedShape(type, rot);
+    for (const b of shape) {
+        const bx = Math.floor(x + b[0]);
+        const by = Math.floor(y + b[1]);
+        if (bx < 0 || bx >= BOARD_WIDTH || by >= BOARD_HEIGHT || (by >= 0 && board[by] && board[by][bx])) {
+            return true; // 衝突
+        }
+    }
+    return false;
+}
+
+function clearLines(board) {
+    let cleared = 0;
+    const newBoard = board.filter(row => {
+        if (row.every(cell => cell !== null)) { cleared++; return false; }
+        return true;
+    });
+    for (let i = 0; i < cleared; i++) {
+        newBoard.unshift(Array(BOARD_WIDTH).fill(null));
+    }
+    return { board: newBoard, cleared };
+}
+
+function placeMino(board, type, x, y, rot) {
+    const newBoard = cloneBoard(board);
+    const shape = getRotatedShape(type, rot);
+    for (const b of shape) {
+        const bx = Math.floor(x + b[0]);
+        const by = Math.floor(y + b[1]);
+        if (by >= 0 && by < BOARD_HEIGHT) {
+            newBoard[by][bx] = type;
+        }
+    }
+    return newBoard;
+}
+
+// ==========================================
+// 2. Vision Library (ONNX & 色認識のラッパー)
+// ==========================================
+const TetrisVision = (() => {
+    let session = null;
+    const CLASS_NAMES = ['null', 'G', 'S', 'Z', 'L', 'J', 'O', 'I', 'T'];
+    const SCAN_COLOR_PALETTE = {
+        'NULL': [{r:0,g:0,b:0}, {r:48,g:40,b:56}], 'G': [{r:153,g:153,b:153}, {r:216,g:216,b:216}],
+        'I': [{r:1,g:152,b:153}, {r:1,g:153,b:213}], 'O': [{r:153,g:154,b:2}, {r:249,g:185,b:0}],
+        'T': [{r:152,g:0,b:153}, {r:135,g:30,b:136}], 'L': [{r:153,g:103,b:0}, {r:245,g:97,b:0}],
+        'J': [{r:0,g:0,b:187}, {r:0,g:75,b:165}], 'S': [{r:16,g:151,b:31}, {r:92,g:181,b:35}],
+        'Z': [{r:153,g:0,b:0}, {r:218,g:24,b:34}]
+    };
+
+    async function init() {
         ort.env.logLevel = 'fatal';
-        session = await ort.InferenceSession.create(path, { executionProviders: ['wasm'] });
+        session = await ort.InferenceSession.create('./Load%20PPT/tetris.onnx', { executionProviders: ['wasm'] });
     }
 
-    function findClosestColor(r, g, b) {
-        const input = { r, g, b };
-        const distSq = (c1, c2) => Math.pow(c1.r - c2.r, 2) + Math.pow(c1.g - c2.g, 2) + Math.pow(c1.b - c2.b, 2);
-        
-        for (const c of PARSED_SCAN_COLORS.NULL) if (distSq(input, c) < 6000) return null;
-        for (const c of PARSED_SCAN_COLORS.G) if (distSq(input, c) < 10000) return 'G';
-        
-        let minD = Infinity; let closest = null;
-        for (const key of Object.keys(PARSED_SCAN_COLORS).filter(k => k !== 'NULL' && k !== 'G')) {
-            for (const target of PARSED_SCAN_COLORS[key]) {
-                const d = distSq(input, target);
-                if (d < minD) { minD = d; closest = key; }
+    function findClosestColor(r, g, b, excludeEmptyAndGarbage = false) {
+        let minD = Infinity, best = null;
+        for (const key in SCAN_COLOR_PALETTE) {
+            if (excludeEmptyAndGarbage && (key === 'NULL' || key === 'G')) continue;
+            for (const tc of SCAN_COLOR_PALETTE[key]) {
+                const d = (r-tc.r)**2 + (g-tc.g)**2 + (b-tc.b)**2;
+                if (d < minD) { minD = d; best = key; }
             }
         }
-        return (minD > 25000) ? null : closest;
+        if(!excludeEmptyAndGarbage && minD > 25000) return null;
+        return best === 'NULL' ? null : best;
     }
 
-    function getAverageColorNonBlack(ctx, cx, cy, rad) {
-        const d = Math.ceil(rad*2), sx=Math.floor(cx-rad), sy=Math.floor(cy-rad);
-        if (sx < 0 || sy < 0 || sx+d > ctx.canvas.width || sy+d > ctx.canvas.height) return {r:0,g:0,b:0};
-        const id = ctx.getImageData(sx, sy, d, d).data;
+    function getAverageColor(imgData, rad) {
         let tr=0, tg=0, tb=0, c=0;
-        for(let y=0; y<d; y++) for(let x=0; x<d; x++) {
-            if((x-rad)**2+(y-rad)**2 <= rad*rad) {
-                const i=(y*d+x)*4;
-                if(id[i]>50||id[i+1]>50||id[i+2]>50) { tr+=id[i]; tg+=id[i+1]; tb+=id[i+2]; c++; }
+        const d = Math.ceil(rad*2);
+        for(let y=0; y<d; y++) {
+            for(let x=0; x<d; x++) {
+                if((x-rad)**2+(y-rad)**2 <= rad*rad) {
+                    const i=(y*imgData.width+x)*4;
+                    // 黒背景のノイズ除去
+                    if(imgData.data[i]>50 || imgData.data[i+1]>50 || imgData.data[i+2]>50) {
+                        tr+=imgData.data[i]; tg+=imgData.data[i+1]; tb+=imgData.data[i+2]; c++;
+                    }
+                }
             }
         }
         return c ? {r:tr/c, g:tg/c, b:tb/c} : {r:0,g:0,b:0};
     }
 
-    function findClosestMinoOnly(r,g,b) {
-        const dist = (c1, c2) => (c1.r-c2.r)**2 + (c1.g-c2.g)**2 + (c1.b-c2.b)**2;
-        let minD = Infinity, best = 'I';
-        for(const key of Object.keys(PARSED_SCAN_COLORS).filter(k => k!=='NULL'&&k!=='G')) {
-            for(const tc of PARSED_SCAN_COLORS[key]) {
-                const d = dist({r,g,b}, tc);
-                if(d < minD) { minD = d; best = key; }
+    function extractFeatures(imgD, w, h) {
+        const numP = w * h; const feats = [];
+        const bCh = new Float32Array(numP), gCh = new Float32Array(numP), rCh = new Float32Array(numP);
+        const hCh = new Float32Array(numP), sCh = new Float32Array(numP), vCh = new Float32Array(numP);
+        for (let i=0; i<numP; i++) {
+            const r=imgD.data[i*4], g=imgD.data[i*4+1], b=imgD.data[i*4+2];
+            bCh[i]=b; gCh[i]=g; rCh[i]=r;
+            const max=Math.max(r,g,b), min=Math.min(r,g,b), d=max-min;
+            vCh[i] = max; sCh[i] = max? (d/max)*255 : 0;
+            let hv = 0;
+            if(max!==min){
+                if(max===r) hv = (60*(g-b)/d+360)%360;
+                else if(max===g) hv = (60*(b-r)/d+120)%360;
+                else hv = (60*(r-g)/d+240)%360;
             }
+            hCh[i] = hv/2;
         }
-        return best;
-    }
-
-    function extractCellPixels(imgD, x, y, w, h) {
-        const sw = imgD.width, ix = Math.floor(x), iy = Math.floor(y), iw = Math.floor(w), ih = Math.floor(h);
-        const d = new Uint8ClampedArray(iw * ih * 4);
-        for (let r = 0; r < ih; r++) {
-            const s = ((iy + r) * sw + ix) * 4;
-            d.set(imgD.data.subarray(s, s + iw * 4), r * iw * 4);
-        }
-        return d;
-    }
-
-    function extractFeaturesJS(pixelsRGBA, w, h) {
-        const numPixels = w * h;
-        const feats = [];
-        const bCh = new Float32Array(numPixels), gCh = new Float32Array(numPixels), rCh = new Float32Array(numPixels);
-        const hCh = new Float32Array(numPixels), sCh = new Float32Array(numPixels), vCh = new Float32Array(numPixels);
-        
-        for (let i = 0; i < numPixels; i++) {
-            const r = pixelsRGBA[i*4], g = pixelsRGBA[i*4+1], b = pixelsRGBA[i*4+2];
-            bCh[i] = b; gCh[i] = g; rCh[i] = r;
-            const max = Math.max(r, g, b), min = Math.min(r, g, b);
-            const diff = max - min;
-            let h_val = 0;
-            if (max === min) h_val = 0;
-            else if (max === r) h_val = (60 * (g - b) / diff + 360) % 360;
-            else if (max === g) h_val = (60 * (b - r) / diff + 120) % 360;
-            else if (max === b) h_val = (60 * (r - g) / diff + 240) % 360;
-            vCh[i] = max; sCh[i] = (max !== 0) ? (diff / max) * 255 : 0; hCh[i] = h_val / 2;
-        }
-
-        const getStats = (arr) => {
-            let sum = 0; for(let v of arr) sum += v;
-            const mean = sum / arr.length;
-            let sqDiffSum = 0; for(let v of arr) sqDiffSum += (v - mean) ** 2;
-            return [mean, Math.sqrt(sqDiffSum / arr.length)];
+        const getStats = arr => {
+            let sum=0; for(let v of arr) sum+=v;
+            const mean = sum/arr.length;
+            let sq=0; for(let v of arr) sq+=(v-mean)**2;
+            return [mean, Math.sqrt(sq/arr.length)];
         };
-
-        feats.push(...getStats(bCh), ...getStats(gCh), ...getStats(rCh));
-        feats.push(...getStats(hCh), ...getStats(sCh), ...getStats(vCh));
-
-        const stepX = w/4, stepY = h/4;
-        for (let ty = 0; ty < 4; ty++) {
-            for (let tx = 0; tx < 4; tx++) {
-                const sx = Math.floor(tx * stepX), sy = Math.floor(ty * stepY);
-                const ex = Math.floor((tx + 1) * stepX), ey = Math.floor((ty + 1) * stepY);
-                let sumB=0, sumG=0, sumR=0, count=0;
-                for(let py=sy; py<ey; py++) for(let px=sx; px<ex; px++){
-                    const idx = py * w + px;
-                    if(idx < numPixels) { sumB += bCh[idx]; sumG += gCh[idx]; sumR += rCh[idx]; count++; }
-                }
-                if(count===0) feats.push(0,0,0); else feats.push(sumB/count, sumG/count, sumR/count);
-            }
-        }
+        feats.push(...getStats(bCh), ...getStats(gCh), ...getStats(rCh), ...getStats(hCh), ...getStats(sCh), ...getStats(vCh));
         
-        const cx = Math.floor(w/2), cy = Math.floor(h/2), cw = Math.floor(w/4), ch = Math.floor(h/4);
-        let cSumB=0, cSumG=0, cSumR=0, cCount=0;
-        for(let py=cy-ch; py<cy+ch; py++) for(let px=cx-cw; px<cx+cw; px++){
-            if(px>=0 && px<w && py>=0 && py<h){
-                const idx = py * w + px;
-                cSumB += bCh[idx]; cSumG += gCh[idx]; cSumR += rCh[idx]; cCount++;
+        const sx=w/4, sy=h/4;
+        for(let ty=0; ty<4; ty++){
+            for(let tx=0; tx<4; tx++){
+                let sb=0, sg=0, sr=0, c=0;
+                for(let py=Math.floor(ty*sy); py<Math.floor((ty+1)*sy); py++){
+                    for(let px=Math.floor(tx*sx); px<Math.floor((tx+1)*sx); px++){
+                        const idx = py*w+px; sb+=bCh[idx]; sg+=gCh[idx]; sr+=rCh[idx]; c++;
+                    }
+                }
+                if(c) feats.push(sb/c, sg/c, sr/c); else feats.push(0,0,0);
             }
         }
-        if(cCount===0) feats.push(0,0,0); else feats.push(cSumB/cCount, cSumG/cCount, cSumR/cCount);
-
+        let cb=0, cg=0, cr=0, cc=0;
+        const cx=Math.floor(w/2), cy=Math.floor(h/2), cw=Math.floor(w/4), ch=Math.floor(h/4);
+        for(let py=cy-ch; py<cy+ch; py++){
+            for(let px=cx-cw; px<cx+cw; px++){
+                const idx = py*w+px; cb+=bCh[idx]; cg+=gCh[idx]; cr+=rCh[idx]; cc++;
+            }
+        }
+        if(cc) feats.push(cb/cc, cg/cc, cr/cc); else feats.push(0,0,0);
         return new Float32Array(feats);
     }
 
-    async function analyzeBoard(canvas, cropRect) {
-        const ctx = canvas.getContext('2d');
-        const boardImgData = ctx.getImageData(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
-        const cellW = cropRect.w / 10;
-        const cellH = cropRect.h / 20;
+    // P1固定で解析
+    async function analyzeFrame(canvas1080p) {
+        const ctx = canvas1080p.getContext('2d');
+        const boardRect = { x: 304, y: 157, w: 366, h: 725 };
+        const nextCoords = [ {x:160, y:155}, {x:500, y:122}, {x:500, y:175}, {x:500, y:225}, {x:500, y:275}, {x:500, y:325} ];
         
-        // (A) Classic Scan
-        const classicBoard = [];
-        for (let r = 0; r < 20; r++) {
-            const row = [];
-            for (let c = 0; c < 10; c++) {
-                const sampleX = cropRect.x + (c + 0.5) * cellW;
-                const sampleY = cropRect.y + (r + 0.5) * cellH;
-                const sampleSize = Math.max(1, Math.floor(cellW * 0.25));
-                const imgD = ctx.getImageData(sampleX - sampleSize/2, sampleY - sampleSize/2, sampleSize, sampleSize).data;
-                let avgR = 0, avgG = 0, avgB = 0;
-                for (let i = 0; i < imgD.length; i += 4) { avgR += imgD[i]; avgG += imgD[i+1]; avgB += imgD[i+2]; }
-                const pc = imgD.length / 4;
-                row.push(findClosestColor(avgR/pc, avgG/pc, avgB/pc));
-            }
-            classicBoard.push(row);
-        }
-
-        // (B) ONNX Inference
-        const batchFeatures = [];
-        const recognizedBoard = Array.from({length:20}, () => Array(10).fill(null));
-        for (let r = 0; r < 20; r++) {
-            for (let c = 0; c < 10; c++) {
-                const px = extractCellPixels(boardImgData, c * cellW, r * cellH, cellW, cellH);
-                batchFeatures.push(extractFeaturesJS(px, Math.floor(cellW), Math.floor(cellH)));
+        const cellW = boardRect.w / 10, cellH = boardRect.h / 20;
+        
+        // 1. Next/Hold Lightweight Extraction
+        const nextQueue = [];
+        let holdMino = null;
+        const radius = 5;
+        for (let i = 0; i < nextCoords.length; i++) {
+            const coord = nextCoords[i];
+            const imgD = ctx.getImageData(coord.x - radius, coord.y - radius, radius*2, radius*2);
+            const avg = getAverageColor(imgD, radius);
+            const isBlack = (avg.r < 50 && avg.g < 50 && avg.b < 50);
+            
+            if (i === 0) {
+                if (!isBlack) holdMino = findClosestColor(avg.r, avg.g, avg.b, true);
+            } else {
+                if (i === 1 && isBlack) break; // Nextが尽きている
+                const m = findClosestColor(avg.r, avg.g, avg.b, true);
+                if (m) nextQueue.push(m);
             }
         }
 
-        const flatInput = new Float32Array(200 * 63);
-        for (let i = 0; i < 200; i++) flatInput.set(batchFeatures[i], i * 63);
-        
-        const tensor = new ort.Tensor('float32', flatInput, [200, 63]);
-        const results = await session.run({ [session.inputNames[0]]: tensor }, [session.outputNames[0]]);
-        const labelData = results[session.outputNames[0]].data;
-
-        for (let i = 0; i < 200; i++) {
-            const label = ONNX_CLASS_NAMES[Number(labelData[i])];
-            recognizedBoard[Math.floor(i / 10)][i % 10] = (label === 'null') ? null : label;
-        }
-
-        // (C) Merge logic (エディタ準拠)
-        for (let r = 0; r < 20; r++) {
-            if (recognizedBoard[r].every(c => c === null || c === 'G')) {
-                if (recognizedBoard[r].filter(c => c === 'G').length !== 10) {
-                    const cRow = classicBoard[r];
-                    if (cRow.filter(c => c === 'G').length === 9 && cRow.filter(c => c === null).length === 1) {
-                        recognizedBoard[r] = [...cRow];
+        // 2. ONNX Board Extraction (Only needed if triggered, but for simplicity we can do it on demand)
+        const getBoard = async () => {
+            const boardImgData = ctx.getImageData(boardRect.x, boardRect.y, boardRect.w, boardRect.h);
+            const batchFeatures = [];
+            for (let r=0; r<20; r++) {
+                for (let c=0; c<10; c++) {
+                    const iw = Math.floor(cellW), ih = Math.floor(cellH);
+                    const ix = Math.floor(c * cellW), iy = Math.floor(r * cellH);
+                    const cellData = new Uint8ClampedArray(iw * ih * 4);
+                    for(let row=0; row<ih; row++){
+                        const s = ((iy+row)*boardImgData.width + ix)*4;
+                        cellData.set(boardImgData.data.subarray(s, s + iw*4), row*iw*4);
                     }
+                    batchFeatures.push(extractFeatures({data: cellData, width: iw, height: ih}, iw, ih));
                 }
             }
-        }
-
-        // フルボード化(40行)
-        const fullBoard = Array.from({ length: 40 }, () => Array(10).fill(null));
-        for(let r=0; r<20; r++) fullBoard[20+r] = recognizedBoard[r];
-
-        // ガベージ処理等
-        let firstNonG = -1;
-        for (let y = 39; y >= 0; y--) { if (!fullBoard[y].includes('G')) { firstNonG = y; break; } }
-        if (firstNonG !== -1) {
-            for (let y = firstNonG - 1; y >= 0; y--) {
-                for (let x = 0; x < 10; x++) { if (fullBoard[y][x] === 'G') fullBoard[y][x] = null; }
+            const flat = new Float32Array(200 * 63);
+            for(let i=0; i<200; i++) flat.set(batchFeatures[i], i*63);
+            const tensor = new ort.Tensor('float32', flat, [200, 63]);
+            const res = await session.run({ [session.inputNames[0]]: tensor });
+            const labels = res[session.outputNames[0]].data;
+            
+            const board = Array.from({ length: 40 }, () => Array(10).fill(null));
+            for(let i=0; i<200; i++){
+                const l = CLASS_NAMES[Number(labels[i])];
+                board[20 + Math.floor(i/10)][i%10] = (l === 'null') ? null : l;
             }
-        }
-        return fullBoard;
+            // Garbage cleanup
+            let firstNonG = -1;
+            for(let y=39; y>=0; y--) { if(!board[y].includes('G')) { firstNonG = y; break; } }
+            if(firstNonG !== -1) {
+                for(let y=firstNonG-1; y>=0; y--) {
+                    for(let x=0; x<10; x++) if(board[y][x]==='G') board[y][x] = null;
+                }
+            }
+            return board;
+        };
+
+        return { nextQueue, holdMino, getBoard };
     }
 
-    function extractNextColor(canvas, x, y, radius) {
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        const avg = getAverageColorNonBlack(ctx, x, y, radius);
-        if (avg.r < 50 && avg.g < 50 && avg.b < 50) return null;
-        return findClosestMinoOnly(avg.r, avg.g, avg.b);
-    }
-
-    return { loadModel, analyzeBoard, extractNextColor };
+    return { init, analyzeFrame };
 })();
 
-
-/**
- * ==========================================
- * テトリス ルール・探索モジュール (緩い合法手生成)
- * ==========================================
- */
-const BeamSearcher = (() => {
-    // 相対座標定義 (中心近辺基準)
-    const MINO_SHAPES = {
-        'I': [[-1, 0], [0, 0], [1, 0], [2, 0]],
-        'O': [[0, 0], [1, 0], [0, 1], [1, 1]],
-        'T': [[-1, 0], [0, 0], [1, 0], [0, -1]],
-        'L': [[-1, 0], [0, 0], [1, 0], [1, -1]],
-        'J': [[-1, 0], [0, 0], [1, 0], [-1, -1]],
-        'S': [[-1, 0], [0, 0], [0, -1], [1, -1]],
-        'Z': [[0, -1], [-1, -1], [0, 0], [1, 0]]
-    };
-
-    function getShape(type, rot) {
-        const base = MINO_SHAPES[type];
-        return base.map(b => {
-            let [x, y] = [b[0], b[1]];
-            for(let i=0; i<rot; i++) { const temp = x; x = -y; y = temp; }
-            return [x, y];
-        });
-    }
-
-    function isCollision(board, type, x, y, rot) {
-        const shape = getShape(type, rot);
-        for(let p of shape) {
-            const bx = x + p[0];
-            const by = y + p[1];
-            if(bx < 0 || bx >= 10 || by >= 40) return true;
-            if(by >= 0 && board[by][bx] !== null) return true;
-        }
-        return false;
-    }
-
-    // 盤面コピー
-    function cloneBoard(board) {
-        return board.map(row => [...row]);
-    }
-
-    // ピースを置いてラインを消す
-    function placeAndClear(board, type, x, y, rot) {
-        const newBoard = cloneBoard(board);
-        const shape = getShape(type, rot);
-        for(let p of shape) {
-            const by = y + p[1], bx = x + p[0];
-            if(by >= 0) newBoard[by][bx] = type;
-        }
-
-        // ライン消去
-        const keptRows = newBoard.filter(row => !row.every(cell => cell !== null));
-        const clearedLines = 40 - keptRows.length;
-        const finalBoard = Array.from({length: clearedLines}, () => Array(10).fill(null)).concat(keptRows);
-        
-        return finalBoard;
-    }
-
-    // 緩い合法手生成 (重ならない & 1段下に動かすと重なる)
-    function generateLegalMoves(board, type) {
-        const moves = [];
-        for (let r = 0; r < 4; r++) {
-            // Oミノの回転重複を省くなどの最適化は可能だが、ここではシンプルに
-            if (type === 'O' && r > 0) continue;
-            if ((type === 'I' || type === 'S' || type === 'Z') && r > 1) continue;
-
-            for (let x = 0; x < 10; x++) {
-                for (let y = 0; y < 40; y++) {
-                    if (!isCollision(board, type, x, y, r) && isCollision(board, type, x, y + 1, r)) {
-                        moves.push({ type, x, y, r });
-                    }
-                }
-            }
-        }
-        return moves;
-    }
-
-    // 評価関数 (観測盤面との一致度)
-    // エフェクト対応: 観測がnullでも実際はブロックがあるかもしれないので、主に「観測で色がついている」部分が一致するかを重視
-    function evaluateBoard(stateBoard, obsBoard) {
+// ==========================================
+// 3. Beam Search Logic
+// ==========================================
+const BeamSearch = (() => {
+    
+    function compareBoards(generated, observed) {
         let score = 0;
+        // 20行目〜39行目を比較
         for (let y = 20; y < 40; y++) {
             for (let x = 0; x < 10; x++) {
-                const s = stateBoard[y][x];
-                const o = obsBoard[y][x];
-                if (o !== null && o !== 'G') {
-                    if (s === o) score += 10;
-                    else score -= 5;
-                } else if (o === null && s !== null) {
-                    score -= 1; // 軽微なペナルティ
-                }
+                const g = generated[y][x];
+                const o = observed[y][x];
+                if (g === o && g !== null) score += 10; // 正確な一致は高得点
+                else if (g === null && o !== null) score -= 5; // 見逃し
+                else if (g !== null && o === null) score -= 1; // エフェクトで消えてる可能性があるのでペナルティ低め
+                else if (g !== null && o !== null && g !== o) score -= 8; // 色違い
             }
         }
         return score;
     }
 
-    function search(initialBoard, observations) {
-        const BEAM_WIDTH = 5;
-        let beam = [{ board: initialBoard, path: [], score: 0 }];
-
-        for (let t = 0; t < observations.length; t++) {
-            const obs = observations[t];
-            const nextBeam = [];
-
-            // 利用可能なミノを推定 (今回は全探索する。本来は認識したNEXTを利用)
-            const possibleMinos = obs.inferredPiece ? [obs.inferredPiece] : ['I', 'O', 'T', 'L', 'J', 'S', 'Z'];
-
-            for (const state of beam) {
-                for (const mino of possibleMinos) {
-                    const legalMoves = generateLegalMoves(state.board, mino);
-                    for (const move of legalMoves) {
-                        const nextBoard = placeAndClear(state.board, move.type, move.x, move.y, move.r);
-                        const matchScore = evaluateBoard(nextBoard, obs.board);
-                        
-                        nextBeam.push({
-                            board: nextBoard,
-                            path: [...state.path, move],
-                            score: state.score + matchScore
-                        });
+    // 緩い合法手生成 (壁被りなし ＆ 接地している)
+    function generateLegalPlacements(board, pieceType) {
+        const placements = [];
+        for (let rot = 0; rot < 4; rot++) {
+            if (pieceType === 'O' && rot > 0) continue;
+            for (let x = -2; x < 12; x++) {
+                // yを上から探す
+                for (let y = 0; y < 40; y++) {
+                    if (!checkCollision(board, pieceType, x, y, rot)) {
+                        // この位置が有効で、1つ下が衝突するなら接地している
+                        if (checkCollision(board, pieceType, x, y + 1, rot)) {
+                            placements.push({ type: pieceType, x, y, rot });
+                        }
                     }
                 }
             }
-
-            // スコア順にソートして上位K個を残す
-            nextBeam.sort((a, b) => b.score - a.score);
-            beam = nextBeam.slice(0, BEAM_WIDTH);
-            
-            log(`Step ${t+1}: Best score = ${beam[0]?.score}`);
         }
-
-        return beam.length > 0 ? beam[0] : null;
+        return placements;
     }
 
-    return { search };
+    async function processStep(beamStates, observation, beamWidth = 15) {
+        let nextStates = [];
+        const observedBoard = await observation.getBoard();
+
+        for (const state of beamStates) {
+            const availablePieces = [];
+            // 次の操作ミノの候補 (Nextの先頭 or Hold)
+            if (state.next.length > 0) availablePieces.push({ useHold: false, piece: state.next[0] });
+            if (state.hold) availablePieces.push({ useHold: true, piece: state.hold });
+            else if(state.next.length > 0) availablePieces.push({ useHold: true, piece: state.next[0] }); // 初回Hold
+
+            for (const { useHold, piece } of availablePieces) {
+                const placements = generateLegalPlacements(state.board, piece);
+                
+                for (const p of placements) {
+                    const tempBoard = placeMino(state.board, p.type, p.x, p.y, p.rot);
+                    const { board: newBoard } = clearLines(tempBoard); // シンプルに消去のみ
+
+                    const score = state.score + compareBoards(newBoard, observedBoard);
+                    
+                    // 新しい状態の更新
+                    let newHold = state.hold;
+                    let newNext = [...state.next];
+                    if (useHold) {
+                        if (!state.hold) {
+                            newHold = newNext.shift();
+                        } else {
+                            // Holdを使った場合は、現在のNext先頭がHoldにいくわけではなく、
+                            // 今降ってきたミノがHoldに行く。※簡易化のため、ここでは「使った」事実だけ記録。
+                            // 正確には動画の観測Next/Holdを信じるため、ここでは状態のHistory更新のみに注力。
+                        }
+                    } else {
+                        newNext.shift();
+                    }
+
+                    // 強制的に観測されたNext/Holdを正として上書き(ズレ補正)
+                    newHold = observation.holdMino;
+                    newNext = observation.nextQueue;
+
+                    nextStates.push({
+                        board: newBoard,
+                        hold: newHold,
+                        next: newNext,
+                        score: score,
+                        history: [...state.history, { board: newBoard, hold: newHold, next: newNext }]
+                    });
+                }
+            }
+        }
+
+        // スコア順にソートして上位W個を残す
+        nextStates.sort((a, b) => b.score - a.score);
+        
+        // 重複状態の排除（同じ盤面があれば弾く）
+        const uniqueStates = [];
+        const seen = new Set();
+        for(const s of nextStates) {
+            const hash = s.board.map(r=>r.map(c=>c||'_').join('')).join('');
+            if(!seen.has(hash)) {
+                seen.add(hash);
+                uniqueStates.push(s);
+                if(uniqueStates.length >= beamWidth) break;
+            }
+        }
+
+        return uniqueStates.length > 0 ? uniqueStates : beamStates; // 見つからなければ前回の状態を維持
+    }
+
+    return { processStep };
 })();
 
-
-/**
- * ==========================================
- * メインコントロール・UI ロジック
- * ==========================================
- */
-const video = document.getElementById('hidden-video');
-const setupCanvas = document.getElementById('setup-canvas');
-const ctxSetup = setupCanvas.getContext('2d');
-let cropRect = { x: 0, y: 0, w: 0, h: 0 };
-let nextCoord = { x: 0, y: 0 };
-let setupStep = 0; // 0: wait BL, 1: wait TR, 2: wait Next1
-let blPoint = null;
-
-function log(msg) {
-    const d = document.getElementById('log');
-    d.innerHTML += `[${new Date().toLocaleTimeString()}] ${msg}<br>`;
-    d.scrollTop = d.scrollHeight;
-}
-
-// 1. Model Load
-document.getElementById('btn-load-model').addEventListener('click', async () => {
-    const path = document.getElementById('model-path').value;
-    log("Loading ONNX model...");
-    try {
-        await TetrisRecognizer.loadModel(path);
-        document.getElementById('model-status').textContent = "Loaded";
-        document.getElementById('model-status').style.color = "#44ff44";
-        document.getElementById('video-upload').disabled = false;
-        log("Model loaded successfully.");
-    } catch(e) {
-        log("Model load failed: " + e.message);
-    }
-});
-
-// 2. Video Load
-document.getElementById('video-upload').addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    video.src = url;
-    video.onloadeddata = () => {
-        log(`Video loaded: ${video.videoWidth}x${video.videoHeight}, duration: ${video.duration}s`);
-        
-        // Setup Canvas Size
-        const maxW = 800;
-        const scale = Math.min(1, maxW / video.videoWidth);
-        setupCanvas.width = video.videoWidth * scale;
-        setupCanvas.height = video.videoHeight * scale;
-        
-        video.currentTime = 0;
-        video.onseeked = () => {
-            ctxSetup.drawImage(video, 0, 0, setupCanvas.width, setupCanvas.height);
-            document.getElementById('scan-setup-panel').style.display = 'block';
-            video.onseeked = null; // 1回だけ
-        };
-    };
-});
-
-// 3. Area Setup
-setupCanvas.addEventListener('click', (e) => {
-    const rect = setupCanvas.getBoundingClientRect();
-    const scaleX = video.videoWidth / rect.width;
-    const scaleY = video.videoHeight / rect.height;
-    const px = (e.clientX - rect.left) * scaleX;
-    const py = (e.clientY - rect.top) * scaleY;
-
-    if (setupStep === 0) {
-        blPoint = { x: px, y: py };
-        setupStep = 1;
-        document.getElementById('setup-instruction').textContent = "Click Top-Right of the board.";
-        ctxSetup.fillStyle = 'lime'; ctxSetup.beginPath(); ctxSetup.arc(px / scaleX, py / scaleY, 5, 0, Math.PI*2); ctxSetup.fill();
-    } else if (setupStep === 1) {
-        cropRect = { x: blPoint.x, y: py, w: px - blPoint.x, h: blPoint.y - py };
-        setupStep = 2;
-        document.getElementById('setup-instruction').textContent = "Click the center of the first NEXT piece.";
-        ctxSetup.strokeStyle = 'fuchsia'; ctxSetup.lineWidth = 2;
-        ctxSetup.strokeRect(cropRect.x / scaleX, cropRect.y / scaleY, cropRect.w / scaleX, cropRect.h / scaleY);
-    } else if (setupStep === 2) {
-        nextCoord = { x: px, y: py };
-        document.getElementById('setup-instruction').textContent = "Setup complete! Ready to extract.";
-        ctxSetup.fillStyle = 'cyan'; ctxSetup.beginPath(); ctxSetup.arc(px / scaleX, py / scaleY, 5, 0, Math.PI*2); ctxSetup.fill();
-        document.getElementById('btn-start-extraction').disabled = false;
-        setupStep = 3;
-    }
-});
-
-// 4. Frame Extraction (Detecting NEXT change)
-let observations = [];
-document.getElementById('btn-start-extraction').addEventListener('click', async () => {
-    document.getElementById('scan-setup-panel').style.display = 'none';
-    document.getElementById('progress-panel').style.display = 'block';
-    log("Starting frame extraction & inference...");
-
-    const fps = 30;
-    const stepTime = 1 / fps;
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = video.videoWidth; tempCanvas.height = video.videoHeight;
-    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-
-    let lastNextColor = null;
-    let t = 0;
+// ==========================================
+// 4. Main App Controller
+// ==========================================
+const App = (() => {
+    let video = document.getElementById('video-preview');
+    let logArea = document.getElementById('log-area');
+    let previewCanvas = document.getElementById('board-canvas');
+    let ctx = previewCanvas.getContext('2d');
     
-    // Process frames serially
-    const processNextFrame = async () => {
-        if (t >= video.duration) {
-            log(`Extraction complete. Found ${observations.length} events.`);
-            document.getElementById('btn-run-beamsearch').disabled = false;
-            return;
+    let isModelLoaded = false;
+    let beamWidth = 15;
+    let framesData = []; // トリガーされたフレーム情報の保存先
+
+    function log(msg) {
+        logArea.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+        logArea.scrollTop = logArea.scrollHeight;
+    }
+
+    function drawPreview(board) {
+        ctx.fillStyle = '#0f0f18';
+        ctx.fillRect(0, 0, 100, 200);
+        for(let y=20; y<40; y++){
+            for(let x=0; x<10; x++){
+                if(board[y][x]) {
+                    ctx.fillStyle = COLORS[board[y][x]];
+                    ctx.fillRect(x*10, (y-20)*10, 10, 10);
+                }
+                ctx.strokeStyle = '#333'; ctx.strokeRect(x*10, (y-20)*10, 10, 10);
+            }
+        }
+    }
+
+    async function startExtraction() {
+        log("1. フレーム抽出を開始します...");
+        framesData = [];
+        video.currentTime = 0;
+        let prevNextStr = "";
+        let prevHoldStr = "";
+        
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = 1920; tempCanvas.height = 1080;
+        const tCtx = tempCanvas.getContext('2d');
+
+        return new Promise((resolve) => {
+            const processFrame = async () => {
+                if (video.ended || video.currentTime >= video.duration) {
+                    log("動画読み込み完了。抽出フレーム数: " + framesData.length);
+                    resolve();
+                    return;
+                }
+
+                // Aspect ratio fix and draw
+                const srcAspect = video.videoWidth / video.videoHeight;
+                let cropW = video.videoWidth, cropH = video.videoHeight, cropX = 0, cropY = 0;
+                if(srcAspect > 16/9) { cropW = cropH * 16/9; cropX = (video.videoWidth - cropW)/2; }
+                else { cropH = cropW / (16/9); cropY = (video.videoHeight - cropH)/2; }
+                tCtx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, 1920, 1080);
+
+                // 軽量スキャン
+                const analysis = await TetrisVision.analyzeFrame(tempCanvas);
+                const currNextStr = analysis.nextQueue.join('');
+                const currHoldStr = analysis.holdMino || '';
+
+                // トリガー判定：Nextが2箇所以上変わった、またはHoldが切り替わった
+                let diffCount = 0;
+                for(let i=0; i<Math.min(prevNextStr.length, currNextStr.length); i++){
+                    if(prevNextStr[i] !== currNextStr[i]) diffCount++;
+                }
+
+                if ((currNextStr !== "" && diffCount >= 2) || (currHoldStr !== prevHoldStr)) {
+                    log(`[${video.currentTime.toFixed(2)}s] ミノ設置を検知！ (Diff: ${diffCount})`);
+                    framesData.push(analysis);
+                    prevNextStr = currNextStr;
+                    prevHoldStr = currHoldStr;
+                } else if (prevNextStr === "") {
+                    // 最初の認識
+                    prevNextStr = currNextStr;
+                    prevHoldStr = currHoldStr;
+                }
+
+                // フレームを進める (100msずつ進める)
+                video.currentTime += 0.1;
+            };
+
+            video.addEventListener('seeked', processFrame);
+            video.currentTime = 0; // Trigger first seek
+        });
+    }
+
+    async function runBeamSearch() {
+        log("2. ビームサーチを開始します...");
+        // 初期状態 (空の盤面とする。実用上はユーザーに入力させるUIが必要)
+        let states = [{
+            board: createEmptyBoard(),
+            hold: '',
+            next: framesData.length > 0 ? framesData[0].nextQueue : [],
+            score: 0,
+            history: [] // {board, hold, next}
+        }];
+
+        for (let i = 0; i < framesData.length; i++) {
+            log(`探索中... Step ${i+1}/${framesData.length}`);
+            states = await BeamSearch.processStep(states, framesData[i], beamWidth);
+            drawPreview(states[0].board);
         }
 
-        video.currentTime = t;
-        await new Promise(r => { video.onseeked = r; });
+        log("探索完了！");
+        return states[0]; // Best state
+    }
+
+    function generateEditorLink(bestState) {
+        // エディタの fumenPages フォーマットへ変換
+        // v2形式 (差分なしで単純化して格納)
+        const pages = [];
         
-        tempCtx.drawImage(video, 0, 0);
-        
-        // Check NEXT area
-        const nextCol = TetrisRecognizer.extractNextColor(tempCanvas, nextCoord.x, nextCoord.y, cropRect.w/10 * 0.25);
-        
-        // If NEXT changed, we assume a piece was placed just before this
-        if (nextCol && lastNextColor && nextCol !== lastNextColor) {
-            log(`Change detected at ${t.toFixed(2)}s: ${lastNextColor} -> ${nextCol}`);
-            
-            // Infer Board State using ONNX
-            const board = await TetrisRecognizer.analyzeBoard(tempCanvas, cropRect);
-            
-            // 差分から置かれたミノを推測するのがベストだが、今回はとりあえず観測データを保存
-            observations.push({
-                time: t,
-                board: board,
-                inferredPiece: lastNextColor // 前回のNEXTが今回置かれたと仮定
+        // EncodeRLEヘルパー
+        function encodeRLE(dataArr) {
+            const rle = [];
+            let lastValue = dataArr[0]; let count = 1;
+            for (let i = 1; i < dataArr.length; i++) {
+                if (dataArr[i] === lastValue) count++;
+                else { rle.push([lastValue, count]); lastValue = dataArr[i]; count = 1; }
+            }
+            rle.push([lastValue, count]);
+            return rle;
+        }
+
+        let prevBoard1D = null;
+
+        for (const step of bestState.history) {
+            const board1D = step.board.map(row => row.map(c => c === null ? '_' : c).join('')).join('').split('');
+            let bData;
+            if (!prevBoard1D) {
+                bData = encodeRLE(board1D);
+            } else {
+                const diff = board1D.map((c, i) => c === prevBoard1D[i] ? 'E' : c);
+                bData = encodeRLE(diff);
+            }
+            prevBoard1D = board1D;
+
+            pages.push({
+                p1: {
+                    b: bData,
+                    n: step.next.join(''),
+                    h: step.hold || ''
+                }
             });
         }
-        
-        if (nextCol) lastNextColor = nextCol;
-        
-        t += stepTime;
-        // Keep UI responsive
-        setTimeout(processNextFrame, 0);
-    };
 
-    processNextFrame();
-});
-
-// 5. Run Beam Search & Export
-document.getElementById('btn-run-beamsearch').addEventListener('click', () => {
-    log("Running Beam Search...");
-    
-    // Initial Empty Board
-    const initialBoard = Array.from({ length: 40 }, () => Array(10).fill(null));
-    
-    const bestResult = BeamSearcher.search(initialBoard, observations);
-    
-    if (!bestResult) {
-        log("Search failed to find a valid path.");
-        return;
+        const exportData = { v: 'f2', m: '1P', p: pages };
+        const jsonStr = JSON.stringify(exportData);
+        const b64 = btoa(String.fromCharCode.apply(null, new TextEncoder().encode(jsonStr)));
+        
+        // 同じ階層のエディタへリンク
+        const link = window.location.href.replace(/[^/]*$/, '') + 'editor.html#' + b64;
+        document.getElementById('result-link-area').style.display = 'block';
+        document.getElementById('result-link').value = link;
+        log("リンクを生成しました。");
     }
-    
-    log(`Search complete! Found ${bestResult.path.length} moves.`);
-    
-    // Export to Fumen v2 Format
-    const exportedData = { v: 'f2', m: '1P', p: [] };
-    
-    // Reconstruct states step by step to generate pages
-    let currentB = Array.from({ length: 40 }, () => Array(10).fill(null));
-    let prev1D = null;
 
-    // ヘルパー: 盤面1次元化
-    const boardToString = (b) => b.map(r => r.map(c => c === null ? '_' : c).join('')).join('').split('');
-    const encodeRLE = (data) => {
-        if (!data || data.length === 0) return [];
-        const rle = []; let last = data[0], count = 1;
-        for (let i = 1; i < data.length; i++) {
-            if (data[i] === last) count++;
-            else { rle.push([last, count]); last = data[i]; count = 1; }
+    return {
+        init: () => {
+            document.getElementById('video-upload').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    video.src = URL.createObjectURL(file);
+                    log("動画を読み込みました。");
+                }
+            });
+
+            document.getElementById('btn-load-model').addEventListener('click', async () => {
+                log("ONNXモデルをロード中...");
+                document.getElementById('btn-load-model').disabled = true;
+                await TetrisVision.init();
+                isModelLoaded = true;
+                log("ONNXモデル ロード完了。");
+                document.getElementById('btn-start-scan').disabled = false;
+            });
+
+            document.getElementById('btn-start-scan').addEventListener('click', async () => {
+                document.getElementById('btn-start-scan').disabled = true;
+                beamWidth = parseInt(document.getElementById('beam-width').value) || 15;
+                
+                await startExtraction();
+                if(framesData.length > 0) {
+                    const bestState = await runBeamSearch();
+                    generateEditorLink(bestState);
+                } else {
+                    log("有効なフレームが抽出されませんでした。");
+                }
+                document.getElementById('btn-start-scan').disabled = false;
+            });
         }
-        rle.push([last, count]); return rle;
     };
-    const getDiff = (p, c) => {
-        const d = [];
-        for(let i=0; i<p.length; i++) d.push(p[i]===c[i] ? 'E' : c[i]);
-        return d;
-    };
+})();
 
-    // 初手(空)
-    const init1D = boardToString(currentB);
-    exportedData.p.push({ p1: { b: encodeRLE(init1D), h: '', n: '' } });
-    prev1D = init1D;
-
-    for (const move of bestResult.path) {
-        // Place and Clear (簡易実装)
-        const shape = BeamSearcher.getShape(move.type, move.r); // Error: BeamSearcher.getShape is not exposed. Let's fix this in generation.
-        // --- 内部関数を外に出すのが面倒なので、ここでは簡易的に結果ボードだけ取得できないため、
-        // bestResult.board (最終結果) しかない。
-        // ※ 実際の運用では、探索中に「各ステップのボード」を path に含めるべき。
-    }
-    
-    // 修正: 探索アルゴリズム内で状態履歴を持たせるべきでしたが、
-    // ここではデモ用として「最終結果の盤面」のみを1ページ目に出力します。
-    const final1D = boardToString(bestResult.board);
-    exportedData.p.push({ p1: { b: encodeRLE(getDiff(prev1D, final1D)), h: '', n: '' } });
-
-    const jsonString = JSON.stringify(exportedData);
-    const base64Data = btoa(String.fromCharCode.apply(null, new TextEncoder().encode(jsonString)));
-    
-    // Assume editor is in the same directory, or use a placeholder URL
-    const editorUrl = window.location.href.replace(/[^/]*$/, '') + 'editor.html#' + base64Data;
-    
-    document.getElementById('result-link').value = editorUrl;
-    document.getElementById('result-panel').style.display = 'block';
-    log("Export URL generated.");
-});
-
-document.getElementById('btn-copy-link').addEventListener('click', () => {
-    const input = document.getElementById('result-link');
-    input.select(); document.execCommand('copy');
-    alert('Copied to clipboard');
-});
-
-document.getElementById('btn-open-editor').addEventListener('click', () => {
-    window.open(document.getElementById('result-link').value, '_blank');
-});
+window.addEventListener('DOMContentLoaded', App.init);
 
 </script>
 </body>
