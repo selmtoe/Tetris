@@ -560,7 +560,7 @@ function checkQueueTransition(obsHold, obsNext, lastHold, lastNext, activeMino) 
     const holdChanged = (obsHold !== lastHold);
     let nextAdvanced = false;
     let nextSame = false;
-    if (obsNext[0] !== lastNext[0] && (obsNext[0] === lastNext[1] || obsNext[1] === lastNext[2])) {
+    if (obsNext[0] === lastNext[1] && obsNext[1] === lastNext[2]) {
         nextAdvanced = true;
     } else if (obsNext[0] === lastNext[0] && obsNext[1] === lastNext[1]) {
         nextSame = true;
@@ -822,18 +822,18 @@ function drawBoardToCanvas(board40, canvasEl) {
 
 function renderDebugTimeline(playerId, timeline) {
     const container = document.getElementById(`debug${playerId.toUpperCase()}`);
-let html = `<table class="debug-table">
+    let html = `<table class="debug-table">
         <tr><th>Time (s)</th><th>Hold / Active / Next</th><th>Representative Image</th><th>Vote Avg Board</th><th>Beam Search Board</th></tr>`;
-timeline.forEach((item, idx) => {
+    timeline.forEach((item, idx) => {
         html += `<tr>
-            <td>${item.time.toFixed(1)}</td>
+            <td>${item.time.toFixed(3)}</td>
             <td>Hold: ${item.hold}<br>Active: ${item.active || 'none'}<br>Next: ${item.next}</td>
             <td><img src="${item.repImage || ''}" class="rep-img" alt="no img"></td>
             <td><canvas id="canvas-raw-${playerId}-${idx}" class="board-canvas" width="60" height="120"></canvas></td>
             <td><canvas id="canvas-clean-${playerId}-${idx}" class="board-canvas" width="60" height="120"></canvas></td>
+        
         </tr>`;
-   
- });
+    });
     html += `</table>`;
     container.innerHTML = html;
 
