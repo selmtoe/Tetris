@@ -446,17 +446,31 @@ function runBeamSearch(timeline, params) {
     // 最初の状態を真実とする
     let beam = [ { board: timeline[0].board, history: [timeline[0]], score: 0 } ];
     
-    for (let i = 1; i < timeline.length; i++) {
-        const obsBoard = timeline[i].board;
-        const currentNext = timeline[i].next;
-        const prevNext = timeline[i-1].next;
-        
-        let possibleMinos = ALL_MINOS;
-        if (prevNext && prevNext.length > 0 && ALL_MINOS.includes(prevNext[0])) {
-            possibleMinos = [prevNext[0]];
-        }
+            for (let i = 1; i < timeline.length; i++) {
+                const obsBoard = timeline[i].board;
+                const currentHold = timeline[i].hold;
+                const prevHold = timeline[i-1].hold;
+                const prevNext = timeline[i-1].next;
+                
+                let possibleMinos = ALL_MINOS;
+                
+                if (prevHold !== currentHold) {
+                    if (prevHold && ALL_MINOS.includes(prevHold)) {
+                        possibleMinos = [prevHold];
+                    } else if (prevNext && prevNext.length > 0 && ALL_MINOS.includes(prevNext[0])) {
+                        possibleMinos = [prevNext[0]];
+                    }
+                } else {
+                    if (i >= 2) {
+                        const prevPrevNext = timeline[i-2].next;
+                        if (prevPrevNext && prevPrevNext.length > 0 && ALL_MINOS.includes(prevPrevNext[0])) {
+                            possibleMinos = [prevPrevNext[0]];
+                        }
+                    }
+                }
 
-        let nextBeam = [];
+                let nextBeam = [];
+
         for (const state of beam) {
             for (const mino of possibleMinos) {
                 const moves = generateLegalMoves(state.board, mino);
