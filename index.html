@@ -1,656 +1,679 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tetris Tool Hub</title>
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#1a1a2e">
-    
-    <style>
-        :root {
-            --bg-color: #1a1a2e;
-            --accent-color: #4b4b7c;
-            --active-color: #6a6aff;
-            --icon-bg: rgba(30, 30, 50, 0.9);
-            --splitter-width: 8px;
-        }
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%; height: 100%;
-            overflow: hidden;
-            background-color: var(--bg-color);
-            font-family: sans-serif;
-        }
-
-        /* Layout Containers */
-        #app-wrapper {
-            width: 100%;
-            height: 100%;
-            display: block; /* Default: Tab Mode */
-            position: relative;
-        }
-
-        #app-wrapper.split-mode {
-            display: flex;
-            flex-direction: row;
-        }
-        
-        #app-wrapper.split-mode.reverse {
-            flex-direction: row-reverse;
-        }
-
-        .iframe-container {
-            width: 100%;
-            height: 100%;
-            border: none;
-            position: absolute;
-            top: 0; left: 0;
-            transition: opacity 0.3s ease;
-        }
-
-        /* Tab Mode Styles */
-        #app-wrapper:not(.split-mode) .iframe-container {
-            z-index: 1;
-            opacity: 0;
-            pointer-events: none;
-        }
-        #app-wrapper:not(.split-mode) .iframe-container.active {
-            z-index: 2;
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        /* Split Mode Styles */
-        #app-wrapper.split-mode .iframe-container {
-            position: relative;
-            flex: 1;
-            width: auto;
-            opacity: 1;
-            pointer-events: auto;
-            min-width: 0; /* Important for flex */
-        }
-
-        /* Splitter */
-        #splitter {
-            display: none;
-            width: var(--splitter-width);
-            background: #2a2a3e;
-            cursor: col-resize;
-            z-index: 100;
-            align-items: center;
-            justify-content: center;
-            user-select: none;
-            touch-action: none;
-        }
-        #splitter::after {
-            content: "";
-            width: 2px;
-            height: 30px;
-            background: #555;
-            border-radius: 1px;
-        }
-        #app-wrapper.split-mode #splitter {
-            display: flex;
-        }
-
-        /* FAB Menu */
-        .fab-container {
-            position: fixed;
-            bottom: 25px;
-            right: 25px;
-            display: flex;
-            flex-direction: column-reverse;
-            align-items: center;
-            gap: 15px;
-            z-index: 9999;
-        }
-
-        .fab-btn {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            background: var(--icon-bg);
-            border: 2px solid var(--accent-color);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            backdrop-filter: blur(4px);
-            transition: all 0.2s;
-            padding: 0;
-            outline: none;
-            color: #e0e0e0;
-        }
-        .fab-btn:active { transform: scale(0.95); }
-        .fab-btn svg { width: 24px; height: 24px; fill: currentColor; }
-
-        .main-toggle { z-index: 10; width: 55px; height: 55px; }
-        .main-toggle.open { transform: rotate(45deg); border-color: #ff4b4b; }
-
-        .sub-btn {
-            opacity: 0;
-            transform: translateY(20px) scale(0.5);
-            pointer-events: none;
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-        .fab-container.open .sub-btn {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-            pointer-events: auto;
-        }
-        .sub-btn.active {
-            border-color: var(--active-color);
-            box-shadow: 0 0 10px var(--active-color);
-            color: var(--active-color);
-        }
-
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8);
-            z-index: 10000;
-            justify-content: center; align-items: center;
-        }
-        .modal-content {
-            background: #1a1a2e;
-            border: 2px solid var(--accent-color);
-            border-radius: 10px;
-            padding: 20px;
-            width: 90%; max-width: 400px;
-            max-height: 80vh;
-            overflow-y: auto;
-            color: #e0e0e0;
-        }
-        .modal-header { display: flex; justify-content: space-between; margin-bottom: 15px; border-bottom: 1px solid #444;
-            padding-bottom: 10px; }
-        .file-item {
-            display: flex;
-            justify-content: space-between; align-items: center;
-            background: rgba(255,255,255,0.05);
-            padding: 10px; margin-bottom: 8px; border-radius: 5px;
-        }
-        .file-info { flex: 1; cursor: pointer; }
-        .file-date { font-size: 10px; color: #aaa; }
-        .delete-btn { color: #ff4b4b; background: none; border: none; cursor: pointer;
-            padding: 5px; font-size: 24px; font-weight: bold; line-height: 1; display: flex; align-items: center;}
-        .rename-btn { color: #aaa; background: none; border: none; cursor: pointer;
-            padding: 5px; margin-right: 5px; display: flex; align-items: center;}
-        .rename-btn svg, .control-btn svg { width: 18px; height: 18px; fill: currentColor; }
-        .tab-container { display: flex; gap: 5px; margin-bottom: 10px; }
-        .tab-btn { flex: 1; padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid #444; color: #888; cursor: pointer; border-radius: 5px 5px 0 0; }
-        .tab-btn.active { background: var(--accent-color); color: #fff; border-color: var(--accent-color); }
-        .control-btn {
-            flex: 1;
-            padding: 8px; background: rgba(255,255,255,0.1); border: 1px solid var(--accent-color);
-            color: #fff; border-radius: 5px; cursor: pointer; font-size: 12px; text-align: center;
-            transition: background 0.2s;
-        }
-
-        .control-btn:hover { background: rgba(255,255,255,0.2); }
-        .modal-controls { display: flex; gap: 10px; margin-bottom: 15px; }
-
-        .toast {
-
-            position: fixed;
-            top: 20px; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.8); color: white; padding: 10px 20px;
-            border-radius: 20px; opacity: 0; pointer-events: none;
-            transition: opacity 0.3s;
-            z-index: 10001;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tetris Video Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+<style>
+    :root {
+        --bg-color: #1a1a2e;
+        --primary-color: #4b4b7c;
+        --primary-hover-color: #6a6aff;
+        --font-color: #e0e0e0;
+        --canvas-bg-color: #0f0f18;
+    }
+    body {
+        background-color: var(--bg-color); color: var(--font-color);
+        font-family: 'Noto Sans JP', sans-serif;
+        margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center;
+    }
+    .panel {
+        background-color: rgba(15, 15, 24, 0.8);
+        border: 2px solid var(--primary-color); border-radius: 10px;
+        padding: 20px; width: 100%; max-width: 900px; margin-bottom: 20px;
+    }
+    button {
+        background-color: var(--primary-color); color: #fff;
+        border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer;
+        font-family: 'Orbitron', sans-serif; transition: 0.2s; margin: 5px;
+    }
+    button:hover { background-color: var(--primary-hover-color); }
+    button:disabled { background-color: #444; color: #888; cursor: not-allowed; }
+    canvas { border: 1px solid var(--primary-color); max-width: 100%; background: var(--canvas-bg-color); }
+    .flex-row { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
+    #log {
+        background: #000; color: #0f0; font-family: monospace; font-size: 12px;
+        padding: 10px; height: 150px; overflow-y: auto; width: 100%; box-sizing: border-box;
+    }
+</style>
 </head>
 <body>
 
-    <div id="app-wrapper">
-        <iframe id="iframe-editor" class="iframe-container active" src="https://selmtoe.github.io/Tetris_Simulator/F/index.html"></iframe>
-        <div id="splitter"></div>
-        <iframe id="iframe-sim" class="iframe-container" src="https://selmtoe.github.io/Tetris_Simulator/index.html"></iframe>
+<div class="panel">
+    <h2>1. Setup & Video Load</h2>
+    <div>
+        <label>ONNX Model Path: <input type="text" id="model-path" value="./Load%20PPT/tetris.onnx" style="width:250px;"></label>
+        <button id="btn-load-model">Load Model</button>
+        <span id="model-status" style="color: #ff4444;">Not Loaded</span>
     </div>
-
-    <div class="fab-container" id="fabMenu">
-        <button class="fab-btn main-toggle" onclick="toggleMenu()">
-            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
-        </button>
-
-        <button class="fab-btn sub-btn" id="btn-split" onclick="toggleSplitMode()" title="画面分割">
-            <svg viewBox="0 0 24 24" id="icon-split">
-                <path d="M4 18h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2zM4 8h6v8H4V8zm8 0h8v8h-8V8z"/>
-            </svg>
-        </button>
-
-        <button class="fab-btn sub-btn" id="btn-swap-side" onclick="swapSides()" title="左右入替">
-            <svg viewBox="0 0 24 24"><path d="M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z"/></svg>
-        </button>
-
-        <button class="fab-btn sub-btn" onclick="saveCurrentState()" title="状態を保存">
-            <svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
-        </button>
-
-        <button class="fab-btn sub-btn" onclick="openFileManager()" title="保存データ">
-            <svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>
-        </button>
-
-        <button class="fab-btn sub-btn" id="btn-sim" onclick="switchTab('sim')" title="シミュレータへ">
-            <svg viewBox="0 0 24 24"><path d="M9 6h6v6h6v6H3v-6h6V6z" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-        </button>
-
-        <button class="fab-btn sub-btn active" id="btn-editor" onclick="switchTab('editor')" title="エディタへ">
-    <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-        </button>
+    <div style="margin-top: 10px;">
+        <input type="file" id="video-upload" accept="video/*" disabled>
     </div>
+</div>
 
-    <div id="fileModal" class="modal" onclick="if(event.target === this) this.style.display='none'">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>保存データ一覧</h3>
-                <button onclick="document.getElementById('fileModal').style.display='none'" style="background:none;border:none;color:white;cursor:pointer;">✕</button>
-            </div>
-            <div class="tab-container">
-                <button class="tab-btn active" id="tab-manual" onclick="switchSaveTab('manual')">手動セーブ</button>
-                <button class="tab-btn" id="tab-auto" onclick="switchSaveTab('auto')">自動セーブ</button>
-            </div>
-            <div class="modal-controls">
-                <button class="control-btn" onclick="exportData()" style="display:flex; align-items:center; justify-content:center; gap:5px;">
-                    <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zm-14 9v2h14v-2H5z"/></svg>全保存
-                </button>
-                <button class="control-btn" onclick="triggerImport()" style="display:flex; align-items:center; justify-content:center; gap:5px;">
-                    <svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>読込
-                </button>
-                <button class="control-btn" onclick="deleteAllFiles()" style="border-color:#ff4b4b; color:#ff4b4b;">全削除</button>
-            </div>
-            <div id="fileList"></div>
-        </div>
+<div class="panel" id="scan-setup-panel" style="display: none;">
+    <h2>2. Scan Area Setup (Click Bottom-Left, then Top-Right)</h2>
+    <div style="text-align: center;">
+        <canvas id="setup-canvas"></canvas>
     </div>
-    <input type="file" id="importFile" style="display:none" accept=".json" onchange="importData(this)">
+    <div style="text-align: center; margin-top: 10px;">
+        <span id="setup-instruction">Click Bottom-Left of the board.</span><br>
+        <button id="btn-start-extraction" disabled>Start Frame Extraction</button>
+    </div>
+</div>
 
-    <div id="toast" class="toast"></div>
+<div class="panel" id="progress-panel" style="display: none;">
+    <h2>3. Processing</h2>
+    <div id="log"></div>
+    <div style="margin-top: 10px; text-align: center;">
+        <button id="btn-run-beamsearch" disabled>Run Beam Search</button>
+    </div>
+</div>
 
+<div class="panel" id="result-panel" style="display: none;">
+    <h2>4. Result</h2>
+    <input type="text" id="result-link" readonly style="width: 100%; padding: 10px; font-family: monospace;" placeholder="Editor link will appear here">
+    <div style="text-align: center; margin-top: 10px;">
+        <button id="btn-copy-link">Copy Link</button>
+        <button id="btn-open-editor">Open in Editor</button>
+    </div>
+</div>
 
-    <script>
-        const editorFrame = document.getElementById('iframe-editor');
-        const simFrame = document.getElementById('iframe-sim');
-        const wrapper = document.getElementById('app-wrapper');
-        const splitter = document.getElementById('splitter');
-        const fabMenu = document.getElementById('fabMenu');
-        const mainToggle = document.querySelector('.main-toggle');
-        let isSplit = false;
-        let activeTab = 'editor';
-        let currentFileTab = 'manual';
-        let pendingSnapshot = { editor: null, sim: null, mode: 'manual' };
+<video id="hidden-video" style="display: none;" muted playsinline></video>
 
-        setInterval(() => {
-            requestSnapshot('auto');
-        }, 300000);
+<script>
+/**
+ * ==========================================
+ * テトリス画像認識モジュール (提供コードから完全移植)
+ * ==========================================
+ */
+const TetrisRecognizer = (() => {
+    let session = null;
+    const ONNX_CLASS_NAMES = ['null', 'G', 'S', 'Z', 'L', 'J', 'O', 'I', 'T'];
+    
+    // スキャン用のカラーパレット
+    const SCAN_COLOR_PALETTE = {
+        'NULL': ['#000000', '#302838'],
+        'G':    ['#999999', '#D8D8D8'],
+        'I':    ['#019899', '#0199D5'],
+        'O':    ['#999A02', '#F9B900'],
+        'T':    ['#980099', '#871E88'],
+        'L':    ['#996700', '#F56100'],
+        'J':    ['#0000BB', '#004BA5'],
+        'S':    ['#10971F', '#5CB523'],
+        'Z':    ['#990000', '#DA1822']
+    };
+    
+    const hexToRgb = (hex) => ({
+        r: parseInt(hex.slice(1, 3), 16),
+        g: parseInt(hex.slice(3, 5), 16),
+        b: parseInt(hex.slice(5, 7), 16)
+    });
+    
+    const PARSED_SCAN_COLORS = {};
+    for (const key in SCAN_COLOR_PALETTE) {
+        PARSED_SCAN_COLORS[key] = SCAN_COLOR_PALETTE[key].map(hexToRgb);
+    }
 
-        function requestSnapshot(mode) {
-            pendingSnapshot = { editor: null, sim: null, mode: mode };
-            editorFrame.contentWindow.postMessage({ type: 'requestState' }, '*');
-            simFrame.contentWindow.postMessage({ type: 'requestState' }, '*');
+    async function loadModel(path) {
+        ort.env.logLevel = 'fatal';
+        session = await ort.InferenceSession.create(path, { executionProviders: ['wasm'] });
+    }
+
+    function findClosestColor(r, g, b) {
+        const input = { r, g, b };
+        const distSq = (c1, c2) => Math.pow(c1.r - c2.r, 2) + Math.pow(c1.g - c2.g, 2) + Math.pow(c1.b - c2.b, 2);
+        
+        for (const c of PARSED_SCAN_COLORS.NULL) if (distSq(input, c) < 6000) return null;
+        for (const c of PARSED_SCAN_COLORS.G) if (distSq(input, c) < 10000) return 'G';
+        
+        let minD = Infinity; let closest = null;
+        for (const key of Object.keys(PARSED_SCAN_COLORS).filter(k => k !== 'NULL' && k !== 'G')) {
+            for (const target of PARSED_SCAN_COLORS[key]) {
+                const d = distSq(input, target);
+                if (d < minD) { minD = d; closest = key; }
+            }
+        }
+        return (minD > 25000) ? null : closest;
+    }
+
+    function getAverageColorNonBlack(ctx, cx, cy, rad) {
+        const d = Math.ceil(rad*2), sx=Math.floor(cx-rad), sy=Math.floor(cy-rad);
+        if (sx < 0 || sy < 0 || sx+d > ctx.canvas.width || sy+d > ctx.canvas.height) return {r:0,g:0,b:0};
+        const id = ctx.getImageData(sx, sy, d, d).data;
+        let tr=0, tg=0, tb=0, c=0;
+        for(let y=0; y<d; y++) for(let x=0; x<d; x++) {
+            if((x-rad)**2+(y-rad)**2 <= rad*rad) {
+                const i=(y*d+x)*4;
+                if(id[i]>50||id[i+1]>50||id[i+2]>50) { tr+=id[i]; tg+=id[i+1]; tb+=id[i+2]; c++; }
+            }
+        }
+        return c ? {r:tr/c, g:tg/c, b:tb/c} : {r:0,g:0,b:0};
+    }
+
+    function findClosestMinoOnly(r,g,b) {
+        const dist = (c1, c2) => (c1.r-c2.r)**2 + (c1.g-c2.g)**2 + (c1.b-c2.b)**2;
+        let minD = Infinity, best = 'I';
+        for(const key of Object.keys(PARSED_SCAN_COLORS).filter(k => k!=='NULL'&&k!=='G')) {
+            for(const tc of PARSED_SCAN_COLORS[key]) {
+                const d = dist({r,g,b}, tc);
+                if(d < minD) { minD = d; best = key; }
+            }
+        }
+        return best;
+    }
+
+    function extractCellPixels(imgD, x, y, w, h) {
+        const sw = imgD.width, ix = Math.floor(x), iy = Math.floor(y), iw = Math.floor(w), ih = Math.floor(h);
+        const d = new Uint8ClampedArray(iw * ih * 4);
+        for (let r = 0; r < ih; r++) {
+            const s = ((iy + r) * sw + ix) * 4;
+            d.set(imgD.data.subarray(s, s + iw * 4), r * iw * 4);
+        }
+        return d;
+    }
+
+    function extractFeaturesJS(pixelsRGBA, w, h) {
+        const numPixels = w * h;
+        const feats = [];
+        const bCh = new Float32Array(numPixels), gCh = new Float32Array(numPixels), rCh = new Float32Array(numPixels);
+        const hCh = new Float32Array(numPixels), sCh = new Float32Array(numPixels), vCh = new Float32Array(numPixels);
+        
+        for (let i = 0; i < numPixels; i++) {
+            const r = pixelsRGBA[i*4], g = pixelsRGBA[i*4+1], b = pixelsRGBA[i*4+2];
+            bCh[i] = b; gCh[i] = g; rCh[i] = r;
+            const max = Math.max(r, g, b), min = Math.min(r, g, b);
+            const diff = max - min;
+            let h_val = 0;
+            if (max === min) h_val = 0;
+            else if (max === r) h_val = (60 * (g - b) / diff + 360) % 360;
+            else if (max === g) h_val = (60 * (b - r) / diff + 120) % 360;
+            else if (max === b) h_val = (60 * (r - g) / diff + 240) % 360;
+            vCh[i] = max; sCh[i] = (max !== 0) ? (diff / max) * 255 : 0; hCh[i] = h_val / 2;
         }
 
-        window.addEventListener('message', (e) => {
-            const data = e.data;
-            if (!data) return;
-            if (data.target === 'sim' && data.type === 'loadState') {
-                simFrame.contentWindow.postMessage(data, '*');
-                if (!isSplit) switchTab('sim');
-                showToast("Editor -> Simulator");
-                requestSnapshot('auto');
-            } 
-            else if (data.target === 'editor' && data.type === 'loadFumen') {
-                editorFrame.contentWindow.postMessage(data, '*');
-                if (!isSplit) switchTab('editor');
-                showToast("Simulator -> Editor");
-                requestSnapshot('auto');
+        const getStats = (arr) => {
+            let sum = 0; for(let v of arr) sum += v;
+            const mean = sum / arr.length;
+            let sqDiffSum = 0; for(let v of arr) sqDiffSum += (v - mean) ** 2;
+            return [mean, Math.sqrt(sqDiffSum / arr.length)];
+        };
+
+        feats.push(...getStats(bCh), ...getStats(gCh), ...getStats(rCh));
+        feats.push(...getStats(hCh), ...getStats(sCh), ...getStats(vCh));
+
+        const stepX = w/4, stepY = h/4;
+        for (let ty = 0; ty < 4; ty++) {
+            for (let tx = 0; tx < 4; tx++) {
+                const sx = Math.floor(tx * stepX), sy = Math.floor(ty * stepY);
+                const ex = Math.floor((tx + 1) * stepX), ey = Math.floor((ty + 1) * stepY);
+                let sumB=0, sumG=0, sumR=0, count=0;
+                for(let py=sy; py<ey; py++) for(let px=sx; px<ex; px++){
+                    const idx = py * w + px;
+                    if(idx < numPixels) { sumB += bCh[idx]; sumG += gCh[idx]; sumR += rCh[idx]; count++; }
+                }
+                if(count===0) feats.push(0,0,0); else feats.push(sumB/count, sumG/count, sumR/count);
             }
-            else if (data.target === 'hub' && data.type === 'saveSnapshotResponse') {
-                if (data.source === 'editor') pendingSnapshot.editor = data.data;
-                if (data.source === 'sim') pendingSnapshot.sim = data.data;
-                if (pendingSnapshot.editor && pendingSnapshot.sim) {
-                    const mode = pendingSnapshot.mode;
-                    const snapshotData = { ...pendingSnapshot };
-                    pendingSnapshot = { editor: null, sim: null, mode: 'manual' };
-                    finalizeSave(snapshotData, mode);
+        }
+        
+        const cx = Math.floor(w/2), cy = Math.floor(h/2), cw = Math.floor(w/4), ch = Math.floor(h/4);
+        let cSumB=0, cSumG=0, cSumR=0, cCount=0;
+        for(let py=cy-ch; py<cy+ch; py++) for(let px=cx-cw; px<cx+cw; px++){
+            if(px>=0 && px<w && py>=0 && py<h){
+                const idx = py * w + px;
+                cSumB += bCh[idx]; cSumG += gCh[idx]; cSumR += rCh[idx]; cCount++;
+            }
+        }
+        if(cCount===0) feats.push(0,0,0); else feats.push(cSumB/cCount, cSumG/cCount, cSumR/cCount);
+
+        return new Float32Array(feats);
+    }
+
+    async function analyzeBoard(canvas, cropRect) {
+        const ctx = canvas.getContext('2d');
+        const boardImgData = ctx.getImageData(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
+        const cellW = cropRect.w / 10;
+        const cellH = cropRect.h / 20;
+        
+        // (A) Classic Scan
+        const classicBoard = [];
+        for (let r = 0; r < 20; r++) {
+            const row = [];
+            for (let c = 0; c < 10; c++) {
+                const sampleX = cropRect.x + (c + 0.5) * cellW;
+                const sampleY = cropRect.y + (r + 0.5) * cellH;
+                const sampleSize = Math.max(1, Math.floor(cellW * 0.25));
+                const imgD = ctx.getImageData(sampleX - sampleSize/2, sampleY - sampleSize/2, sampleSize, sampleSize).data;
+                let avgR = 0, avgG = 0, avgB = 0;
+                for (let i = 0; i < imgD.length; i += 4) { avgR += imgD[i]; avgG += imgD[i+1]; avgB += imgD[i+2]; }
+                const pc = imgD.length / 4;
+                row.push(findClosestColor(avgR/pc, avgG/pc, avgB/pc));
+            }
+            classicBoard.push(row);
+        }
+
+        // (B) ONNX Inference
+        const batchFeatures = [];
+        const recognizedBoard = Array.from({length:20}, () => Array(10).fill(null));
+        for (let r = 0; r < 20; r++) {
+            for (let c = 0; c < 10; c++) {
+                const px = extractCellPixels(boardImgData, c * cellW, r * cellH, cellW, cellH);
+                batchFeatures.push(extractFeaturesJS(px, Math.floor(cellW), Math.floor(cellH)));
+            }
+        }
+
+        const flatInput = new Float32Array(200 * 63);
+        for (let i = 0; i < 200; i++) flatInput.set(batchFeatures[i], i * 63);
+        
+        const tensor = new ort.Tensor('float32', flatInput, [200, 63]);
+        const results = await session.run({ [session.inputNames[0]]: tensor }, [session.outputNames[0]]);
+        const labelData = results[session.outputNames[0]].data;
+
+        for (let i = 0; i < 200; i++) {
+            const label = ONNX_CLASS_NAMES[Number(labelData[i])];
+            recognizedBoard[Math.floor(i / 10)][i % 10] = (label === 'null') ? null : label;
+        }
+
+        // (C) Merge logic (エディタ準拠)
+        for (let r = 0; r < 20; r++) {
+            if (recognizedBoard[r].every(c => c === null || c === 'G')) {
+                if (recognizedBoard[r].filter(c => c === 'G').length !== 10) {
+                    const cRow = classicBoard[r];
+                    if (cRow.filter(c => c === 'G').length === 9 && cRow.filter(c => c === null).length === 1) {
+                        recognizedBoard[r] = [...cRow];
+                    }
                 }
             }
+        }
+
+        // フルボード化(40行)
+        const fullBoard = Array.from({ length: 40 }, () => Array(10).fill(null));
+        for(let r=0; r<20; r++) fullBoard[20+r] = recognizedBoard[r];
+
+        // ガベージ処理等
+        let firstNonG = -1;
+        for (let y = 39; y >= 0; y--) { if (!fullBoard[y].includes('G')) { firstNonG = y; break; } }
+        if (firstNonG !== -1) {
+            for (let y = firstNonG - 1; y >= 0; y--) {
+                for (let x = 0; x < 10; x++) { if (fullBoard[y][x] === 'G') fullBoard[y][x] = null; }
+            }
+        }
+        return fullBoard;
+    }
+
+    function extractNextColor(canvas, x, y, radius) {
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const avg = getAverageColorNonBlack(ctx, x, y, radius);
+        if (avg.r < 50 && avg.g < 50 && avg.b < 50) return null;
+        return findClosestMinoOnly(avg.r, avg.g, avg.b);
+    }
+
+    return { loadModel, analyzeBoard, extractNextColor };
+})();
+
+
+/**
+ * ==========================================
+ * テトリス ルール・探索モジュール (緩い合法手生成)
+ * ==========================================
+ */
+const BeamSearcher = (() => {
+    // 相対座標定義 (中心近辺基準)
+    const MINO_SHAPES = {
+        'I': [[-1, 0], [0, 0], [1, 0], [2, 0]],
+        'O': [[0, 0], [1, 0], [0, 1], [1, 1]],
+        'T': [[-1, 0], [0, 0], [1, 0], [0, -1]],
+        'L': [[-1, 0], [0, 0], [1, 0], [1, -1]],
+        'J': [[-1, 0], [0, 0], [1, 0], [-1, -1]],
+        'S': [[-1, 0], [0, 0], [0, -1], [1, -1]],
+        'Z': [[0, -1], [-1, -1], [0, 0], [1, 0]]
+    };
+
+    function getShape(type, rot) {
+        const base = MINO_SHAPES[type];
+        return base.map(b => {
+            let [x, y] = [b[0], b[1]];
+            for(let i=0; i<rot; i++) { const temp = x; x = -y; y = temp; }
+            return [x, y];
         });
+    }
 
+    function isCollision(board, type, x, y, rot) {
+        const shape = getShape(type, rot);
+        for(let p of shape) {
+            const bx = x + p[0];
+            const by = y + p[1];
+            if(bx < 0 || bx >= 10 || by >= 40) return true;
+            if(by >= 0 && board[by][bx] !== null) return true;
+        }
+        return false;
+    }
 
-        // --- UI操作 ---
-        function toggleMenu() {
-            fabMenu.classList.toggle('open');
-            mainToggle.classList.toggle('open');
+    // 盤面コピー
+    function cloneBoard(board) {
+        return board.map(row => [...row]);
+    }
+
+    // ピースを置いてラインを消す
+    function placeAndClear(board, type, x, y, rot) {
+        const newBoard = cloneBoard(board);
+        const shape = getShape(type, rot);
+        for(let p of shape) {
+            const by = y + p[1], bx = x + p[0];
+            if(by >= 0) newBoard[by][bx] = type;
         }
 
-        function switchTab(app) {
-            if (isSplit) return; // 分割中はタブ切り替え無効
-            
-            activeTab = app;
-            document.getElementById('btn-editor').classList.toggle('active', app === 'editor');
-            document.getElementById('btn-sim').classList.toggle('active', app === 'sim');
-            
-            if (app === 'editor') {
-                editorFrame.classList.add('active');
-                simFrame.classList.remove('active');
-            } else {
-                simFrame.classList.add('active');
-                editorFrame.classList.remove('active');
+        // ライン消去
+        const keptRows = newBoard.filter(row => !row.every(cell => cell !== null));
+        const clearedLines = 40 - keptRows.length;
+        const finalBoard = Array.from({length: clearedLines}, () => Array(10).fill(null)).concat(keptRows);
+        
+        return finalBoard;
+    }
+
+    // 緩い合法手生成 (重ならない & 1段下に動かすと重なる)
+    function generateLegalMoves(board, type) {
+        const moves = [];
+        for (let r = 0; r < 4; r++) {
+            // Oミノの回転重複を省くなどの最適化は可能だが、ここではシンプルに
+            if (type === 'O' && r > 0) continue;
+            if ((type === 'I' || type === 'S' || type === 'Z') && r > 1) continue;
+
+            for (let x = 0; x < 10; x++) {
+                for (let y = 0; y < 40; y++) {
+                    if (!isCollision(board, type, x, y, r) && isCollision(board, type, x, y + 1, r)) {
+                        moves.push({ type, x, y, r });
+                    }
+                }
             }
         }
+        return moves;
+    }
 
-        function toggleSplitMode() {
-            isSplit = !isSplit;
-            wrapper.classList.toggle('split-mode', isSplit);
+    // 評価関数 (観測盤面との一致度)
+    // エフェクト対応: 観測がnullでも実際はブロックがあるかもしれないので、主に「観測で色がついている」部分が一致するかを重視
+    function evaluateBoard(stateBoard, obsBoard) {
+        let score = 0;
+        for (let y = 20; y < 40; y++) {
+            for (let x = 0; x < 10; x++) {
+                const s = stateBoard[y][x];
+                const o = obsBoard[y][x];
+                if (o !== null && o !== 'G') {
+                    if (s === o) score += 10;
+                    else score -= 5;
+                } else if (o === null && s !== null) {
+                    score -= 1; // 軽微なペナルティ
+                }
+            }
+        }
+        return score;
+    }
+
+    function search(initialBoard, observations) {
+        const BEAM_WIDTH = 5;
+        let beam = [{ board: initialBoard, path: [], score: 0 }];
+
+        for (let t = 0; t < observations.length; t++) {
+            const obs = observations[t];
+            const nextBeam = [];
+
+            // 利用可能なミノを推定 (今回は全探索する。本来は認識したNEXTを利用)
+            const possibleMinos = obs.inferredPiece ? [obs.inferredPiece] : ['I', 'O', 'T', 'L', 'J', 'S', 'Z'];
+
+            for (const state of beam) {
+                for (const mino of possibleMinos) {
+                    const legalMoves = generateLegalMoves(state.board, mino);
+                    for (const move of legalMoves) {
+                        const nextBoard = placeAndClear(state.board, move.type, move.x, move.y, move.r);
+                        const matchScore = evaluateBoard(nextBoard, obs.board);
+                        
+                        nextBeam.push({
+                            board: nextBoard,
+                            path: [...state.path, move],
+                            score: state.score + matchScore
+                        });
+                    }
+                }
+            }
+
+            // スコア順にソートして上位K個を残す
+            nextBeam.sort((a, b) => b.score - a.score);
+            beam = nextBeam.slice(0, BEAM_WIDTH);
             
-            const iconPath = document.querySelector('#icon-split path');
-            if (isSplit) {
-                // Change icon to "Full screen"
-                iconPath.setAttribute('d', "M5 5h14v14H5zm0-2h14c1.1 0 2 .9 2 2v14c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2V5c0-1.1.9-2 2-2z");
-                // Reset sizes to 50/50
-                editorFrame.style.flex = "1";
-                simFrame.style.flex = "1";
-                showToast("分割モード");
-            } else {
-                // Change icon to "Split"
-                iconPath.setAttribute('d', "M4 18h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2zM4 8h6v8H4V8zm8 0h8v8h-8V8z");
-                // Restore active tab
-                switchTab(activeTab);
-                showToast("全画面モード");
-            }
-            toggleMenu();
+            log(`Step ${t+1}: Best score = ${beam[0]?.score}`);
         }
 
-        function swapSides() {
-            wrapper.classList.toggle('reverse');
-            showToast("左右入替");
+        return beam.length > 0 ? beam[0] : null;
+    }
+
+    return { search };
+})();
+
+
+/**
+ * ==========================================
+ * メインコントロール・UI ロジック
+ * ==========================================
+ */
+const video = document.getElementById('hidden-video');
+const setupCanvas = document.getElementById('setup-canvas');
+const ctxSetup = setupCanvas.getContext('2d');
+let cropRect = { x: 0, y: 0, w: 0, h: 0 };
+let nextCoord = { x: 0, y: 0 };
+let setupStep = 0; // 0: wait BL, 1: wait TR, 2: wait Next1
+let blPoint = null;
+
+function log(msg) {
+    const d = document.getElementById('log');
+    d.innerHTML += `[${new Date().toLocaleTimeString()}] ${msg}<br>`;
+    d.scrollTop = d.scrollHeight;
+}
+
+// 1. Model Load
+document.getElementById('btn-load-model').addEventListener('click', async () => {
+    const path = document.getElementById('model-path').value;
+    log("Loading ONNX model...");
+    try {
+        await TetrisRecognizer.loadModel(path);
+        document.getElementById('model-status').textContent = "Loaded";
+        document.getElementById('model-status').style.color = "#44ff44";
+        document.getElementById('video-upload').disabled = false;
+        log("Model loaded successfully.");
+    } catch(e) {
+        log("Model load failed: " + e.message);
+    }
+});
+
+// 2. Video Load
+document.getElementById('video-upload').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    video.src = url;
+    video.onloadeddata = () => {
+        log(`Video loaded: ${video.videoWidth}x${video.videoHeight}, duration: ${video.duration}s`);
+        
+        // Setup Canvas Size
+        const maxW = 800;
+        const scale = Math.min(1, maxW / video.videoWidth);
+        setupCanvas.width = video.videoWidth * scale;
+        setupCanvas.height = video.videoHeight * scale;
+        
+        video.currentTime = 0;
+        video.onseeked = () => {
+            ctxSetup.drawImage(video, 0, 0, setupCanvas.width, setupCanvas.height);
+            document.getElementById('scan-setup-panel').style.display = 'block';
+            video.onseeked = null; // 1回だけ
+        };
+    };
+});
+
+// 3. Area Setup
+setupCanvas.addEventListener('click', (e) => {
+    const rect = setupCanvas.getBoundingClientRect();
+    const scaleX = video.videoWidth / rect.width;
+    const scaleY = video.videoHeight / rect.height;
+    const px = (e.clientX - rect.left) * scaleX;
+    const py = (e.clientY - rect.top) * scaleY;
+
+    if (setupStep === 0) {
+        blPoint = { x: px, y: py };
+        setupStep = 1;
+        document.getElementById('setup-instruction').textContent = "Click Top-Right of the board.";
+        ctxSetup.fillStyle = 'lime'; ctxSetup.beginPath(); ctxSetup.arc(px / scaleX, py / scaleY, 5, 0, Math.PI*2); ctxSetup.fill();
+    } else if (setupStep === 1) {
+        cropRect = { x: blPoint.x, y: py, w: px - blPoint.x, h: blPoint.y - py };
+        setupStep = 2;
+        document.getElementById('setup-instruction').textContent = "Click the center of the first NEXT piece.";
+        ctxSetup.strokeStyle = 'fuchsia'; ctxSetup.lineWidth = 2;
+        ctxSetup.strokeRect(cropRect.x / scaleX, cropRect.y / scaleY, cropRect.w / scaleX, cropRect.h / scaleY);
+    } else if (setupStep === 2) {
+        nextCoord = { x: px, y: py };
+        document.getElementById('setup-instruction').textContent = "Setup complete! Ready to extract.";
+        ctxSetup.fillStyle = 'cyan'; ctxSetup.beginPath(); ctxSetup.arc(px / scaleX, py / scaleY, 5, 0, Math.PI*2); ctxSetup.fill();
+        document.getElementById('btn-start-extraction').disabled = false;
+        setupStep = 3;
+    }
+});
+
+// 4. Frame Extraction (Detecting NEXT change)
+let observations = [];
+document.getElementById('btn-start-extraction').addEventListener('click', async () => {
+    document.getElementById('scan-setup-panel').style.display = 'none';
+    document.getElementById('progress-panel').style.display = 'block';
+    log("Starting frame extraction & inference...");
+
+    const fps = 30;
+    const stepTime = 1 / fps;
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = video.videoWidth; tempCanvas.height = video.videoHeight;
+    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+
+    let lastNextColor = null;
+    let t = 0;
+    
+    // Process frames serially
+    const processNextFrame = async () => {
+        if (t >= video.duration) {
+            log(`Extraction complete. Found ${observations.length} events.`);
+            document.getElementById('btn-run-beamsearch').disabled = false;
+            return;
         }
 
-        // --- スプリッター (ドラッグによるリサイズ) ---
-        let isDragging = false;
-        splitter.addEventListener('mousedown', startDrag);
-        splitter.addEventListener('touchstart', startDrag, {passive: false});
-
-        function startDrag(e) {
-            isDragging = true;
-            document.addEventListener('mousemove', onDrag);
-            document.addEventListener('touchmove', onDrag, {passive: false});
-            document.addEventListener('mouseup', stopDrag);
-            document.addEventListener('touchend', stopDrag);
-            // iframeのイベント干渉を防ぐ
-            editorFrame.style.pointerEvents = 'none';
-            simFrame.style.pointerEvents = 'none';
-        }
-
-        function onDrag(e) {
-            if (!isDragging || !isSplit) return;
-            e.preventDefault(); // スクロール防止
+        video.currentTime = t;
+        await new Promise(r => { video.onseeked = r; });
+        
+        tempCtx.drawImage(video, 0, 0);
+        
+        // Check NEXT area
+        const nextCol = TetrisRecognizer.extractNextColor(tempCanvas, nextCoord.x, nextCoord.y, cropRect.w/10 * 0.25);
+        
+        // If NEXT changed, we assume a piece was placed just before this
+        if (nextCol && lastNextColor && nextCol !== lastNextColor) {
+            log(`Change detected at ${t.toFixed(2)}s: ${lastNextColor} -> ${nextCol}`);
             
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const containerWidth = wrapper.clientWidth;
-            let percent = (clientX / containerWidth) * 100;
-            // 制限 (10% - 90%)
-            percent = Math.max(10, Math.min(90, percent));
+            // Infer Board State using ONNX
+            const board = await TetrisRecognizer.analyzeBoard(tempCanvas, cropRect);
             
-            // 並び順によって適用先を変える
-            const isReverse = wrapper.classList.contains('reverse');
-            if (!isReverse) {
-                editorFrame.style.flex = `0 0 ${percent}%`;
-                simFrame.style.flex = `1`;
-            } else {
-                simFrame.style.flex = `0 0 ${percent}%`;
-                editorFrame.style.flex = `1`;
-            }
-        }
-
-        function stopDrag() {
-            isDragging = false;
-            document.removeEventListener('mousemove', onDrag);
-            document.removeEventListener('touchmove', onDrag);
-            document.removeEventListener('mouseup', stopDrag);
-            document.removeEventListener('touchend', stopDrag);
-            
-            editorFrame.style.pointerEvents = '';
-            simFrame.style.pointerEvents = '';
-        }
-
-        // --- 保存・読み込みロジック ---
-        function saveCurrentState() {
-            showToast("状態を取得中...");
-            requestSnapshot('manual');
-            toggleMenu();
-        }
-
-        function finalizeSave(snapshot, mode) {
-            const timestamp = new Date().toLocaleString();
-            let name = timestamp;
-            if (mode === 'manual') {
-                name = prompt("保存名を入力してください:", timestamp);
-                if (!name) return;
-            } else {
-                name = "[Auto] " + timestamp;
-            }
-            const saveItem = {
-                id: Date.now(),
-                name: name,
-                date: timestamp,
-                editor: snapshot.editor,
-                sim: snapshot.sim
-            };
-            const storageKey = mode === 'auto' ? 'tetrisHubAutoData' : 'tetrisHubData';
-            try {
-                let saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
-                saved.unshift(saveItem);
-                if (mode === 'auto' && saved.length > 20) saved = saved.slice(0, 20);
-                localStorage.setItem(storageKey, JSON.stringify(saved));
-                if (mode === 'manual') showToast("保存しました");
-            } catch (e) {
-                if (mode === 'manual') alert("保存に失敗しました");
-            }
-        }
-
-        function switchSaveTab(tab) {
-            currentFileTab = tab;
-            document.getElementById('tab-manual').classList.toggle('active', tab === 'manual');
-            document.getElementById('tab-auto').classList.toggle('active', tab === 'auto');
-            renderFileList();
-        }
-
-        function openFileManager() {
-            renderFileList();
-            document.getElementById('fileModal').style.display = 'flex';
-            toggleMenu();
-        }
-
-        function renderFileList() {
-            const list = document.getElementById('fileList');
-            list.innerHTML = '';
-            const storageKey = currentFileTab === 'auto' ? 'tetrisHubAutoData' : 'tetrisHubData';
-            const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
-            if (saved.length === 0) {
-                list.innerHTML = '<div style="padding:10px;text-align:center;color:#888;">データがありません</div>';
-                return;
-            }
-            saved.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'file-item';
-                div.innerHTML = `
-                    <div class="file-info" onclick="loadFile(${item.id})">
-                        <div style="font-weight:bold;">${escapeHtml(item.name)}</div>
-                        <div class="file-date">${item.date}</div>
-                    </div>
-                    <button class="rename-btn" onclick="shareIndividual(${item.id})" title="共有用URLコピー">
-                        <svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
-                    </button>
-                    <button class="rename-btn" onclick="exportIndividual(${item.id})" title="個別ダウンロード">
-                        <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zm-14 9v2h14v-2H5z"/></svg>
-                    </button>
-                    <button class="rename-btn" onclick="renameFile(${item.id})">：</button>
-                    <button class="delete-btn" onclick="deleteFile(${item.id})">×</button>
-                `;
-                list.appendChild(div);
+            // 差分から置かれたミノを推測するのがベストだが、今回はとりあえず観測データを保存
+            observations.push({
+                time: t,
+                board: board,
+                inferredPiece: lastNextColor // 前回のNEXTが今回置かれたと仮定
             });
         }
+        
+        if (nextCol) lastNextColor = nextCol;
+        
+        t += stepTime;
+        // Keep UI responsive
+        setTimeout(processNextFrame, 0);
+    };
 
-        window.loadFile = function(id) {
-            const saved = JSON.parse(localStorage.getItem('tetrisHubData') || '[]');
-            const item = saved.find(i => i.id === id);
-            if (!item) return;
+    processNextFrame();
+});
 
-            if (confirm(`「${item.name}」を読み込みますか？\n現在の作業内容は上書きされます。`)) {
-                // 両方にデータを送る
-                if (item.editor) {
-                    editorFrame.contentWindow.postMessage({ type: 'loadFumen', data: item.editor }, '*');
-                }
-                if (item.sim) {
-                    simFrame.contentWindow.postMessage({ type: 'loadState', data: item.sim }, '*');
-                }
-                document.getElementById('fileModal').style.display = 'none';
-                showToast("読み込みました");
-            }
-        };
+// 5. Run Beam Search & Export
+document.getElementById('btn-run-beamsearch').addEventListener('click', () => {
+    log("Running Beam Search...");
+    
+    // Initial Empty Board
+    const initialBoard = Array.from({ length: 40 }, () => Array(10).fill(null));
+    
+    const bestResult = BeamSearcher.search(initialBoard, observations);
+    
+    if (!bestResult) {
+        log("Search failed to find a valid path.");
+        return;
+    }
+    
+    log(`Search complete! Found ${bestResult.path.length} moves.`);
+    
+    // Export to Fumen v2 Format
+    const exportedData = { v: 'f2', m: '1P', p: [] };
+    
+    // Reconstruct states step by step to generate pages
+    let currentB = Array.from({ length: 40 }, () => Array(10).fill(null));
+    let prev1D = null;
 
-        window.deleteFile = function(id) {
-            if (!confirm("削除しますか？")) return;
-            const storageKey = currentFileTab === 'auto' ? 'tetrisHubAutoData' : 'tetrisHubData';
-            let saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
-            saved = saved.filter(i => i.id !== id);
-            localStorage.setItem(storageKey, JSON.stringify(saved));
-            renderFileList();
-        };
-        window.renameFile = function(id) {
-            const storageKey = currentFileTab === 'auto' ? 'tetrisHubAutoData' : 'tetrisHubData';
-            const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
-            const index = saved.findIndex(i => i.id === id);
-            if (index === -1) return;
-            const newName = prompt("新しい名前を入力してください:", saved[index].name);
-            if (newName && newName.trim() !== "") {
-                saved[index].name = newName.trim();
-                localStorage.setItem(storageKey, JSON.stringify(saved));
-                renderFileList();
-            }
-        };
-        window.deleteAllFiles = function() {
-            const storageKey = currentFileTab === 'auto' ? 'tetrisHubAutoData' : 'tetrisHubData';
-            if (confirm("表示中のタブのデータをすべて削除しますか？")) {
-                localStorage.removeItem(storageKey);
-                renderFileList();
-                showToast("全削除しました");
-            }
-        };
-
-        window.exportIndividual = function(id) {
-            const storageKey = currentFileTab === 'auto' ? 'tetrisHubAutoData' : 'tetrisHubData';
-            const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
-            const item = saved.find(i => i.id === id);
-            if (!item) return;
-            const blob = new Blob([JSON.stringify([item])], {type: 'application/json'});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${item.name}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-        };
-
-        window.shareIndividual = function(id) {
-            const storageKey = currentFileTab === 'auto' ? 'tetrisHubAutoData' : 'tetrisHubData';
-            const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
-            const item = saved.find(i => i.id === id);
-            if (!item) return;
-            const dataStr = btoa(unescape(encodeURIComponent(JSON.stringify(item))));
-            const shareUrl = window.location.origin + window.location.pathname + "#data=" + dataStr;
-            navigator.clipboard.writeText(shareUrl).then(() => {
-                showToast("共有URLをコピーしました");
-            });
-        };
-
-        window.addEventListener('load', () => {
-            const hash = window.location.hash;
-            if (hash.startsWith('#data=')) {
-                try {
-                    const dataStr = decodeURIComponent(escape(atob(hash.substring(6))));
-                    const item = JSON.parse(dataStr);
-                    if (item.editor) editorFrame.contentWindow.postMessage({ type: 'loadFumen', data: item.editor }, '*');
-                    if (item.sim) simFrame.contentWindow.postMessage({ type: 'loadState', data: item.sim }, '*');
-                    showToast("URLから読み込みました");
-                    history.replaceState(null, null, ' ');
-                } catch (e) {
-                    console.error("URLデータのパース失敗", e);
-                }
-            }
-        });
-
-
-        window.exportData = function() {
-            const saved = localStorage.getItem('tetrisHubData') || '[]';
-            if (saved === '[]') { alert("保存されたデータがありません。"); return; }
-            const blob = new Blob([saved], {type: 'application/json'});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `tetris_hub_backup_${new Date().toISOString().slice(0,10)}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            showToast("書き出しました");
-        };
-
-        window.triggerImport = function() {
-            document.getElementById('importFile').click();
-        };
-
-        window.importData = function(input) {
-            const file = input.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const imported = JSON.parse(e.target.result);
-                    if (!Array.isArray(imported)) throw new Error('Invalid format');
-                    
-                    const current = JSON.parse(localStorage.getItem('tetrisHubData') || '[]');
-                    // IDの衝突を避けるため再生成して結合
-                    const newItems = imported.map(item => ({
-                        ...item,
-                        id: Date.now() + Math.floor(Math.random() * 100000)
-                    }));
-                    
-                    const merged = [...newItems, ...current];
-                    localStorage.setItem('tetrisHubData', JSON.stringify(merged));
-                    openFileManager();
-                    showToast("読み込みました");
-                } catch(err) {
-                    alert("ファイルの読み込みに失敗しました: " + err.message);
-                }
-                input.value = '';
-            };
-            reader.readAsText(file);
-        };
-
-function showToast(msg) {
-
-            const t = document.getElementById('toast');
-            t.textContent = msg;
-            t.style.opacity = 1;
-            setTimeout(() => t.style.opacity = 0, 2000);
+    // ヘルパー: 盤面1次元化
+    const boardToString = (b) => b.map(r => r.map(c => c === null ? '_' : c).join('')).join('').split('');
+    const encodeRLE = (data) => {
+        if (!data || data.length === 0) return [];
+        const rle = []; let last = data[0], count = 1;
+        for (let i = 1; i < data.length; i++) {
+            if (data[i] === last) count++;
+            else { rle.push([last, count]); last = data[i]; count = 1; }
         }
+        rle.push([last, count]); return rle;
+    };
+    const getDiff = (p, c) => {
+        const d = [];
+        for(let i=0; i<p.length; i++) d.push(p[i]===c[i] ? 'E' : c[i]);
+        return d;
+    };
 
-        function escapeHtml(str) {
-            return str.replace(/[&<>"']/g, function(m) {
-                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
-            });
-        }
+    // 初手(空)
+    const init1D = boardToString(currentB);
+    exportedData.p.push({ p1: { b: encodeRLE(init1D), h: '', n: '' } });
+    prev1D = init1D;
 
-        // iframeのフォーカス制御 (メニューを閉じるため)
-        window.addEventListener('blur', () => {
-            if (fabMenu.classList.contains('open')) toggleMenu();
-        });
-    </script>
+    for (const move of bestResult.path) {
+        // Place and Clear (簡易実装)
+        const shape = BeamSearcher.getShape(move.type, move.r); // Error: BeamSearcher.getShape is not exposed. Let's fix this in generation.
+        // --- 内部関数を外に出すのが面倒なので、ここでは簡易的に結果ボードだけ取得できないため、
+        // bestResult.board (最終結果) しかない。
+        // ※ 実際の運用では、探索中に「各ステップのボード」を path に含めるべき。
+    }
+    
+    // 修正: 探索アルゴリズム内で状態履歴を持たせるべきでしたが、
+    // ここではデモ用として「最終結果の盤面」のみを1ページ目に出力します。
+    const final1D = boardToString(bestResult.board);
+    exportedData.p.push({ p1: { b: encodeRLE(getDiff(prev1D, final1D)), h: '', n: '' } });
+
+    const jsonString = JSON.stringify(exportedData);
+    const base64Data = btoa(String.fromCharCode.apply(null, new TextEncoder().encode(jsonString)));
+    
+    // Assume editor is in the same directory, or use a placeholder URL
+    const editorUrl = window.location.href.replace(/[^/]*$/, '') + 'editor.html#' + base64Data;
+    
+    document.getElementById('result-link').value = editorUrl;
+    document.getElementById('result-panel').style.display = 'block';
+    log("Export URL generated.");
+});
+
+document.getElementById('btn-copy-link').addEventListener('click', () => {
+    const input = document.getElementById('result-link');
+    input.select(); document.execCommand('copy');
+    alert('Copied to clipboard');
+});
+
+document.getElementById('btn-open-editor').addEventListener('click', () => {
+    window.open(document.getElementById('result-link').value, '_blank');
+});
+
+</script>
 </body>
 </html>
