@@ -231,34 +231,20 @@ function getAverageColorNonBlack(ctx, cx, cy, radius) {
  { r: 0, g: 0, b: 0 } : { r: totalR / count, g: totalG / count, b: totalB / count };
  }
 
-const sharedRawCropCanvas = document.createElement('canvas');
-const sharedRawCropCtx = sharedRawCropCanvas.getContext('2d', { willReadFrequently: true });
-const sharedBoardCanvas = document.createElement('canvas');
-const sharedBoardCtx = sharedBoardCanvas.getContext('2d', { willReadFrequently: true });
-const sharedRepCanvas = document.createElement('canvas');
-const sharedRepCtx = sharedRepCanvas.getContext('2d', { willReadFrequently: true });
-
-function getCropData(srcW, srcH) {
-    const targetAspect = 16 / 9, srcAspect = srcW / srcH;
-    let cropW, cropH, cropX, cropY;
+function processImageTo1080p(imgBitmap) {
+    const srcW = imgBitmap.width, srcH = imgBitmap.height, targetAspect = 16 / 9, srcAspect = srcW / srcH;
+ let cropW, cropH, cropX, cropY;
     if (srcAspect > targetAspect) { cropH = srcH; cropW = srcH * targetAspect;
-    cropX = (srcW - cropW) / 2; cropY = 0; } 
+ cropX = (srcW - cropW) / 2; cropY = 0; } 
     else { cropW = srcW;
-    cropH = srcW / targetAspect; cropX = 0; cropY = (srcH - cropH) / 2;
-    }
-    return { cropX, cropY, cropW, cropH };
-}
-
-function getScaledRect(rect1080p, cropData) {
-    const scale = cropData.cropW / 1920;
-    return {
-        x: cropData.cropX + rect1080p.x * scale,
-        y: cropData.cropY + rect1080p.y * scale,
-        w: rect1080p.w * scale,
-        h: rect1080p.h * scale
-    };
-}
-
+ cropH = srcW / targetAspect; cropX = 0; cropY = (srcH - cropH) / 2;
+ }
+    const canvas = document.createElement('canvas');
+    canvas.width = 1920; canvas.height = 1080;
+ const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(imgBitmap, cropX, cropY, cropW, cropH, 0, 0, 1920, 1080);
+ return { canvas, cropData: { cropX, cropY, cropW, cropH } };
+ }
 
 function extractCellPixels(sourceImgData, x, y, w, h) {
     const sw = sourceImgData.width, ix = Math.floor(x), iy = Math.floor(y), iw = Math.floor(w), ih = Math.floor(h);
@@ -335,16 +321,17 @@ function extractFeaturesJS(pixelsRGBA, w, h) {
 }
 
 // --- パス分割用関数群 ---
-async function analyzeNextQueue(videoElement, cropData, config) {
-    sharedRawCropCanvas.width = cropData.cropW; sharedRawCropCanvas.height = cropData.cropH;
-    sharedRawCropCtx.drawImage(videoElement, cropData.cropX, cropData.cropY, cropData.cropW, cropData.cropH, 0, 0, cropData.cropW, cropData.cropH);
+async function analyzeNextQueue(ctx, originalBitmap, cropData, config) {
+    const rawCropCanvas = document.createElement('canvas');
+ rawCropCanvas.width = cropData.cropW; rawCropCanvas.height = cropData.cropH;
+    const rawCtx = rawCropCanvas.getContext('2d', { willReadFrequently: true });
+ rawCtx.drawImage(originalBitmap, cropData.cropX, cropData.cropY, cropData.cropW, cropData.cropH, 0, 0, cropData.cropW, cropData.cropH);
     const currentScale = cropData.cropW / 1280, radius = 5 * currentScale;
-    const nextQueue = [];
+ const nextQueue = [];
     let holdMino = null;
     for (let i = 0; i < config.nextCoords.length; i++) {
         const coord = config.nextCoords[i];
-        const avgColor = getAverageColorNonBlack(sharedRawCropCtx, coord.x * currentScale, coord.y * currentScale, radius);
-
+ const avgColor = getAverageColorNonBlack(rawCtx, coord.x * currentScale, coord.y * currentScale, radius);
  if (i === 0) {
             if (!(avgColor.r < 50 && avgColor.g < 50 && avgColor.b < 50)) holdMino = findClosestMinoOnly(avgColor.r, avgColor.g, avgColor.b);
  } else {
@@ -356,23 +343,20 @@ async function analyzeNextQueue(videoElement, cropData, config) {
     return { hold: holdMino, next: nextQueue };
  }
 
-async function analyzeBoardOnly(videoElement, cropData, config) {
+async function analyzeBoardOnly(canvas, originalBitmap, cropData, config) {
+    const ctx = canvas.getContext('2d');
     const boardRect = config.boardRect;
-    sharedBoardCanvas.width = boardRect.w; sharedBoardCanvas.height = boardRect.h;
-    const srcRect = getScaledRect(boardRect, cropData);
-    sharedBoardCtx.drawImage(videoElement, srcRect.x, srcRect.y, srcRect.w, srcRect.h, 0, 0, boardRect.w, boardRect.h);
-    const boardImgData = sharedBoardCtx.getImageData(0, 0, boardRect.w, boardRect.h);
+ const boardImgData = ctx.getImageData(boardRect.x, boardRect.y, boardRect.w, boardRect.h);
     const cellW = boardRect.w / 10, cellH = boardRect.h / 20;
-    // Classic Scan
+ // Classic Scan
     const classicBoard = [];
-    for (let r = 0; r < 20; r++) {
+ for (let r = 0; r < 20; r++) {
         const row = [];
-        for (let c = 0; c < 10; c++) {
-            const sampleX = (c + 0.5) * cellW, sampleY = (r + 0.5) * cellH;
-            const sampleSize = Math.max(1, Math.floor(cellW * 0.25));
-            const imageData = sharedBoardCtx.getImageData(sampleX - sampleSize / 2, sampleY - sampleSize / 2, sampleSize, sampleSize).data;
-            let avgR = 0, avgG = 0, avgB = 0;
-
+ for (let c = 0; c < 10; c++) {
+            const sampleX = boardRect.x + (c + 0.5) * cellW, sampleY = boardRect.y + (r + 0.5) * cellH;
+ const sampleSize = Math.max(1, Math.floor(cellW * 0.25));
+            const imageData = ctx.getImageData(sampleX - sampleSize / 2, sampleY - sampleSize / 2, sampleSize, sampleSize).data;
+ let avgR = 0, avgG = 0, avgB = 0;
  for (let i = 0; i < imageData.length; i += 4) { avgR += imageData[i]; avgG += imageData[i+1];
  avgB += imageData[i+2]; }
             const pixelCount = imageData.length / 4;
@@ -673,14 +657,17 @@ async function processPlayer(playerId, video, duration, params) {
     let pendingCount = 0;
  for(let t = 0; t < duration; t += params.nextScanInterval) {
         if(stopRequested) break;
-        video.currentTime = t;
+ video.currentTime = t;
         await new Promise(r => { video.onseeked = r; });
         
-        const cropData = getCropData(video.videoWidth, video.videoHeight);
-        const queueData = await analyzeNextQueue(video, cropData, CONFIG[playerId]);
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = video.videoWidth;
+ tempCanvas.height = video.videoHeight;
+        tempCanvas.getContext('2d').drawImage(video, 0, 0);
+        const { canvas: pCanvas, cropData } = processImageTo1080p(tempCanvas);
+ const queueData = await analyzeNextQueue(pCanvas, tempCanvas, cropData, CONFIG[playerId]);
         
         const rawObsHold = queueData.hold || "";
-
         const rawObsNext = queueData.next;
         currentRawScans.push(`[${t.toFixed(2)}s] H:${rawObsHold || '-'} N:${rawObsNext.join('')}`);
         
@@ -755,22 +742,28 @@ async function processPlayer(playerId, video, duration, params) {
  1 : samples;
 
         for (let s = 1; s <= actualSamples; s++) {
-            const t = phase.start + (durationPhase * s) / (actualSamples + 1);            video.currentTime = t;
+            const t = phase.start + (durationPhase * s) / (actualSamples + 1);
+ video.currentTime = t;
             await new Promise(r => { video.onseeked = r; });
             
-            const cropData = getCropData(video.videoWidth, video.videoHeight);
-            // 代表画像の保存（区間の最初のサンプル）
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = video.videoWidth;
+ tempCanvas.height = video.videoHeight;
+            tempCanvas.getContext('2d').drawImage(video, 0, 0);
+            const { canvas: pCanvas, cropData } = processImageTo1080p(tempCanvas);
+ // 代表画像の保存（区間の最初のサンプル）
             if (s === 1) {
-                const rect = CONFIG[playerId].boardRect;
-                sharedRepCanvas.width = rect.w; sharedRepCanvas.height = rect.h;
-                const srcRect = getScaledRect(rect, cropData);
-                sharedRepCtx.drawImage(video, srcRect.x, srcRect.y, srcRect.w, srcRect.h, 0, 0, rect.w, rect.h);
-                repImageURL = sharedRepCanvas.toDataURL('image/jpeg', 0.5);
+                const repCanvas = document.createElement('canvas');
+ const rect = CONFIG[playerId].boardRect;
+                repCanvas.width = rect.w; repCanvas.height = rect.h;
+ // Full HD比率に合わせた座標で切り抜くため pCanvas を使用
+                repCanvas.getContext('2d').drawImage(pCanvas, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
+ repImageURL = repCanvas.toDataURL('image/jpeg', 0.5);
             }
             
-            const board = await analyzeBoardOnly(video, cropData, CONFIG[playerId]);
-            aggregator.add(board);
-
+            const board = await analyzeBoardOnly(pCanvas, tempCanvas, cropData, CONFIG[playerId]);
+ aggregator.add(board);
+        }
         
         const winnerBoard = aggregator.getWinnerBoard() ||
  Array.from({length:20}, ()=>Array(10).fill(null));
