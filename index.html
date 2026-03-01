@@ -331,22 +331,30 @@ async function analyzeNextQueue(originalBitmap, cropData, config) {
     const currentScale = cropData.cropW / 1280, radius = 5 * currentScale;
     const nextQueue = [];
     let holdMino = null;
+    let debugColors = [];
     for (let i = 0; i < config.nextCoords.length; i++) {
         const coord = config.nextCoords[i];
         const cx = cropData.cropX + coord.x * currentScale;
         const cy = cropData.cropY + coord.y * currentScale;
         const avgColor = getAverageColorNonBlack(sharedVideoCtx, cx, cy, radius);
 
- if (i === 0) {
-            if (!(avgColor.r < 50 && avgColor.g < 50 && avgColor.b < 50)) holdMino = findClosestMinoOnly(avgColor.r, avgColor.g, avgColor.b);
- } else {
+        let foundMino = null;
+        if (i === 0) {
+            if (!(avgColor.r < 50 && avgColor.g < 50 && avgColor.b < 50)) {
+                foundMino = findClosestMinoOnly(avgColor.r, avgColor.g, avgColor.b);
+                holdMino = foundMino;
+            }
+        } else {
             if (i === 1 && avgColor.r < 50 && avgColor.g < 50 && avgColor.b < 50) break;
- const foundMino = findClosestMinoOnly(avgColor.r, avgColor.g, avgColor.b);
+            foundMino = findClosestMinoOnly(avgColor.r, avgColor.g, avgColor.b);
             if (foundMino) nextQueue.push(foundMino);
         }
+        if (foundMino) {
+            debugColors.push(`${foundMino}(${Math.round(avgColor.r)},${Math.round(avgColor.g)},${Math.round(avgColor.b)})`);
+        }
     }
-    return { hold: holdMino, next: nextQueue };
- }
+    return { hold: holdMino, next: nextQueue, debugColors };
+}
 
 async function analyzeBoardOnly(originalBitmap, cropData, config) {
     const boardRect = config.boardRect;
@@ -509,10 +517,10 @@ function runBeamSearch(timeline, params) {
  }
 
         let nextBeam = [];
- for (const state of beam) {
+for (const state of beam) {
             if (skipPlacement) {
                 const newBoard = cloneBoard(state.board);
- const stepScore = calculateMatchScore(newBoard, obsBoard, params.weights);
+const stepScore = calculateMatchScore(newBoard, obsBoard, params.weights);
                 const newHistory = [...state.history, {
                     time: timeline[i].time,
                     board: newBoard, // 補完された盤面
@@ -521,19 +529,21 @@ function runBeamSearch(timeline, params) {
       
                     hold: timeline[i].hold,
                     active: timeline[i].active,
+                    action: timeline[i].action,
                     next: timeline[i].next,
                     repImage: timeline[i].repImage,
-                    rawScans: timeline[i].rawScans
+                
+    rawScans: timeline[i].rawScans
       
                 
  }];
-                nextBeam.push({ board: newBoard, history: newHistory, score: state.score + stepScore });
- } else {
+nextBeam.push({ board: newBoard, history: newHistory, score: state.score + stepScore });
+} else {
                 for (const mino of possibleMinos) {
                     const moves = generateLegalMoves(state.board, mino);
- for (const newBoard of moves) {
+for (const newBoard of moves) {
                         const stepScore = calculateMatchScore(newBoard, obsBoard, params.weights);
- const newHistory = [...state.history, {
+const newHistory = [...state.history, {
                             time: timeline[i].time,
                             board: newBoard, // 補完された盤面
                             rawBoard: timeline[i].rawBoard, // 元の観測盤面     
@@ -541,14 +551,16 @@ function runBeamSearch(timeline, params) {
           
                             hold: timeline[i].hold,
                             active: timeline[i].active,
-                          
+                            action: timeline[i].action,
+                         
    next: timeline[i].next,
                             repImage: timeline[i].repImage,
                             rawScans: timeline[i].rawScans
           
                         }];
- nextBeam.push({ board: newBoard, history: newHistory, score: state.score + stepScore });
- }
+nextBeam.push({ board: newBoard, history: newHistory, score: state.score + stepScore });
+}
+
                 }
             }
         }
@@ -684,9 +696,10 @@ async function processPlayer(playerId, video, duration, params) {
 
 
         const rawObsNext = queueData.next;
-        currentRawScans.push(`[${t.toFixed(2)}s] H:${rawObsHold || '-'} N:${rawObsNext.join('')}`);
+        currentRawScans.push(`[${t.toFixed(2)}s] H:${rawObsHold || '-'} N:${rawObsNext.join('')} | RGB: ${queueData.debugColors.join(' ')}`);
         
         const currentNextStr = rawObsNext.join('');
+
         if (rawObsHold === pendingHold && currentNextStr === pendingNextStr) {
             pendingCount++;
         } else {
@@ -702,44 +715,43 @@ async function processPlayer(playerId, video, duration, params) {
 
  if (!isFirstDetected && obsNext.length >= 3) {
             lastStableHold = obsHold;
- lastStableNext = obsNext;
+            lastStableNext = obsNext;
 
             activeMino = "";
-            pass1Timeline.push({ start: 0, end: t, hold: "", next: obsNext, active: "", rawScans: [...currentRawScans] });
- currentStart = t;
+            pass1Timeline.push({ start: 0, end: t, hold: "", next: obsNext, active: "", action: "init", rawScans: [...currentRawScans] });
+            currentStart = t;
             currentRawScans = [];
             isFirstDetected = true;
             continue;
         }
         if (!isFirstDetected) continue;
  const transition = checkQueueTransition(obsHold, obsNext, lastStableHold, lastStableNext, activeMino);
-        
         if (transition.action === 'spawn') {
             activeMino = lastStableNext[0];
- } else if (transition.action === 'first_hold') {
+        } else if (transition.action === 'first_hold') {
             activeMino = lastStableNext[0];
- } else if (transition.action === 'hold') {
+        } else if (transition.action === 'hold') {
             activeMino = lastStableHold;
- } else if (transition.action === 'place' || transition.action === 'place_and_hold') {
-            pass1Timeline.push({ start: currentStart, end: t, hold: lastStableHold, next: lastStableNext, active: activeMino, rawScans: [...currentRawScans] });
- currentStart = t;
+        } else if (transition.action === 'place' || transition.action === 'place_and_hold') {
+            pass1Timeline.push({ start: currentStart, end: t, hold: lastStableHold, next: lastStableNext, active: activeMino, action: transition.action, rawScans: [...currentRawScans] });
+            currentStart = t;
             currentRawScans = [];
             activeMino = lastStableNext[0];
         }
 
         if (transition.holdChanged || transition.nextAdvanced) {
             lastStableHold = obsHold;
- lastStableNext = obsNext;
+            lastStableNext = obsNext;
         }
         
         const pct = Math.floor((t / duration) * 50);
- // Pass1は進捗の前半50%
+        // Pass1は進捗の前半50%
         progressEl.value = pct;
         statusEl.textContent = `Pass1: ${pct * 2}%`;
- }
+}
     if (currentStart < duration) {
-        pass1Timeline.push({ start: currentStart, end: duration, hold: lastStableHold, next: lastStableNext, active: activeMino, rawScans: [...currentRawScans] });
- }
+        pass1Timeline.push({ start: currentStart, end: duration, hold: lastStableHold, next: lastStableNext, active: activeMino, action: "end", rawScans: [...currentRawScans] });
+}
 
     // --- Pass 2: Board Inference ---
     log(`${playerId.toUpperCase()} Pass2: 盤面ONNX推論開始 (区間数: ${pass1Timeline.length})...`, 'info');
@@ -780,18 +792,21 @@ async function processPlayer(playerId, video, duration, params) {
         }
         
         const winnerBoard = aggregator.getWinnerBoard() ||
- Array.from({length:20}, ()=>Array(10).fill(null));
+Array.from({length:20}, ()=>Array(10).fill(null));
         timeline.push({
             time: phase.end,
             board: cleanUpBoard(winnerBoard),
             rawBoard: cleanUpBoard(winnerBoard), // デバッグ用の生データ
             hold: phase.hold,
             active: phase.active,
+            action: phase.action,
             next: (phase.next || []).join(''),
             repImage: repImageURL,
-            rawScans: phase.rawScans
+   
+         rawScans: phase.rawScans
    
       });
+
 
         
         const pct = 50 + Math.floor(((i + 1) / pass1Timeline.length) * 50);
@@ -910,13 +925,13 @@ function drawBoardToCanvas(board40, canvasEl) {
 
 function renderDebugTimeline(playerId, timeline) {
     const container = document.getElementById(`debug${playerId.toUpperCase()}`);
-    let html = `<table class="debug-table">
+let html = `<table class="debug-table">
         <tr><th>Time (s)</th><th>Hold / Active / Next</th><th>Raw Scans (Intervals)</th><th>Representative Image</th><th>Vote Avg Board</th><th>Beam Search Board</th></tr>`;
-    timeline.forEach((item, idx) => {
+timeline.forEach((item, idx) => {
         const rawScansStr = item.rawScans ? item.rawScans.join('<br>') : '';
         html += `<tr>
             <td>${item.time.toFixed(3)}</td>
-            <td>Hold: ${item.hold}<br>Active: ${item.active || 'none'}<br>Next: ${item.next}</td>
+            <td>Hold: ${item.hold}<br>Active: ${item.active || 'none'} (${item.action || 'init'})<br>Next: ${item.next}</td>
             <td style="text-align:left; font-size:10px; max-height:100px; overflow-y:auto; display:block;">${rawScansStr}</td>
             <td><img src="${item.repImage || ''}" class="rep-img" alt="no img"></td>
             <td><canvas id="canvas-raw-${playerId}-${idx}" class="board-canvas" width="60" height="120"></canvas></td>
