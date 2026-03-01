@@ -113,14 +113,17 @@
         <div class="progress-section">
             <div>P1 Progress: <span id="p1Status">待機中</span></div>
             <progress id="p1Progress" value="0" max="100"></progress>
+        </div>        <div class="progress-section">
+            <div>P2 Progress: <span id="p2Status">待機中</span></div>
+            <progress id="p2Progress" value="0" max="100"></progress>
         </div>
         <div class="progress-section">
-            <div>P2 Progress: 
- <span id="p2Status">待機中</span></div>
-            <progress id="p2Progress" value="0" max="100"></progress>
+            <div>Beam Search: <span id="beamStatus">待機中</span></div>
+            <progress id="beamProgress" value="0" max="100"></progress>
         </div>
         
         <h3>System Log</h3>
+
         <div id="logArea"></div>
     </div>
 
@@ -476,80 +479,103 @@ function calculateMatchScore(predBoard, obsBoard, weights) {
     return score;
  }
 
-function runBeamSearch(timeline, params) {
+async function runBeamSearch(timeline, params, onProgress) {
     if (timeline.length === 0) return [];
- // 最初の状態を真実とする
+    // 最初の状態を真実とする
     let beam = [ { board: timeline[0].board, history: [timeline[0]], score: 0 } ];
- for (let i = 1; i < timeline.length; i++) {
+    for (let i = 1; i < timeline.length; i++) {
+        if (onProgress) {
+            onProgress(i, timeline.length);
+            await new Promise(r => setTimeout(r, 0));
+        }
+        
         const obsBoard = timeline[i].board;
- const currentNext = timeline[i].next;
+        const currentNext = timeline[i].next;
         const prevNext = timeline[i-1].next;
         
         let possibleMinos = ALL_MINOS;
         let skipPlacement = false;
- if (!timeline[i-1].active || timeline[i-1].active === "") {
+        if (!timeline[i-1].active || timeline[i-1].active === "") {
             skipPlacement = true;
- } else if (timeline[i-1].active && ALL_MINOS.includes(timeline[i-1].active)) {
+        } else if (timeline[i-1].active && ALL_MINOS.includes(timeline[i-1].active)) {
             possibleMinos = [timeline[i-1].active];
- } else if (prevNext && prevNext.length > 0 && ALL_MINOS.includes(prevNext[0])) {
+        } else if (prevNext && prevNext.length > 0 && ALL_MINOS.includes(prevNext[0])) {
             possibleMinos = [prevNext[0]];
- }
+        }
 
         let nextBeam = [];
- for (const state of beam) {
+        let perfectMatchState = null;
+
+        for (const state of beam) {
             if (skipPlacement) {
                 const newBoard = cloneBoard(state.board);
- const stepScore = calculateMatchScore(newBoard, obsBoard, params.weights);
+                const stepScore = calculateMatchScore(newBoard, obsBoard, params.weights);
                 const newHistory = [...state.history, {
                     time: timeline[i].time,
                     board: newBoard, // 補完された盤面
                     rawBoard: timeline[i].rawBoard, // 元の観測盤面           
-      
-      
                     hold: timeline[i].hold,
                     active: timeline[i].active,
                     next: timeline[i].next,
                     repImage: timeline[i].repImage,
                     rawScans: timeline[i].rawScans
-      
-                
- }];
+                }];
                 nextBeam.push({ board: newBoard, history: newHistory, score: state.score + stepScore });
- } else {
+            } else {
                 for (const mino of possibleMinos) {
                     const moves = generateLegalMoves(state.board, mino);
- for (const newBoard of moves) {
+                    for (const newBoard of moves) {
                         const stepScore = calculateMatchScore(newBoard, obsBoard, params.weights);
- const newHistory = [...state.history, {
+                        const newHistory = [...state.history, {
                             time: timeline[i].time,
                             board: newBoard, // 補完された盤面
                             rawBoard: timeline[i].rawBoard, // 元の観測盤面     
-       
-          
                             hold: timeline[i].hold,
                             active: timeline[i].active,
-                          
-   next: timeline[i].next,
+                            next: timeline[i].next,
                             repImage: timeline[i].repImage,
                             rawScans: timeline[i].rawScans
-          
                         }];
- nextBeam.push({ board: newBoard, history: newHistory, score: state.score + stepScore });
- }
+                        
+                        let isExact = true;
+                        for (let y = 0; y < 40; y++) {
+                            for (let x = 0; x < 10; x++) {
+                                if (newBoard[y][x] !== obsBoard[y][x]) {
+                                    isExact = false; break;
+                                }
+                            }
+                            if (!isExact) break;
+                        }
+
+                        if (isExact) {
+                            perfectMatchState = { board: newBoard, history: newHistory, score: state.score + 1000000 };
+                            break;
+                        }
+
+                        nextBeam.push({ board: newBoard, history: newHistory, score: state.score + stepScore });
+                    }
+                    if (perfectMatchState) break;
                 }
             }
+            if (perfectMatchState) break;
         }
 
-        nextBeam.sort((a, b) => b.score - a.score);
- beam = nextBeam.slice(0, params.beamWidth);
+        if (perfectMatchState) {
+            nextBeam = [perfectMatchState];
+        } else {
+            nextBeam.sort((a, b) => b.score - a.score);
+        }
+        beam = nextBeam.slice(0, params.beamWidth);
         
         if (beam.length === 0) {
             log(`Beam Search fallback at step ${i} - using observed board`, 'warn');
- beam = [ { board: obsBoard, history: [...timeline.slice(0, i+1)], score: 0 } ];
- }
+            beam = [ { board: obsBoard, history: [...timeline.slice(0, i+1)], score: 0 } ];
+        }
     }
+    if (onProgress) onProgress(timeline.length, timeline.length);
     return beam[0].history;
- }
+}
+
 
 // ==========================================
 //  4. Vote Aggregator & Timeline Processing
@@ -655,17 +681,23 @@ async function processPlayer(playerId, video, duration, params) {
     let pendingHold = "";
     let pendingNextStr = "";
     let pendingCount = 0;
- for(let t = 0; t < duration; t += params.nextScanInterval) {
+    
+    let t = 0;
+    let step = params.nextScanInterval;
+    let isFineMode = false;
+    let lastStableT = 0;
+
+    while(t < duration) {
         if(stopRequested) break;
- video.currentTime = t;
+        video.currentTime = t;
         await new Promise(r => { video.onseeked = r; });
         
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = video.videoWidth;
- tempCanvas.height = video.videoHeight;
+        tempCanvas.height = video.videoHeight;
         tempCanvas.getContext('2d').drawImage(video, 0, 0);
         const { canvas: pCanvas, cropData } = processImageTo1080p(tempCanvas);
- const queueData = await analyzeNextQueue(pCanvas, tempCanvas, cropData, CONFIG[playerId]);
+        const queueData = await analyzeNextQueue(pCanvas, tempCanvas, cropData, CONFIG[playerId]);
         
         const rawObsHold = queueData.hold || "";
         const rawObsNext = queueData.next;
@@ -680,48 +712,70 @@ async function processPlayer(playerId, video, duration, params) {
             pendingCount = 1;
         }
 
-        if (pendingCount < 2) continue;
+        if (pendingCount < 2) {
+            t += step;
+            continue;
+        }
 
         const obsHold = rawObsHold;
         const obsNext = rawObsNext;
 
- if (!isFirstDetected && obsNext.length >= 3) {
+        if (!isFirstDetected && obsNext.length >= 3) {
             lastStableHold = obsHold;
- lastStableNext = obsNext;
-
+            lastStableNext = obsNext;
             activeMino = "";
             pass1Timeline.push({ start: 0, end: t, hold: "", next: obsNext, active: "", rawScans: [...currentRawScans] });
- currentStart = t;
+            currentStart = t;
             currentRawScans = [];
             isFirstDetected = true;
+            lastStableT = t;
+            t += step;
             continue;
         }
-        if (!isFirstDetected) continue;
- const transition = checkQueueTransition(obsHold, obsNext, lastStableHold, lastStableNext, activeMino);
-        
-        if (transition.action === 'spawn') {
-            activeMino = lastStableNext[0];
- } else if (transition.action === 'first_hold') {
-            activeMino = lastStableNext[0];
- } else if (transition.action === 'hold') {
-            activeMino = lastStableHold;
- } else if (transition.action === 'place' || transition.action === 'place_and_hold') {
-            pass1Timeline.push({ start: currentStart, end: t, hold: lastStableHold, next: lastStableNext, active: activeMino, rawScans: [...currentRawScans] });
- currentStart = t;
-            currentRawScans = [];
-            activeMino = lastStableNext[0];
+        if (!isFirstDetected) {
+            t += step;
+            continue;
         }
 
+        const transition = checkQueueTransition(obsHold, obsNext, lastStableHold, lastStableNext, activeMino);
+
         if (transition.holdChanged || transition.nextAdvanced) {
-            lastStableHold = obsHold;
- lastStableNext = obsNext;
+            if (!isFineMode) {
+                t = lastStableT + 0.01;
+                step = 0.01;
+                isFineMode = true;
+                pendingCount = 0;
+                continue;
+            } else {
+                if (transition.action === 'spawn') {
+                    activeMino = lastStableNext[0];
+                } else if (transition.action === 'first_hold') {
+                    activeMino = lastStableNext[0];
+                } else if (transition.action === 'hold') {
+                    activeMino = lastStableHold;
+                } else if (transition.action === 'place' || transition.action === 'place_and_hold') {
+                    pass1Timeline.push({ start: currentStart, end: t, hold: lastStableHold, next: lastStableNext, active: activeMino, rawScans: [...currentRawScans] });
+                    currentStart = t;
+                    currentRawScans = [];
+                    activeMino = lastStableNext[0];
+                }
+                lastStableHold = obsHold;
+                lastStableNext = obsNext;
+                lastStableT = t;
+                step = params.nextScanInterval;
+                isFineMode = false;
+            }
+        } else {
+            lastStableT = t;
         }
         
         const pct = Math.floor((t / duration) * 50);
- // Pass1は進捗の前半50%
         progressEl.value = pct;
         statusEl.textContent = `Pass1: ${pct * 2}%`;
- }
+        
+        t += step;
+    }
+
     if (currentStart < duration) {
         pass1Timeline.push({ start: currentStart, end: duration, hold: lastStableHold, next: lastStableNext, active: activeMino, rawScans: [...currentRawScans] });
  }
@@ -966,12 +1020,21 @@ startBtn.addEventListener('click', async () => {
  if(stopRequested) return;
 
         // ビームサーチ
+        const beamProgress = document.getElementById('beamProgress');
+        const beamStatus = document.getElementById('beamStatus');
+        const updateBeamProgress = (current, total, prefix) => {
+            const pct = Math.floor((current / total) * 100);
+            beamProgress.value = pct;
+            beamStatus.textContent = `${prefix} ${pct}%`;
+        };
+
         log("P1 ビームサーチ補完実行中...", 'info');
-        const p1CleanTimeline = runBeamSearch(p1RawTimeline, params);
- log("P2 ビームサーチ補完実行中...", 'info');
-        const p2CleanTimeline = runBeamSearch(p2RawTimeline, params);
+        const p1CleanTimeline = await runBeamSearch(p1RawTimeline, params, (c, t) => updateBeamProgress(c, t, "P1"));
+        log("P2 ビームサーチ補完実行中...", 'info');
+        const p2CleanTimeline = await runBeamSearch(p2RawTimeline, params, (c, t) => updateBeamProgress(c, t, "P2"));
 
         // デバッグ表示生成
+
         renderDebugTimeline('p1', p1CleanTimeline);
  renderDebugTimeline('p2', p2CleanTimeline);
         document.getElementById('debugPanel').style.display = 'block';
