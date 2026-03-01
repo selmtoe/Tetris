@@ -715,7 +715,7 @@ async function processPlayer(playerId, video, duration, params) {
                 pendingCount = 1;
             }
 
-            if (pendingCount < 2) {
+            if (pendingCount < 1) { //厳しくする回数
                 t += currentInterval;
                 continue;
             }
