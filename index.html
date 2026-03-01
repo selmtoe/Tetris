@@ -465,12 +465,12 @@ function generateLegalMoves(board, minoType) {
 
                 if (isGrounded) {
                     const newBoard = cloneBoard(board);
- for (const [dx, dy] of shape) { newBoard[y + dy][x + dx] = minoType;
- }
+                    for (const [dx, dy] of shape) { newBoard[y + dy][x + dx] = minoType;
+                    }
                     
                     const clearedBoard = newBoard.filter(row => !row.every(c => c !== null && c !== 'G'));
- while(clearedBoard.length < 40) clearedBoard.unshift(Array(10).fill(null));
-                    moves.push(clearedBoard);
+                    while(clearedBoard.length < 40) clearedBoard.unshift(Array(10).fill(null));
+                    moves.push({ fullBoard: newBoard, clearedBoard: clearedBoard });
                 }
             }
         }
@@ -518,50 +518,42 @@ function runBeamSearch(timeline, params) {
  }
 
         let nextBeam = [];
-for (const state of beam) {
+        for (const state of beam) {
             if (skipPlacement) {
                 const newBoard = cloneBoard(state.board);
-const stepScore = calculateMatchScore(newBoard, obsBoard, params.weights);
+                const stepScore = calculateMatchScore(newBoard, obsBoard, params.weights);
                 const newHistory = [...state.history, {
                     time: timeline[i].time,
-                    board: newBoard, // 補完された盤面
-                    rawBoard: timeline[i].rawBoard, // 元の観測盤面           
-      
-      
+                    board: newBoard,
+                    fullBoard: newBoard,
+                    rawBoard: timeline[i].rawBoard,
                     hold: timeline[i].hold,
                     active: timeline[i].active,
                     action: timeline[i].action,
                     next: timeline[i].next,
                     repImage: timeline[i].repImage,
-                
-    rawScans: timeline[i].rawScans
-      
-                
- }];
-nextBeam.push({ board: newBoard, history: newHistory, score: state.score + stepScore });
-} else {
+                    rawScans: timeline[i].rawScans
+                }];
+                nextBeam.push({ board: newBoard, history: newHistory, score: state.score + stepScore });
+            } else {
                 for (const mino of possibleMinos) {
                     const moves = generateLegalMoves(state.board, mino);
-for (const newBoard of moves) {
-                        const stepScore = calculateMatchScore(newBoard, obsBoard, params.weights);
-const newHistory = [...state.history, {
+                    for (const move of moves) {
+                        const stepScore = calculateMatchScore(move.clearedBoard, obsBoard, params.weights);
+                        const newHistory = [...state.history, {
                             time: timeline[i].time,
-                            board: newBoard, // 補完された盤面
-                            rawBoard: timeline[i].rawBoard, // 元の観測盤面     
-       
-          
+                            board: move.clearedBoard,
+                            fullBoard: move.fullBoard,
+                            rawBoard: timeline[i].rawBoard,
                             hold: timeline[i].hold,
                             active: timeline[i].active,
                             action: timeline[i].action,
-                         
-   next: timeline[i].next,
+                            next: timeline[i].next,
                             repImage: timeline[i].repImage,
                             rawScans: timeline[i].rawScans
-          
                         }];
-nextBeam.push({ board: newBoard, history: newHistory, score: state.score + stepScore });
-}
-
+                        nextBeam.push({ board: move.clearedBoard, history: newHistory, score: state.score + stepScore });
+                    }
                 }
             }
         }
@@ -852,46 +844,59 @@ function buildFumenUrl(pages, mode) {
 }
 
 function generateSeparatedURLs(p1Timeline, p2Timeline) {
-    // P1 Only
-    const p1Pages = p1Timeline.map((data, i) => {
-        const b1D = boardToString1D(data.board);
-        return {
-            p1: {
-                b: encodeRLE(i === 0 ? b1D : getDifference(boardToString1D(p1Timeline[i-1].board), b1D)),
-                h: data.hold || '', n: data.next || 
- ''
+    const processTimeline = (timeline) => {
+        const pages = [];
+        let prev = null;
+        timeline.forEach((data) => {
+            if (data.fullBoard) {
+                const full1D = boardToString1D(data.fullBoard);
+                const b1D = boardToString1D(data.board);
+                if (JSON.stringify(full1D) !== JSON.stringify(b1D)) {
+                    pages.push({ p1: { b: encodeRLE(!prev ? full1D : getDifference(prev, full1D)), h: data.hold || '', n: data.next || '' } });
+                    prev = full1D;
+                }
             }
-        };
-    });
- // P2 Only (バグ修正: エディタが1Pモードで正しく読めるようキーを p1 にする)
-    const p2Pages = p2Timeline.map((data, i) => {
-        const b1D = boardToString1D(data.board);
-        return {
-            p1: {
-                b: encodeRLE(i === 0 ? b1D : getDifference(boardToString1D(p2Timeline[i-1].board), b1D)),
-                h: data.hold || '', n: data.next || ''
-    
-         }
-        };
-    });
- // Combined
+            const b1D = boardToString1D(data.board);
+            pages.push({ p1: { b: encodeRLE(!prev ? b1D : getDifference(prev, b1D)), h: data.hold || '', n: data.next || '' } });
+            prev = b1D;
+        });
+        return pages;
+    };
+    const p1Pages = processTimeline(p1Timeline);
+    const p2Pages = processTimeline(p2Timeline);
+
     const allTimes = new Set([...p1Timeline.map(e=>e.time), ...p2Timeline.map(e=>e.time)]);
     const sortedTimes = Array.from(allTimes).sort((a,b) => a-b);
- let p1Idx = 0, p2Idx = 0;
+    let p1Idx = 0, p2Idx = 0;
     const combinedPages = [];
     let prevP1 = null, prevP2 = null;
- for (let t of sortedTimes) {
+    for (let t of sortedTimes) {
         while(p1Idx < p1Timeline.length - 1 && p1Timeline[p1Idx+1].time <= t) p1Idx++;
- while(p2Idx < p2Timeline.length - 1 && p2Timeline[p2Idx+1].time <= t) p2Idx++;
+        while(p2Idx < p2Timeline.length - 1 && p2Timeline[p2Idx+1].time <= t) p2Idx++;
         
         const p1Data = p1Timeline[p1Idx], p2Data = p2Timeline[p2Idx];
- const p1Board1D = boardToString1D(p1Data.board), p2Board1D = boardToString1D(p2Data.board);
         
-        combinedPages.push({
-            p1: { b: encodeRLE(prevP1 ? getDifference(prevP1, p1Board1D) : p1Board1D), h: p1Data.hold||'', n: p1Data.next||'' },
-            p2: { b: encodeRLE(prevP2 ? getDifference(prevP2, p2Board1D) : p2Board1D), h: p2Data.hold||'', n: p2Data.next||'' }
-        });
- prevP1 = p1Board1D; prevP2 = p2Board1D;
+        let p1Boards = [p1Data.board];
+        if (p1Data.fullBoard && JSON.stringify(boardToString1D(p1Data.fullBoard)) !== JSON.stringify(boardToString1D(p1Data.board))) {
+            p1Boards = [p1Data.fullBoard, p1Data.board];
+        }
+        let p2Boards = [p2Data.board];
+        if (p2Data.fullBoard && JSON.stringify(boardToString1D(p2Data.fullBoard)) !== JSON.stringify(boardToString1D(p2Data.board))) {
+            p2Boards = [p2Data.fullBoard, p2Data.board];
+        }
+        
+        const maxSteps = Math.max(p1Boards.length, p2Boards.length);
+        for(let step = 0; step < maxSteps; step++) {
+            const b1 = p1Boards[Math.min(step, p1Boards.length - 1)];
+            const b2 = p2Boards[Math.min(step, p2Boards.length - 1)];
+            const p1Board1D = boardToString1D(b1), p2Board1D = boardToString1D(b2);
+            
+            combinedPages.push({
+                p1: { b: encodeRLE(prevP1 ? getDifference(prevP1, p1Board1D) : p1Board1D), h: p1Data.hold||'', n: p1Data.next||'' },
+                p2: { b: encodeRLE(prevP2 ? getDifference(prevP2, p2Board1D) : p2Board1D), h: p2Data.hold||'', n: p2Data.next||'' }
+            });
+            prevP1 = p1Board1D; prevP2 = p2Board1D;
+        }
     }
 
     return {
@@ -899,7 +904,8 @@ function generateSeparatedURLs(p1Timeline, p2Timeline) {
         p2Url: buildFumenUrl(p2Pages, '1P'), 
         combinedUrl: buildFumenUrl(combinedPages, '2P')
     };
- }
+}
+
 
 // デバッグ表示用描画関数
 function drawBoardToCanvas(board40, canvasEl) {
