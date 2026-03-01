@@ -785,15 +785,12 @@ async function processPlayer(playerId, video, duration, params) {
         statusEl.textContent = `Pass1: ${pct * 2}%`;
     }
 
- // Pass1は進捗の前半50%
-        progressEl.value = pct;
-        statusEl.textContent = `Pass1: ${pct * 2}%`;
- }
     if (currentStart < duration) {
         pass1Timeline.push({ start: currentStart, end: duration, hold: lastStableHold, next: lastStableNext, active: activeMino, rawScans: [...currentRawScans] });
- }
+    }
 
     // --- Pass 2: Board Inference ---
+
     log(`${playerId.toUpperCase()} Pass2: 盤面ONNX推論開始 (区間数: ${pass1Timeline.length})...`, 'info');
  const timeline = [];
     for (let i = 0; i < pass1Timeline.length; i++) {
