@@ -844,59 +844,96 @@ function buildFumenUrl(pages, mode) {
 }
 
 function generateSeparatedURLs(p1Timeline, p2Timeline) {
-    const processTimeline = (timeline) => {
-        const pages = [];
-        let prev = null;
+    const flattenTimeline = (timeline) => {
+        const flat = [];
+        let lastTime = -1;
         timeline.forEach((data) => {
+            const b1D = boardToString1D(data.board);
+            let hasClear = false;
+            let full1D = null;
             if (data.fullBoard) {
-                const full1D = boardToString1D(data.fullBoard);
-                const b1D = boardToString1D(data.board);
+                full1D = boardToString1D(data.fullBoard);
                 if (JSON.stringify(full1D) !== JSON.stringify(b1D)) {
-                    pages.push({ p1: { b: encodeRLE(!prev ? full1D : getDifference(prev, full1D)), h: data.hold || '', n: data.next || '' } });
-                    prev = full1D;
+                    hasClear = true;
                 }
             }
-            const b1D = boardToString1D(data.board);
-            pages.push({ p1: { b: encodeRLE(!prev ? b1D : getDifference(prev, b1D)), h: data.hold || '', n: data.next || '' } });
-            prev = b1D;
+            
+            if (hasClear) {
+                let placeTime = data.time - 0.75;
+                if (placeTime <= lastTime) placeTime = lastTime + 0.01;
+                flat.push({
+                    time: placeTime,
+                    board1D: full1D,
+                    hold: data.hold,
+                    next: data.next
+                });
+                lastTime = placeTime;
+            }
+            
+            let endTime = data.time;
+            if (endTime <= lastTime) endTime = lastTime + 0.01;
+            flat.push({
+                time: endTime,
+                board1D: b1D,
+                hold: data.hold,
+                next: data.next
+            });
+            lastTime = endTime;
+        });
+        return flat;
+    };
+
+    const p1Flat = flattenTimeline(p1Timeline);
+    const p2Flat = flattenTimeline(p2Timeline);
+
+    const buildPagesSingle = (flat) => {
+        const pages = [];
+        let prev = null;
+        flat.forEach((item) => {
+            pages.push({
+                p1: {
+                    b: encodeRLE(!prev ? item.board1D : getDifference(prev, item.board1D)),
+                    h: item.hold || '',
+                    n: item.next || ''
+                }
+            });
+            prev = item.board1D;
         });
         return pages;
     };
-    const p1Pages = processTimeline(p1Timeline);
-    const p2Pages = processTimeline(p2Timeline);
 
-    const allTimes = new Set([...p1Timeline.map(e=>e.time), ...p2Timeline.map(e=>e.time)]);
-    const sortedTimes = Array.from(allTimes).sort((a,b) => a-b);
+    const p1Pages = buildPagesSingle(p1Flat);
+    const p2Pages = buildPagesSingle(p2Flat);
+
+    const allTimes = new Set([...p1Flat.map(e => e.time), ...p2Flat.map(e => e.time)]);
+    const sortedTimes = Array.from(allTimes).sort((a, b) => a - b);
+    
     let p1Idx = 0, p2Idx = 0;
     const combinedPages = [];
     let prevP1 = null, prevP2 = null;
+    let lastCombinedStr = "";
+
     for (let t of sortedTimes) {
-        while(p1Idx < p1Timeline.length - 1 && p1Timeline[p1Idx+1].time <= t) p1Idx++;
-        while(p2Idx < p2Timeline.length - 1 && p2Timeline[p2Idx+1].time <= t) p2Idx++;
+        while (p1Idx < p1Flat.length - 1 && p1Flat[p1Idx + 1].time <= t) p1Idx++;
+        while (p2Idx < p2Flat.length - 1 && p2Flat[p2Idx + 1].time <= t) p2Idx++;
         
-        const p1Data = p1Timeline[p1Idx], p2Data = p2Timeline[p2Idx];
+        const p1Item = p1Flat[p1Idx];
+        const p2Item = p2Flat[p2Idx];
+        if (!p1Item || !p2Item) continue;
+
+        const currentP1 = p1Item.board1D;
+        const currentP2 = p2Item.board1D;
         
-        let p1Boards = [p1Data.board];
-        if (p1Data.fullBoard && JSON.stringify(boardToString1D(p1Data.fullBoard)) !== JSON.stringify(boardToString1D(p1Data.board))) {
-            p1Boards = [p1Data.fullBoard, p1Data.board];
-        }
-        let p2Boards = [p2Data.board];
-        if (p2Data.fullBoard && JSON.stringify(boardToString1D(p2Data.fullBoard)) !== JSON.stringify(boardToString1D(p2Data.board))) {
-            p2Boards = [p2Data.fullBoard, p2Data.board];
-        }
-        
-        const maxSteps = Math.max(p1Boards.length, p2Boards.length);
-        for(let step = 0; step < maxSteps; step++) {
-            const b1 = p1Boards[Math.min(step, p1Boards.length - 1)];
-            const b2 = p2Boards[Math.min(step, p2Boards.length - 1)];
-            const p1Board1D = boardToString1D(b1), p2Board1D = boardToString1D(b2);
-            
-            combinedPages.push({
-                p1: { b: encodeRLE(prevP1 ? getDifference(prevP1, p1Board1D) : p1Board1D), h: p1Data.hold||'', n: p1Data.next||'' },
-                p2: { b: encodeRLE(prevP2 ? getDifference(prevP2, p2Board1D) : p2Board1D), h: p2Data.hold||'', n: p2Data.next||'' }
-            });
-            prevP1 = p1Board1D; prevP2 = p2Board1D;
-        }
+        const currentStr = JSON.stringify({b1: currentP1, b2: currentP2, h1: p1Item.hold, n1: p1Item.next, h2: p2Item.hold, n2: p2Item.next});
+        if (currentStr === lastCombinedStr) continue;
+        lastCombinedStr = currentStr;
+
+        combinedPages.push({
+            p1: { b: encodeRLE(prevP1 ? getDifference(prevP1, currentP1) : currentP1), h: p1Item.hold || '', n: p1Item.next || '' },
+            p2: { b: encodeRLE(prevP2 ? getDifference(prevP2, currentP2) : currentP2), h: p2Item.hold || '', n: p2Item.next || '' }
+        });
+        prevP1 = currentP1; 
+        prevP2 = currentP2;
     }
 
     return {
@@ -905,7 +942,6 @@ function generateSeparatedURLs(p1Timeline, p2Timeline) {
         combinedUrl: buildFumenUrl(combinedPages, '2P')
     };
 }
-
 
 // デバッグ表示用描画関数
 function drawBoardToCanvas(board40, canvasEl) {
