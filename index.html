@@ -242,17 +242,14 @@ function getAverageColorNonBlack(ctx, cx, cy, radius) {
  { r: 0, g: 0, b: 0 } : { r: totalR / count, g: totalG / count, b: totalB / count };
  }
 
-function processImageTo1080p(imgBitmap) {
+function calculateCropData(imgBitmap) {
     const srcW = imgBitmap.width, srcH = imgBitmap.height, targetAspect = 16 / 9, srcAspect = srcW / srcH;
     let cropW, cropH, cropX, cropY;
-    if (srcAspect > targetAspect) { cropH = srcH; cropW = srcH * targetAspect;
-    cropX = (srcW - cropW) / 2; cropY = 0; } 
-    else { cropW = srcW;
-    cropH = srcW / targetAspect; cropX = 0; cropY = (srcH - cropH) / 2;
-    }
-    shared1080pCtx.drawImage(imgBitmap, cropX, cropY, cropW, cropH, 0, 0, 1920, 1080);
-    return { canvas: shared1080pCanvas, cropData: { cropX, cropY, cropW, cropH } };
+    if (srcAspect > targetAspect) { cropH = srcH; cropW = srcH * targetAspect; cropX = (srcW - cropW) / 2; cropY = 0; } 
+    else { cropW = srcW; cropH = srcW / targetAspect; cropX = 0; cropY = (srcH - cropH) / 2; }
+    return { cropData: { cropX, cropY, cropW, cropH } };
 }
+
 
 
 function extractCellPixels(sourceImgData, x, y, w, h) {
@@ -330,20 +327,16 @@ function extractFeaturesJS(pixelsRGBA, w, h) {
 }
 
 // --- パス分割用関数群 ---
-async function analyzeNextQueue(ctx, originalBitmap, cropData, config) {
-    if (sharedRawCropCanvas.width !== cropData.cropW || sharedRawCropCanvas.height !== cropData.cropH) {
-        sharedRawCropCanvas.width = cropData.cropW;
-        sharedRawCropCanvas.height = cropData.cropH;
-    }
-    const rawCtx = sharedRawCropCtx;
-    rawCtx.drawImage(originalBitmap, cropData.cropX, cropData.cropY, cropData.cropW, cropData.cropH, 0, 0, cropData.cropW, cropData.cropH);
+async function analyzeNextQueue(originalBitmap, cropData, config) {
     const currentScale = cropData.cropW / 1280, radius = 5 * currentScale;
     const nextQueue = [];
-
     let holdMino = null;
     for (let i = 0; i < config.nextCoords.length; i++) {
         const coord = config.nextCoords[i];
- const avgColor = getAverageColorNonBlack(rawCtx, coord.x * currentScale, coord.y * currentScale, radius);
+        const cx = cropData.cropX + coord.x * currentScale;
+        const cy = cropData.cropY + coord.y * currentScale;
+        const avgColor = getAverageColorNonBlack(sharedVideoCtx, cx, cy, radius);
+
  if (i === 0) {
             if (!(avgColor.r < 50 && avgColor.g < 50 && avgColor.b < 50)) holdMino = findClosestMinoOnly(avgColor.r, avgColor.g, avgColor.b);
  } else {
@@ -355,19 +348,27 @@ async function analyzeNextQueue(ctx, originalBitmap, cropData, config) {
     return { hold: holdMino, next: nextQueue };
  }
 
-async function analyzeBoardOnly(canvas, originalBitmap, cropData, config) {
-    const ctx = canvas.getContext('2d');
+async function analyzeBoardOnly(originalBitmap, cropData, config) {
     const boardRect = config.boardRect;
- const boardImgData = ctx.getImageData(boardRect.x, boardRect.y, boardRect.w, boardRect.h);
+    const scale = cropData.cropW / 1920;
+    const sx = cropData.cropX + boardRect.x * scale;
+    const sy = cropData.cropY + boardRect.y * scale;
+    const sw = boardRect.w * scale;
+    const sh = boardRect.h * scale;
+    shared1080pCanvas.width = boardRect.w;
+    shared1080pCanvas.height = boardRect.h;
+    const ctx = shared1080pCtx;
+    ctx.drawImage(originalBitmap, sx, sy, sw, sh, 0, 0, boardRect.w, boardRect.h);
+    const boardImgData = ctx.getImageData(0, 0, boardRect.w, boardRect.h);
     const cellW = boardRect.w / 10, cellH = boardRect.h / 20;
- // Classic Scan
     const classicBoard = [];
- for (let r = 0; r < 20; r++) {
+    for (let r = 0; r < 20; r++) {
         const row = [];
- for (let c = 0; c < 10; c++) {
-            const sampleX = boardRect.x + (c + 0.5) * cellW, sampleY = boardRect.y + (r + 0.5) * cellH;
- const sampleSize = Math.max(1, Math.floor(cellW * 0.25));
+        for (let c = 0; c < 10; c++) {
+            const sampleX = (c + 0.5) * cellW, sampleY = (r + 0.5) * cellH;
+            const sampleSize = Math.max(1, Math.floor(cellW * 0.25));
             const imageData = ctx.getImageData(sampleX - sampleSize / 2, sampleY - sampleSize / 2, sampleSize, sampleSize).data;
+
  let avgR = 0, avgG = 0, avgB = 0;
  for (let i = 0; i < imageData.length; i += 4) { avgR += imageData[i]; avgG += imageData[i+1];
  avgB += imageData[i+2]; }
@@ -677,10 +678,10 @@ async function processPlayer(playerId, video, duration, params) {
             sharedVideoCanvas.height = video.videoHeight;
         }
         sharedVideoCtx.drawImage(video, 0, 0);
-        const { canvas: pCanvas, cropData } = processImageTo1080p(sharedVideoCanvas);
-        const queueData = await analyzeNextQueue(pCanvas, sharedVideoCanvas, cropData, CONFIG[playerId]);
-        
+        const { cropData } = calculateCropData(sharedVideoCanvas);
+        const queueData = await analyzeNextQueue(sharedVideoCanvas, cropData, CONFIG[playerId]);
         const rawObsHold = queueData.hold || "";
+
 
         const rawObsNext = queueData.next;
         currentRawScans.push(`[${t.toFixed(2)}s] H:${rawObsHold || '-'} N:${rawObsNext.join('')}`);
@@ -763,22 +764,19 @@ async function processPlayer(playerId, video, duration, params) {
             if (sharedVideoCanvas.width !== video.videoWidth || sharedVideoCanvas.height !== video.videoHeight) {
                 sharedVideoCanvas.width = video.videoWidth;
                 sharedVideoCanvas.height = video.videoHeight;
-            }
-            sharedVideoCtx.drawImage(video, 0, 0);
-            const { canvas: pCanvas, cropData } = processImageTo1080p(sharedVideoCanvas);
-// 代表画像の保存（区間の最初のサンプル）
-
+            }            sharedVideoCtx.drawImage(video, 0, 0);
+            const { cropData } = calculateCropData(sharedVideoCanvas);
             if (s === 1) {
                 const repCanvas = document.createElement('canvas');
- const rect = CONFIG[playerId].boardRect;
+                const rect = CONFIG[playerId].boardRect;
                 repCanvas.width = rect.w; repCanvas.height = rect.h;
-                // Full HD比率に合わせた座標で切り抜くため pCanvas を使用
-                repCanvas.getContext('2d').drawImage(pCanvas, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
-repImageURL = repCanvas.toDataURL('image/jpeg', 0.5);
+                const scale = cropData.cropW / 1920;
+                repCanvas.getContext('2d').drawImage(sharedVideoCanvas, cropData.cropX + rect.x * scale, cropData.cropY + rect.y * scale, rect.w * scale, rect.h * scale, 0, 0, rect.w, rect.h);
+                repImageURL = repCanvas.toDataURL('image/jpeg', 0.5);
             }
-            
-            const board = await analyzeBoardOnly(pCanvas, sharedVideoCanvas, cropData, CONFIG[playerId]);
-aggregator.add(board);
+            const board = await analyzeBoardOnly(sharedVideoCanvas, cropData, CONFIG[playerId]);
+            aggregator.add(board);
+
         }
         
         const winnerBoard = aggregator.getWinnerBoard() ||
