@@ -231,25 +231,22 @@ function getAverageColorNonBlack(ctx, cx, cy, radius) {
  { r: 0, g: 0, b: 0 } : { r: totalR / count, g: totalG / count, b: totalB / count };
  }
 
-const shared1080pCanvas = document.createElement('canvas');
-shared1080pCanvas.width = 1920; shared1080pCanvas.height = 1080;
-const shared1080pCtx = shared1080pCanvas.getContext('2d', { willReadFrequently: true });
-
-function processImageTo1080p(videoOrImg) {
-    const srcW = videoOrImg.videoWidth || videoOrImg.width, srcH = videoOrImg.videoHeight || videoOrImg.height;
-    const targetAspect = 16 / 9, srcAspect = srcW / srcH;
-    let cropW, cropH, cropX, cropY;
+function processImageTo1080p(imgBitmap) {
+    const srcW = imgBitmap.width, srcH = imgBitmap.height, targetAspect = 16 / 9, srcAspect = srcW / srcH;
+ let cropW, cropH, cropX, cropY;
     if (srcAspect > targetAspect) { cropH = srcH; cropW = srcH * targetAspect;
-    cropX = (srcW - cropW) / 2; cropY = 0; } 
+ cropX = (srcW - cropW) / 2; cropY = 0; } 
     else { cropW = srcW;
-    cropH = srcW / targetAspect; cropX = 0; cropY = (srcH - cropH) / 2;
-    }
-    shared1080pCtx.drawImage(videoOrImg, cropX, cropY, cropW, cropH, 0, 0, 1920, 1080);
-    return { canvas: shared1080pCanvas, cropData: { cropX, cropY, cropW, cropH } };
-}
+ cropH = srcW / targetAspect; cropX = 0; cropY = (srcH - cropH) / 2;
+ }
+    const canvas = document.createElement('canvas');
+    canvas.width = 1920; canvas.height = 1080;
+ const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(imgBitmap, cropX, cropY, cropW, cropH, 0, 0, 1920, 1080);
+ return { canvas, cropData: { cropX, cropY, cropW, cropH } };
+ }
 
 function extractCellPixels(sourceImgData, x, y, w, h) {
-
     const sw = sourceImgData.width, ix = Math.floor(x), iy = Math.floor(y), iw = Math.floor(w), ih = Math.floor(h);
  const data = new Uint8ClampedArray(iw * ih * 4);
     for (let row = 0; row < ih; row++) {
@@ -324,18 +321,13 @@ function extractFeaturesJS(pixelsRGBA, w, h) {
 }
 
 // --- パス分割用関数群 ---
-const sharedRawCropCanvas = document.createElement('canvas');
-const sharedRawCtx = sharedRawCropCanvas.getContext('2d', { willReadFrequently: true });
-
-async function analyzeNextQueue(pCanvas, videoOrImg, cropData, config) {
-    const cw = Math.floor(cropData.cropW), ch = Math.floor(cropData.cropH);
-    if (sharedRawCropCanvas.width !== cw || sharedRawCropCanvas.height !== ch) {
-        sharedRawCropCanvas.width = cw; sharedRawCropCanvas.height = ch;
-    }
-    sharedRawCtx.drawImage(videoOrImg, cropData.cropX, cropData.cropY, cropData.cropW, cropData.cropH, 0, 0, cw, ch);
+async function analyzeNextQueue(ctx, originalBitmap, cropData, config) {
+    const rawCropCanvas = document.createElement('canvas');
+ rawCropCanvas.width = cropData.cropW; rawCropCanvas.height = cropData.cropH;
+    const rawCtx = rawCropCanvas.getContext('2d', { willReadFrequently: true });
+ rawCtx.drawImage(originalBitmap, cropData.cropX, cropData.cropY, cropData.cropW, cropData.cropH, 0, 0, cropData.cropW, cropData.cropH);
     const currentScale = cropData.cropW / 1280, radius = 5 * currentScale;
-    const nextQueue = [];
-
+ const nextQueue = [];
     let holdMino = null;
     for (let i = 0; i < config.nextCoords.length; i++) {
         const coord = config.nextCoords[i];
@@ -651,11 +643,11 @@ function cleanUpBoard(board20) {
 async function processPlayer(playerId, video, duration, params) {
     const progressEl = document.getElementById(`${playerId}Progress`);
     const statusEl = document.getElementById(`${playerId}Status`);
-    // --- Pass 1: Next Tracking ---
+ // --- Pass 1: Next Tracking ---
     log(`${playerId.toUpperCase()} Pass1: Next区間検索開始...`, 'info');
     let pass1Timeline = [];
     let currentRawScans = [];
-    let lastStableHold = "";
+ let lastStableHold = "";
     let lastStableNext = [];
     let activeMino = "";
     let currentStart = 0;
@@ -663,136 +655,115 @@ async function processPlayer(playerId, video, duration, params) {
     let pendingHold = "";
     let pendingNextStr = "";
     let pendingCount = 0;
-
-    const extractQueue = async (time) => {
-        video.currentTime = time;
-        await new Promise(r => { video.onseeked = r; });
-        const { canvas: pCanvas, cropData } = processImageTo1080p(video);
-        return await analyzeNextQueue(pCanvas, video, cropData, CONFIG[playerId]);
-    };
-
-    let t = 0;
-    while (t < duration) {
+ for(let t = 0; t < duration; t += params.nextScanInterval) {
         if(stopRequested) break;
+ video.currentTime = t;
+        await new Promise(r => { video.onseeked = r; });
         
-        const queueData = await extractQueue(t);
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = video.videoWidth;
+ tempCanvas.height = video.videoHeight;
+        tempCanvas.getContext('2d').drawImage(video, 0, 0);
+        const { canvas: pCanvas, cropData } = processImageTo1080p(tempCanvas);
+ const queueData = await analyzeNextQueue(pCanvas, tempCanvas, cropData, CONFIG[playerId]);
+        
         const rawObsHold = queueData.hold || "";
         const rawObsNext = queueData.next;
         currentRawScans.push(`[${t.toFixed(2)}s] H:${rawObsHold || '-'} N:${rawObsNext.join('')}`);
+        
         const currentNextStr = rawObsNext.join('');
-
-        if (!isFirstDetected) {
-            if (rawObsHold === pendingHold && currentNextStr === pendingNextStr) {
-                pendingCount++;
-            } else {
-                pendingHold = rawObsHold;
-                pendingNextStr = currentNextStr;
-                pendingCount = 1;
-            }
-            if (pendingCount >= 2 && rawObsNext.length >= 3) {
-                lastStableHold = rawObsHold;
-                lastStableNext = rawObsNext;
-                activeMino = "";
-                pass1Timeline.push({ start: 0, end: t, hold: "", next: rawObsNext, active: "", rawScans: [...currentRawScans] });
-                currentStart = t;
-                currentRawScans = [];
-                isFirstDetected = true;
-            }
-            t += params.nextScanInterval;
-            continue;
+        if (rawObsHold === pendingHold && currentNextStr === pendingNextStr) {
+            pendingCount++;
+        } else {
+            pendingHold = rawObsHold;
+            pendingNextStr = currentNextStr;
+            pendingCount = 1;
         }
 
-        if (rawObsHold !== lastStableHold || currentNextStr !== lastStableNext.join('')) {
-            let fineT = Math.max(currentStart, t - params.nextScanInterval);
-            let foundExactTime = t;
-            let exactHold = rawObsHold;
-            let exactNext = rawObsNext;
-            
-            const fineStep = 0.02;
-            for (let ft = fineT + fineStep; ft < t; ft += fineStep) {
-                const fData = await extractQueue(ft);
-                const fHold = fData.hold || "";
-                const fNextStr = fData.next.join('');
-                
-                if (fHold !== lastStableHold || fNextStr !== lastStableNext.join('')) {
-                    const fDataConfirm = await extractQueue(ft + fineStep);
-                    if (fHold === (fDataConfirm.hold || "") && fNextStr === fDataConfirm.next.join('')) {
-                        foundExactTime = ft;
-                        exactHold = fHold;
-                        exactNext = fData.next;
-                        break;
-                    }
-                }
-            }
-            
-            const transition = checkQueueTransition(exactHold, exactNext, lastStableHold, lastStableNext, activeMino);
-            if (transition.action === 'spawn') {
-                activeMino = lastStableNext[0];
-            } else if (transition.action === 'first_hold') {
-                activeMino = lastStableNext[0];
-            } else if (transition.action === 'hold') {
-                activeMino = lastStableHold;
-            } else if (transition.action === 'place' || transition.action === 'place_and_hold') {
-                pass1Timeline.push({ start: currentStart, end: foundExactTime, hold: lastStableHold, next: lastStableNext, active: activeMino, rawScans: [...currentRawScans] });
-                currentStart = foundExactTime;
-                currentRawScans = [];
-                activeMino = lastStableNext[0];
-            }
+        if (pendingCount < 2) continue;
 
-            if (transition.holdChanged || transition.nextAdvanced) {
-                lastStableHold = exactHold;
-                lastStableNext = exactNext;
-            }
-            
-            t = foundExactTime + params.nextScanInterval;
-        } else {
-            t += params.nextScanInterval;
+        const obsHold = rawObsHold;
+        const obsNext = rawObsNext;
+
+ if (!isFirstDetected && obsNext.length >= 3) {
+            lastStableHold = obsHold;
+ lastStableNext = obsNext;
+
+            activeMino = "";
+            pass1Timeline.push({ start: 0, end: t, hold: "", next: obsNext, active: "", rawScans: [...currentRawScans] });
+ currentStart = t;
+            currentRawScans = [];
+            isFirstDetected = true;
+            continue;
+        }
+        if (!isFirstDetected) continue;
+ const transition = checkQueueTransition(obsHold, obsNext, lastStableHold, lastStableNext, activeMino);
+        
+        if (transition.action === 'spawn') {
+            activeMino = lastStableNext[0];
+ } else if (transition.action === 'first_hold') {
+            activeMino = lastStableNext[0];
+ } else if (transition.action === 'hold') {
+            activeMino = lastStableHold;
+ } else if (transition.action === 'place' || transition.action === 'place_and_hold') {
+            pass1Timeline.push({ start: currentStart, end: t, hold: lastStableHold, next: lastStableNext, active: activeMino, rawScans: [...currentRawScans] });
+ currentStart = t;
+            currentRawScans = [];
+            activeMino = lastStableNext[0];
+        }
+
+        if (transition.holdChanged || transition.nextAdvanced) {
+            lastStableHold = obsHold;
+ lastStableNext = obsNext;
         }
         
         const pct = Math.floor((t / duration) * 50);
-        progressEl.value = Math.min(pct, 50);
-        statusEl.textContent = `Pass1: ${Math.min(pct * 2, 100)}%`;
-    }
-
+ // Pass1は進捗の前半50%
+        progressEl.value = pct;
+        statusEl.textContent = `Pass1: ${pct * 2}%`;
+ }
     if (currentStart < duration) {
         pass1Timeline.push({ start: currentStart, end: duration, hold: lastStableHold, next: lastStableNext, active: activeMino, rawScans: [...currentRawScans] });
-    }
+ }
 
     // --- Pass 2: Board Inference ---
     log(`${playerId.toUpperCase()} Pass2: 盤面ONNX推論開始 (区間数: ${pass1Timeline.length})...`, 'info');
-    const timeline = [];
+ const timeline = [];
     for (let i = 0; i < pass1Timeline.length; i++) {
         if (stopRequested) break;
-        const phase = pass1Timeline[i];
+ const phase = pass1Timeline[i];
         const aggregator = new VoteAggregator();
         const durationPhase = phase.end - phase.start;
         const samples = params.onnxSamples;
-        let repImageURL = null;
+ let repImageURL = null;
 
         // 区間が短すぎる場合の保護
-        const actualSamples = durationPhase < 0.1 ? 1 : samples;
+        const actualSamples = durationPhase < 0.1 ?
+ 1 : samples;
 
         for (let s = 1; s <= actualSamples; s++) {
-            const time = phase.start + (durationPhase * s) / (actualSamples + 1);
-            video.currentTime = time;
+            const t = phase.start + (durationPhase * s) / (actualSamples + 1);
+ video.currentTime = t;
             await new Promise(r => { video.onseeked = r; });
             
-            const { canvas: pCanvas, cropData } = processImageTo1080p(video);
-            
-            // 代表画像の保存（区間の最初のサンプル）
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = video.videoWidth;
+ tempCanvas.height = video.videoHeight;
+            tempCanvas.getContext('2d').drawImage(video, 0, 0);
+            const { canvas: pCanvas, cropData } = processImageTo1080p(tempCanvas);
+ // 代表画像の保存（区間の最初のサンプル）
             if (s === 1) {
                 const repCanvas = document.createElement('canvas');
-                const rect = CONFIG[playerId].boardRect;
+ const rect = CONFIG[playerId].boardRect;
                 repCanvas.width = rect.w; repCanvas.height = rect.h;
-                // Full HD比率に合わせた座標で切り抜くため pCanvas を使用
+ // Full HD比率に合わせた座標で切り抜くため pCanvas を使用
                 repCanvas.getContext('2d').drawImage(pCanvas, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
-                repImageURL = repCanvas.toDataURL('image/jpeg', 0.5);
+ repImageURL = repCanvas.toDataURL('image/jpeg', 0.5);
             }
             
-            const board = await analyzeBoardOnly(pCanvas, video, cropData, CONFIG[playerId]);
-            aggregator.add(board);
+            const board = await analyzeBoardOnly(pCanvas, tempCanvas, cropData, CONFIG[playerId]);
+ aggregator.add(board);
         }
-
         
         const winnerBoard = aggregator.getWinnerBoard() ||
  Array.from({length:20}, ()=>Array(10).fill(null));
