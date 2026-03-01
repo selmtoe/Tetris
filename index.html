@@ -328,24 +328,28 @@ function extractFeaturesJS(pixelsRGBA, w, h) {
 // --- パス分割用関数群 ---
 async function analyzeNextQueue(video, videoInfo, config) {
     const radius = 5 * videoInfo.scale1280;
-    const diameter = Math.ceil(radius * 2);
+    const diameter = Math.ceil(radius * 2) + 2;
     if (sharedNextCanvas.width !== diameter || sharedNextCanvas.height !== diameter) {
-        sharedNextCanvas.width = diameter; sharedNextCanvas.height = diameter;
+        sharedNextCanvas.width = diameter;
+        sharedNextCanvas.height = diameter;
     }
     const nextQueue = [];
     let holdMino = null;
     for (let i = 0; i < config.nextCoords.length; i++) {
         const coord = config.nextCoords[i];
-        const srcCX = videoInfo.cropX + coord.x * videoInfo.scale1280;
-        const srcCY = videoInfo.cropY + coord.y * videoInfo.scale1280;
-        const srcX = Math.max(0, srcCX - radius);
-        const srcY = Math.max(0, srcCY - radius);
+        const globalCX = videoInfo.cropX + coord.x * videoInfo.scale1280;
+        const globalCY = videoInfo.cropY + coord.y * videoInfo.scale1280;
+        const startX = Math.max(0, Math.floor(globalCX - radius));
+        const startY = Math.max(0, Math.floor(globalCY - radius));
         
         sharedNextCtx.clearRect(0, 0, diameter, diameter);
-        sharedNextCtx.drawImage(video, srcX, srcY, diameter, diameter, 0, 0, diameter, diameter);
+        sharedNextCtx.drawImage(video, startX, startY, diameter, diameter, 0, 0, diameter, diameter);
         
-        const avgColor = getAverageColorNonBlack(sharedNextCtx, diameter / 2, diameter / 2, radius);
-if (i === 0) {
+        const localCX = globalCX - startX;
+        const localCY = globalCY - startY;
+        const avgColor = getAverageColorNonBlack(sharedNextCtx, localCX, localCY, radius);
+        if (i === 0) {
+
             if (!(avgColor.r < 50 && avgColor.g < 50 && avgColor.b < 50)) holdMino = findClosestMinoOnly(avgColor.r, avgColor.g, avgColor.b);
 } else {
 
