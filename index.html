@@ -100,11 +100,10 @@
                 <div class="input-row"><label>ブロック色違い</label><input type="number" id="scoreColor" value="-2"></div>
                 <div class="input-row"><label>抜け (予測有・観測無)</label><input type="number" id="scoreMissing" value="-5"></div>
                 <div class="input-row"><label>ノイズ (予測無・観測有)</label><input type="number" id="scoreExtra" value="-5"></div>
+                <div class="input-row"><label>せり上がり判定閾値(%)</label><input type="number" id="shiftThreshold" value="80" min="0" max="100"></div>
             </div>
-    
-     </div>
+        </div>
     </div>
-
     <div class="panel">
         <h2>2. 実行</h2>
         <button id="startBtn" disabled>解析開始</button>
@@ -479,9 +478,44 @@ function generateLegalMoves(board, minoType) {
  }
 
 // 評価関数（UI設定を反映）
+function detectBoardShift(prevBoard, obsBoard, threshold) {
+    let bestShift = 0;
+    let bestRatio = 0;
+    for (let shift = 1; shift <= 20; shift++) {
+        let matchCount = 0;
+        let blockCount = 0;
+        for (let y = 20 + shift; y < 40; y++) {
+            for (let x = 0; x < 10; x++) {
+                const p = prevBoard[y][x];
+                if (p !== null) {
+                    blockCount++;
+                    if (p === obsBoard[y - shift][x]) {
+                        matchCount++;
+                    }
+                }
+            }
+        }
+        let gCount = 0;
+        for (let y = 40 - shift; y < 40; y++) {
+            for (let x = 0; x < 10; x++) {
+                if (obsBoard[y][x] === 'G') gCount++;
+            }
+        }
+        if (blockCount > 0 && gCount > 0) {
+            const ratio = matchCount / blockCount;
+            if (ratio >= threshold && ratio > bestRatio) {
+                bestRatio = ratio;
+                bestShift = shift;
+            }
+        }
+    }
+    return { shift: bestShift, ratio: bestRatio };
+}
+
 function calculateMatchScore(predBoard, obsBoard, weights) {
     let score = 0;
- for (let y = 0; y < 40; y++) {
+    for (let y = 0; y < 40; y++) {
+
         for (let x = 0; x < 10; x++) {
             const p = predBoard[y][x];
  const o = obsBoard[y][x];
@@ -502,25 +536,45 @@ function runBeamSearch(timeline, params) {
     if (timeline.length === 0) return [];
  // 最初の状態を真実とする
     let beam = [ { board: timeline[0].board, history: [timeline[0]], score: 0 } ];
- for (let i = 1; i < timeline.length; i++) {
+    for (let i = 1; i < timeline.length; i++) {
         const obsBoard = timeline[i].board;
- const currentNext = timeline[i].next;
+        const currentNext = timeline[i].next;
         const prevNext = timeline[i-1].next;
         
         let possibleMinos = ALL_MINOS;
         let skipPlacement = false;
- if (!timeline[i-1].active || timeline[i-1].active === "") {
+        if (!timeline[i-1].active || timeline[i-1].active === "") {
             skipPlacement = true;
- } else if (timeline[i-1].active && ALL_MINOS.includes(timeline[i-1].active)) {
+        } else if (timeline[i-1].active && ALL_MINOS.includes(timeline[i-1].active)) {
             possibleMinos = [timeline[i-1].active];
- } else if (prevNext && prevNext.length > 0 && ALL_MINOS.includes(prevNext[0])) {
+        } else if (prevNext && prevNext.length > 0 && ALL_MINOS.includes(prevNext[0])) {
             possibleMinos = [prevNext[0]];
- }
+        }
+
+        let shiftInfo = { shift: 0, ratio: 0 };
+        if (i > 0) {
+            shiftInfo = detectBoardShift(timeline[i-1].board, obsBoard, params.shiftThreshold);
+        }
 
         let nextBeam = [];
         for (const state of beam) {
+            let baseBoard = state.board;
+            if (shiftInfo.shift > 0) {
+                baseBoard = cloneBoard(baseBoard);
+                for (let y = 0; y < 40 - shiftInfo.shift; y++) {
+                    for (let x = 0; x < 10; x++) {
+                        baseBoard[y][x] = baseBoard[y + shiftInfo.shift][x];
+                    }
+                }
+                for (let y = 40 - shiftInfo.shift; y < 40; y++) {
+                    for (let x = 0; x < 10; x++) {
+                        baseBoard[y][x] = obsBoard[y][x];
+                    }
+                }
+            }
+
             if (skipPlacement) {
-                const newBoard = cloneBoard(state.board);
+                const newBoard = cloneBoard(baseBoard);
                 const stepScore = calculateMatchScore(newBoard, obsBoard, params.weights);
                 const newHistory = [...state.history, {
                     time: timeline[i].time,
@@ -532,12 +586,14 @@ function runBeamSearch(timeline, params) {
                     action: timeline[i].action,
                     next: timeline[i].next,
                     repImage: timeline[i].repImage,
-                    rawScans: timeline[i].rawScans
+                    rawScans: timeline[i].rawScans,
+                    shiftLines: shiftInfo.shift,
+                    shiftMatchRatio: shiftInfo.ratio
                 }];
                 nextBeam.push({ board: newBoard, history: newHistory, score: state.score + stepScore });
             } else {
                 for (const mino of possibleMinos) {
-                    const moves = generateLegalMoves(state.board, mino);
+                    const moves = generateLegalMoves(baseBoard, mino);
                     for (const move of moves) {
                         const stepScore = calculateMatchScore(move.clearedBoard, obsBoard, params.weights);
                         const newHistory = [...state.history, {
@@ -550,7 +606,9 @@ function runBeamSearch(timeline, params) {
                             action: timeline[i].action,
                             next: timeline[i].next,
                             repImage: timeline[i].repImage,
-                            rawScans: timeline[i].rawScans
+                            rawScans: timeline[i].rawScans,
+                            shiftLines: shiftInfo.shift,
+                            shiftMatchRatio: shiftInfo.ratio
                         }];
                         nextBeam.push({ board: move.clearedBoard, history: newHistory, score: state.score + stepScore });
                     }
@@ -559,6 +617,7 @@ function runBeamSearch(timeline, params) {
         }
 
         nextBeam.sort((a, b) => b.score - a.score);
+
  beam = nextBeam.slice(0, params.beamWidth);
         
         if (beam.length === 0) {
@@ -968,22 +1027,22 @@ function drawBoardToCanvas(board40, canvasEl) {
 
 function renderDebugTimeline(playerId, timeline) {
     const container = document.getElementById(`debug${playerId.toUpperCase()}`);
-let html = `<table class="debug-table">
-        <tr><th>Time (s)</th><th>Hold / Active / Next</th><th>Raw Scans (Intervals)</th><th>Representative Image</th><th>Vote Avg Board</th><th>Beam Search Board</th></tr>`;
-timeline.forEach((item, idx) => {
+    let html = `<table class="debug-table">
+        <tr><th>Time (s)</th><th>Hold / Active / Next</th><th>Shift Info</th><th>Raw Scans (Intervals)</th><th>Representative Image</th><th>Vote Avg Board</th><th>Beam Search Board</th></tr>`;
+    timeline.forEach((item, idx) => {
         const rawScansStr = item.rawScans ? item.rawScans.join('<br>') : '';
         html += `<tr>
             <td>${item.time.toFixed(3)}</td>
             <td>Hold: ${item.hold}<br>Active: ${item.active || 'none'} (${item.action || 'init'})<br>Next: ${item.next}</td>
+            <td>Shift: ${item.shiftLines || 0} lines<br>Match: ${((item.shiftMatchRatio || 0)*100).toFixed(1)}%</td>
             <td style="text-align:left; font-size:10px; max-height:100px; overflow-y:auto; display:block;">${rawScansStr}</td>
             <td><img src="${item.repImage || ''}" class="rep-img" alt="no img"></td>
             <td><canvas id="canvas-raw-${playerId}-${idx}" class="board-canvas" width="60" height="120"></canvas></td>
             <td><canvas id="canvas-clean-${playerId}-${idx}" class="board-canvas" width="60" height="120"></canvas></td>
-        
- 
         </tr>`;
     });
     html += `</table>`;
+
     container.innerHTML = html;
  // Canvasに描画
     timeline.forEach((item, idx) => {
@@ -1020,10 +1079,12 @@ startBtn.addEventListener('click', async () => {
             colorMismatch: parseInt(document.getElementById('scoreColor').value),
             missingBlock: parseInt(document.getElementById('scoreMissing').value),
             extraBlock: parseInt(document.getElementById('scoreExtra').value)
-        }
+        },
+        shiftThreshold: parseFloat(document.getElementById('shiftThreshold').value) / 100
     };
     
     video.src = URL.createObjectURL(videoInput.files[0]);
+
 
     try {
         await new Promise(r => { video.onloadedmetadata = r;
