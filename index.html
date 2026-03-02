@@ -487,7 +487,7 @@ function detectBoardShift(prevBoard, obsBoard, threshold) {
         for (let y = 20 + shift; y < 40; y++) {
             for (let x = 0; x < 10; x++) {
                 const p = prevBoard[y][x];
-                if (p !== null) {
+                if (p !== null && p !== 'G') {
                     blockCount++;
                     if (p === obsBoard[y - shift][x]) {
                         matchCount++;
