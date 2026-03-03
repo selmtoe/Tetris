@@ -765,8 +765,21 @@ async function processPlayer(playerId, video, duration, params) {
         const obsHold = rawObsHold;
         const obsNext = rawObsNext;
 
-        if (!isFirstDetected) continue;
+        if (!isFirstDetected) {
+            if (obsNext.length >= 3) {
+                lastStableHold = "";
+                lastStableNext = obsNext;
+                activeMino = "";
+                pass1Timeline.push({ start: 0, end: t, hold: "", next: obsNext, active: "", action: "init", rawScans: [...currentRawScans] });
+                currentStart = t;
+                currentRawScans = [];
+                isFirstDetected = true;
+            }
+            continue;
+        }
+
         const transition = checkQueueTransition(obsHold, obsNext, lastStableHold, lastStableNext, activeMino);
+
         
         if (transition.action === 'invalid') {
             if (pendingCount > 10) {
@@ -840,23 +853,21 @@ async function processPlayer(playerId, video, duration, params) {
 
         }
         
-        const winnerBoard = aggregator.getWinnerBoard() ||
-Array.from({length:20}, ()=>Array(10).fill(null));
+        let winnerBoard = aggregator.getWinnerBoard() || Array.from({length:20}, ()=>Array(10).fill(null));
+        if (phase.action === 'init') {
+            winnerBoard = Array.from({length:20}, ()=>Array(10).fill(null));
+        }
         timeline.push({
             time: phase.end,
             board: cleanUpBoard(winnerBoard),
-            rawBoard: cleanUpBoard(winnerBoard), // デバッグ用の生データ
+            rawBoard: cleanUpBoard(winnerBoard),
             hold: phase.hold,
             active: phase.active,
             action: phase.action,
             next: (phase.next || []).join(''),
             repImage: repImageURL,
-   
-         rawScans: phase.rawScans
-   
-      });
-
-
+            rawScans: phase.rawScans
+        });
         
         const pct = 50 + Math.floor(((i + 1) / pass1Timeline.length) * 50);
  progressEl.value = pct;
