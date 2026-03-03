@@ -676,40 +676,27 @@ function log(msg, type='info') {
 }
 
 function checkQueueTransition(obsHold, obsNext, lastHold, lastNext, activeMino) {
-    if (obsNext.length < 3 || lastNext.length < 3) return { action: 'invalid', nextAdvanced: false, holdChanged: false };
-    const holdChanged = (obsHold !== lastHold);
-    
-    let nextAdvanced = true;
-    for (let i = 0; i < Math.min(obsNext.length, lastNext.length - 1); i++) {
-        if (obsNext[i] !== lastNext[i + 1]) {
-            nextAdvanced = false;
-            break;
-        }
-    }
-    
-    let nextSame = true;
-    for (let i = 0; i < Math.min(obsNext.length, lastNext.length); i++) {
-        if (obsNext[i] !== lastNext[i]) {
-            nextSame = false;
-            break;
-        }
-    }
-    
-    let action = 'invalid';
+    if (obsNext.length < 3 || lastNext.length < 3) return { action: 'none', nextAdvanced: false, holdChanged: false };
+ const holdChanged = (obsHold !== lastHold);
+    let nextAdvanced = false;
+    let nextSame = false;
+ if (obsNext[0] === lastNext[1] && obsNext[1] === lastNext[2]) {
+        nextAdvanced = true;
+ } else if (obsNext[0] === lastNext[0] && obsNext[1] === lastNext[1]) {
+        nextSame = true;
+ }
+    if (!holdChanged && !nextAdvanced && !nextSame) return { action: 'none', nextAdvanced, holdChanged };
+ let action = 'none';
     if (activeMino === "") {
         if (!holdChanged && nextAdvanced) action = 'spawn';
-    } else {
-        const isValidHold = (obsHold === activeMino);
-        if (!holdChanged && nextAdvanced) {
-            action = 'place';
-        } else if (holdChanged && nextAdvanced && lastHold === "" && isValidHold) {
-            action = 'first_hold';
-        } else if (holdChanged && nextSame && lastHold !== "" && isValidHold) {
-            action = 'hold';
-        }
+ } else {
+        if (!holdChanged && nextAdvanced) action = 'place';
+ else if (holdChanged && nextAdvanced && lastHold === "") action = 'first_hold';
+        else if (holdChanged && nextSame) action = 'hold';
+ else if (holdChanged && nextAdvanced) action = 'place_and_hold';
     }
     return { action, nextAdvanced, holdChanged };
-}
+ }
 
 function cleanUpBoard(board20) {
 
@@ -790,17 +777,14 @@ async function processPlayer(playerId, video, duration, params) {
             continue;
         }
         if (!isFirstDetected) continue;
-        const transition = checkQueueTransition(obsHold, obsNext, lastStableHold, lastStableNext, activeMino);
-        
-        if (transition.action === 'invalid') continue;
-
+ const transition = checkQueueTransition(obsHold, obsNext, lastStableHold, lastStableNext, activeMino);
         if (transition.action === 'spawn') {
             activeMino = lastStableNext[0];
         } else if (transition.action === 'first_hold') {
             activeMino = lastStableNext[0];
         } else if (transition.action === 'hold') {
             activeMino = lastStableHold;
-        } else if (transition.action === 'place') {
+        } else if (transition.action === 'place' || transition.action === 'place_and_hold') {
             pass1Timeline.push({ start: currentStart, end: t, hold: lastStableHold, next: lastStableNext, active: activeMino, action: transition.action, rawScans: [...currentRawScans] });
             currentStart = t;
             currentRawScans = [];
@@ -811,7 +795,7 @@ async function processPlayer(playerId, video, duration, params) {
             lastStableHold = obsHold;
             lastStableNext = obsNext;
         }
-
+        
         const pct = Math.floor((t / duration) * 50);
         // Pass1は進捗の前半50%
         progressEl.value = pct;
