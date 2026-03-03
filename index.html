@@ -693,7 +693,9 @@ function checkQueueTransition(obsHold, obsNext, lastHold, lastNext, activeMino) 
         if (activeMino === "") action = 'spawn';
         else action = 'place';
     } else if (holdChanged && nextSame) {
-        action = 'hold';
+        if (activeMino !== "" && obsHold === activeMino) {
+            action = 'hold';
+        }
     }
 
     return { action, nextAdvanced, holdChanged };
