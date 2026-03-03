@@ -694,14 +694,25 @@ function checkQueueTransition(obsHold, obsNext, lastHold, lastNext, activeMino) 
     if (activeMino === "") {
         if (!holdChanged && nextAdvanced) action = 'spawn';
     } else {
-        if (!holdChanged && nextAdvanced) action = 'place';
-        else if (holdChanged && nextAdvanced && lastHold === "") action = 'first_hold';
-        else if (holdChanged && nextSame) action = 'hold';
-        else if (holdChanged && nextAdvanced) action = 'place_and_hold';
+        if (!holdChanged && nextAdvanced) {
+            action = 'place';
+        } else if (holdChanged && nextAdvanced && lastHold === "") {
+            if (obsHold === lastNext[0]) action = 'first_hold';
+            else { action = 'place'; debugInfo += ` -> [GLITCH] Invalid first_hold ignored`; }
+        } else if (holdChanged && nextSame) {
+            if (obsHold === activeMino) {
+                action = 'hold';
+            } else {
+                action = 'none';
+                debugInfo += ` -> [GLITCH] Invalid hold ignored (obsHold:${obsHold} != active:${activeMino})`;
+            }
+        } else if (holdChanged && nextAdvanced) {
+            if (obsHold === lastNext[0]) action = 'place_and_hold';
+            else { action = 'place'; debugInfo += ` -> [GLITCH] Invalid place_and_hold ignored`; }
+        }
     }
     return { action, nextAdvanced, holdChanged, debug: debugInfo + ` -> result action:${action}` };
 }
-
 
 function cleanUpBoard(board20) {
 
