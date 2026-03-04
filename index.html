@@ -202,7 +202,8 @@ const CONFIG = {
 };
  const CLASS_NAMES = ['null', 'G', 'S', 'Z', 'L', 'J', 'O', 'I', 'T'];
  const DRAW_COLORS = { 'I': '#00f0f0', 'O': '#f0f000', 'T': '#a000f0', 'L': '#f0a000', 'J': '#0000f0', 'S': '#00f000', 'Z': '#f00000', 'G': '#999999' };
-let session = null;
+let workerP1 = null;
+let workerP2 = null;
 let isRunning = false;
 let stopRequested = false;
 
@@ -211,7 +212,6 @@ let globalP2RawTimeline = null;
 let globalCleanTimelines = { p1: null, p2: null };
 let globalParams = null;
 let correctionData = { playerId: null, stepIndex: -1, prevBoard: null, moves: [], filteredMoves: [], selectedMove: null, filterCells: [] };
-
 let sharedVideoCanvas = document.createElement('canvas');
 let sharedVideoCtx = sharedVideoCanvas.getContext('2d', { willReadFrequently: true });
 let shared1080pCanvas = document.createElement('canvas');
@@ -220,6 +220,67 @@ shared1080pCanvas.height = 1080;
 let shared1080pCtx = shared1080pCanvas.getContext('2d', { willReadFrequently: true });
 let sharedRawCropCanvas = document.createElement('canvas');
 let sharedRawCropCtx = sharedRawCropCanvas.getContext('2d', { willReadFrequently: true });
+
+const workerCode = `
+importScripts('https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js');
+let session = null;
+self.onmessage = async (e) => {
+    const { type, payload, id } = e.data;
+    if (type === 'init') {
+        try {
+            session = await ort.InferenceSession.create(payload.modelBuffer, { executionProviders: ['wasm'] });
+            postMessage({ type: 'init_done' });
+        } catch(err) {
+            postMessage({ type: 'init_error', error: err.message });
+        }
+    } else if (type === 'infer') {
+        const tensor = new ort.Tensor('float32', payload.flatInput, [200, 63]);
+        const results = await session.run({ [session.inputNames[0]]: tensor }, [session.outputNames[0]]);
+        const labelData = results[session.outputNames[0]].data;
+        postMessage({ type: 'infer_done', id, labelData });
+    }
+};
+`;
+const workerBlob = new Blob([workerCode], { type: 'application/javascript' });
+const workerUrl = URL.createObjectURL(workerBlob);
+
+function initWorkers(modelBuffer) {
+    return new Promise((resolve, reject) => {
+        let initCount = 0;
+        if (workerP1) workerP1.terminate();
+        if (workerP2) workerP2.terminate();
+        workerP1 = new Worker(workerUrl);
+        workerP2 = new Worker(workerUrl);
+        const handleInit = (e) => {
+            if (e.data.type === 'init_done') {
+                initCount++;
+                if (initCount === 2) resolve();
+            } else if (e.data.type === 'init_error') {
+                reject(new Error(e.data.error));
+            }
+        };
+        workerP1.onmessage = handleInit;
+        workerP2.onmessage = handleInit;
+        const buffer2 = modelBuffer.slice(0);
+        workerP1.postMessage({ type: 'init', payload: { modelBuffer } }, [modelBuffer]);
+        workerP2.postMessage({ type: 'init', payload: { modelBuffer: buffer2 } }, [buffer2]);
+    });
+}
+
+function askWorker(playerId, flatInput) {
+    return new Promise(resolve => {
+        const worker = playerId === 'p1' ? workerP1 : workerP2;
+        const id = Math.random();
+        const handler = (e) => {
+            if (e.data.type === 'infer_done' && e.data.id === id) {
+                worker.removeEventListener('message', handler);
+                resolve(e.data.labelData);
+            }
+        };
+        worker.addEventListener('message', handler);
+        worker.postMessage({ type: 'infer', payload: { flatInput }, id }, [flatInput.buffer]);
+    });
+}
 
 // ==========================================
 //  2. Image Processing Core
@@ -400,7 +461,7 @@ async function analyzeNextQueue(originalBitmap, cropData, config) {
     return { hold: holdMino, next: nextQueue, debugColors };
 }
 
-async function analyzeBoardOnly(originalBitmap, cropData, config) {
+async function analyzeBoardOnly(originalBitmap, cropData, config, playerId) {
     const boardRect = config.boardRect;
     const scale = cropData.cropW / 1920;
     const sx = cropData.cropX + boardRect.x * scale;
@@ -421,49 +482,45 @@ async function analyzeBoardOnly(originalBitmap, cropData, config) {
             const sampleX = (c + 0.5) * cellW, sampleY = (r + 0.5) * cellH;
             const sampleSize = Math.max(1, Math.floor(cellW * 0.25));
             const imageData = ctx.getImageData(sampleX - sampleSize / 2, sampleY - sampleSize / 2, sampleSize, sampleSize).data;
-
- let avgR = 0, avgG = 0, avgB = 0;
- for (let i = 0; i < imageData.length; i += 4) { avgR += imageData[i]; avgG += imageData[i+1];
- avgB += imageData[i+2]; }
+            let avgR = 0, avgG = 0, avgB = 0;
+            for (let i = 0; i < imageData.length; i += 4) { avgR += imageData[i]; avgG += imageData[i+1];
+            avgB += imageData[i+2]; }
             const pixelCount = imageData.length / 4;
- row.push(findClosestColor(avgR / pixelCount, avgG / pixelCount, avgB / pixelCount));
+            row.push(findClosestColor(avgR / pixelCount, avgG / pixelCount, avgB / pixelCount));
         }
         classicBoard.push(row);
- }
+    }
 
-    // ONNX
     const batchFeatures = [];
- for (let r = 0; r < 20; r++) {
+    for (let r = 0; r < 20; r++) {
         for (let c = 0; c < 10; c++) {
             batchFeatures.push(extractFeaturesJS(extractCellPixels(boardImgData, c * cellW, r * cellH, cellW, cellH), Math.floor(cellW), Math.floor(cellH)));
- }
+        }
     }
     const flatInput = new Float32Array(batchFeatures.length * 63);
- for (let i = 0; i < batchFeatures.length; i++) flatInput.set(batchFeatures[i], i * 63);
- const tensor = new ort.Tensor('float32', flatInput, [200, 63]);
-    const results = await session.run({ [session.inputNames[0]]: tensor }, [session.outputNames[0]]);
- const labelData = results[session.outputNames[0]].data;
+    for (let i = 0; i < batchFeatures.length; i++) flatInput.set(batchFeatures[i], i * 63);
+    
+    const labelData = await askWorker(playerId, flatInput);
 
     const recognizedBoard = [];
     for (let i = 0; i < 200; i++) {
         const r = Math.floor(i / 10), c = i % 10;
- if(c === 0) recognizedBoard.push([]);
+        if(c === 0) recognizedBoard.push([]);
         const label = CLASS_NAMES[Number(labelData[i])];
         recognizedBoard[r].push((label === 'null') ? null : label);
- }
+    }
 
-    // Merge
     for (let r = 0; r < 20; r++) {
         const onnxRow = recognizedBoard[r];
- if (onnxRow.every(cell => cell === null || cell === 'G') && onnxRow.filter(cell => cell === 'G').length !== 10) {
+        if (onnxRow.every(cell => cell === null || cell === 'G') && onnxRow.filter(cell => cell === 'G').length !== 10) {
             const classicRow = classicBoard[r];
- if (classicRow.filter(cell => cell === 'G').length === 9 && classicRow.filter(cell => cell === null).length === 1) {
+            if (classicRow.filter(cell => cell === 'G').length === 9 && classicRow.filter(cell => cell === null).length === 1) {
                 recognizedBoard[r] = [...classicRow];
- }
+            }
         }
     }
     return recognizedBoard;
- }
+}
 
 // ==========================================
 //  3. Beam Search & Tetris Logic
@@ -1027,7 +1084,7 @@ async function runPass2Player(playerId, video, pass1Timeline, params) {
                 repCanvas.getContext('2d').drawImage(localCanvas, cropData.cropX + rect.x * scale, cropData.cropY + rect.y * scale, rect.w * scale, rect.h * scale, 0, 0, rect.w, rect.h);
                 repImageURL = repCanvas.toDataURL('image/jpeg', 0.5);
             }
-            const board = await analyzeBoardOnly(localCanvas, cropData, CONFIG[playerId]);
+            const board = await analyzeBoardOnly(localCanvas, cropData, CONFIG[playerId], playerId);
             aggregator.add(board);
 
         }
@@ -1423,25 +1480,26 @@ window.addEventListener('DOMContentLoaded', async () => {
         const response = await fetch('./tetris.onnx');
         if (response.ok) {
             const buffer = await response.arrayBuffer();
-            session = await ort.InferenceSession.create(buffer, { executionProviders: ['wasm'] });
+            await initWorkers(buffer);
             log("モデルロード完了", 'success');
             if(videoInput.files.length > 0) startBtn.disabled = false;
-        }
+    
+    }
     } catch (err) {
         log("モデル失敗: " + err.message, 'error');
     }
 });
-
 modelInput.addEventListener('change', async (e) => {
     if(e.target.files[0]) {
         try {
-            session = await ort.InferenceSession.create(await e.target.files[0].arrayBuffer(), { executionProviders: ['wasm'] });
+            const buffer = await e.target.files[0].arrayBuffer();
+            await initWorkers(buffer);
             log("モデルロード完了", 'success');
             if(videoInput.files.length > 0) startBtn.disabled = false;
         } catch (err) { log("モデル失敗: " + err.message, 'error'); }
     }
 });
-videoInput.addEventListener('change', () => { if(session) startBtn.disabled = false; });
+videoInput.addEventListener('change', () => { if(workerP1 && workerP2) startBtn.disabled = false; });
 
 
 startBtn.addEventListener('click', async () => {
