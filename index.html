@@ -1078,7 +1078,7 @@ const modelInput = document.getElementById('modelInput'), videoInput = document.
  modelInput.addEventListener('change', async (e) => {
     if(e.target.files[0]) {
         try {
-            session = await ort.InferenceSession.create(await e.target.files[0].arrayBuffer(), { executionProviders: ['webgpu'] });
+            session = await ort.InferenceSession.create(await e.target.files[0].arrayBuffer(), { executionProviders: ['wasm'] });
             log("モデルロード完了", 'success');
             if(videoInput.files.length > 0) startBtn.disabled = false;
         } catch (err) { log("モデル失敗: " + err.message, 'error'); }
