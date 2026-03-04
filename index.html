@@ -407,10 +407,9 @@ async function analyzeBoardOnly(originalBitmap, cropData, config) {
     const sy = cropData.cropY + boardRect.y * scale;
     const sw = boardRect.w * scale;
     const sh = boardRect.h * scale;
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = boardRect.w;
-    tempCanvas.height = boardRect.h;
-    const ctx = tempCanvas.getContext('2d', { willReadFrequently: true });
+    shared1080pCanvas.width = boardRect.w;
+    shared1080pCanvas.height = boardRect.h;
+    const ctx = shared1080pCtx;
     ctx.drawImage(originalBitmap, sx, sy, sw, sh, 0, 0, boardRect.w, boardRect.h);
     const boardImgData = ctx.getImageData(0, 0, boardRect.w, boardRect.h);
     const cellW = boardRect.w / 10, cellH = boardRect.h / 20;
@@ -1009,25 +1008,26 @@ async function runPass2Player(playerId, video, pass1Timeline, params) {
         let repImageURL = null;
 
         const actualSamples = durationPhase < 0.1 ? 1 : samples;
+
         for (let s = 1; s <= actualSamples; s++) {
             const t = phase.start + (durationPhase * s) / (actualSamples + 1);
             video.currentTime = t;
             await new Promise(r => { video.onseeked = r; });
-            const localCanvas = document.createElement('canvas');
-            localCanvas.width = video.videoWidth;
-            localCanvas.height = video.videoHeight;
-            const localCtx = localCanvas.getContext('2d', { willReadFrequently: true });
-            localCtx.drawImage(video, 0, 0);
-            const { cropData } = calculateCropData(localCanvas);
+            if (sharedVideoCanvas.width !== video.videoWidth || sharedVideoCanvas.height !== video.videoHeight) {
+                sharedVideoCanvas.width = video.videoWidth;
+                sharedVideoCanvas.height = video.videoHeight;
+            }            
+            sharedVideoCtx.drawImage(video, 0, 0);
+            const { cropData } = calculateCropData(sharedVideoCanvas);
             if (s === 1) {
                 const repCanvas = document.createElement('canvas');
                 const rect = CONFIG[playerId].boardRect;
                 repCanvas.width = rect.w; repCanvas.height = rect.h;
                 const scale = cropData.cropW / 1920;
-                repCanvas.getContext('2d').drawImage(localCanvas, cropData.cropX + rect.x * scale, cropData.cropY + rect.y * scale, rect.w * scale, rect.h * scale, 0, 0, rect.w, rect.h);
+                repCanvas.getContext('2d').drawImage(sharedVideoCanvas, cropData.cropX + rect.x * scale, cropData.cropY + rect.y * scale, rect.w * scale, rect.h * scale, 0, 0, rect.w, rect.h);
                 repImageURL = repCanvas.toDataURL('image/jpeg', 0.5);
             }
-            const board = await analyzeBoardOnly(localCanvas, cropData, CONFIG[playerId]);
+            const board = await analyzeBoardOnly(sharedVideoCanvas, cropData, CONFIG[playerId]);
             aggregator.add(board);
 
         }
@@ -1471,11 +1471,9 @@ startBtn.addEventListener('click', async () => {
         
         const pass1Result = await runPass1Both(video, video.duration, params);
         if(stopRequested) return;
-        const video2 = video.cloneNode(true);
-        const [p1RawTimeline, p2RawTimeline] = await Promise.all([
-            runPass2Player('p1', video, pass1Result.p1Timeline, params),
-            runPass2Player('p2', video2, pass1Result.p2Timeline, params)
-        ]);
+        const p1RawTimeline = await runPass2Player('p1', video, pass1Result.p1Timeline, params);
+        if(stopRequested) return;
+        const p2RawTimeline = await runPass2Player('p2', video, pass1Result.p2Timeline, params);
         if(stopRequested) return;
 
         globalP1RawTimeline = p1RawTimeline;
