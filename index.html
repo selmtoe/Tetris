@@ -881,249 +881,170 @@ break; }
     return fullBoard;
 }
 
-async function runPass1Both(video, duration, params) {
+async function runStreamAnalysis(video, duration, params) {
     const p1ProgressEl = document.getElementById('p1Progress');
     const p1StatusEl = document.getElementById('p1Status');
     const p2ProgressEl = document.getElementById('p2Progress');
     const p2StatusEl = document.getElementById('p2Status');
     
-    log(`P1&P2 Pass1: Next区間検索開始...`, 'info');
+    let p1Timeline = [], p2Timeline = [];
+    let p1RawScans = [], p2RawScans = [];
     
-    let p1Timeline = [];
-    let p1CurrentRawScans = [];
-    let p1LastStableHold = "";
-    let p1LastStableNext = [];
-    let p1ActiveMino = "";
-    let p1CurrentStart = 0;
-    let p1IsFirstDetected = false;
-    let p1PendingHold = "";
-    let p1PendingNextStr = "";
-    let p1PendingCount = 0;
+    let p1LastHold = "", p1LastNext = [], p1Active = "", p1Start = 0, p1IsFirst = false;
+    let p1PendingHold = "", p1PendingNextStr = "", p1PendingCount = 0;
+    let p1Boards = [], p1Reps = [];
+    
+    let p2LastHold = "", p2LastNext = [], p2Active = "", p2Start = 0, p2IsFirst = false;
+    let p2PendingHold = "", p2PendingNextStr = "", p2PendingCount = 0;
+    let p2Boards = [], p2Reps = [];
 
-    let p2Timeline = [];
-    let p2CurrentRawScans = [];
-    let p2LastStableHold = "";
-    let p2LastStableNext = [];
-    let p2ActiveMino = "";
-    let p2CurrentStart = 0;
-    let p2IsFirstDetected = false;
-    let p2PendingHold = "";
-    let p2PendingNextStr = "";
-    let p2PendingCount = 0;
+    video.muted = true;
+    video.playbackRate = 4.0;
+    const stream = video.captureStream();
+    const track = stream.getVideoTracks()[0];
+    const processor = new MediaStreamTrackProcessor({ track });
+    const reader = processor.readable.getReader();
 
-    for(let t = 0; t < duration; t += params.nextScanInterval) {
-        if(stopRequested) break;
-        video.currentTime = t;
-        await new Promise(r => { video.onseeked = r; });
-        if (sharedVideoCanvas.width !== video.videoWidth || sharedVideoCanvas.height !== video.videoHeight) {
-            sharedVideoCanvas.width = video.videoWidth;
-            sharedVideoCanvas.height = video.videoHeight;
-        }
-        sharedVideoCtx.drawImage(video, 0, 0);
-        const { cropData } = calculateCropData(sharedVideoCanvas);
+    await video.play();
+    let lastScanT = -params.nextScanInterval;
 
-        const p1QueueData = await analyzeNextQueue(sharedVideoCanvas, cropData, CONFIG['p1']);
-        const p1RawObsHold = p1QueueData.hold || "";
-        const p1RawObsNext = p1QueueData.next;
-        p1CurrentRawScans.push(`[${t.toFixed(2)}s] H:${p1RawObsHold || '-'} N:${p1RawObsNext.join('')} | RGB: ${p1QueueData.debugColors.join(' ')}`);
-        
-        const p1CurrentNextStr = p1RawObsNext.join('');
-        if (p1RawObsHold === p1PendingHold && p1CurrentNextStr === p1PendingNextStr) {
-            p1PendingCount++;
-        } else {
-            p1PendingHold = p1RawObsHold;
-            p1PendingNextStr = p1CurrentNextStr;
-            p1PendingCount = 1;
+    while (!stopRequested) {
+        const { done, value: frame } = await reader.read();
+        if (done) break;
+
+        const t = frame.timestamp / 1000000;
+        if (t > duration) {
+            frame.close();
+            break;
         }
 
-        if (p1PendingCount >= 2) {
-            const obsHold = p1RawObsHold;
-            const obsNext = p1RawObsNext;
+        if (t - lastScanT >= params.nextScanInterval) {
+            lastScanT = t;
+            video.pause();
 
-            if (!p1IsFirstDetected && obsNext.length >= 3) {
-                p1LastStableHold = obsHold;
-                p1LastStableNext = obsNext;
+            if (sharedVideoCanvas.width !== frame.displayWidth || sharedVideoCanvas.height !== frame.displayHeight) {
+                sharedVideoCanvas.width = frame.displayWidth;
+                sharedVideoCanvas.height = frame.displayHeight;
+            }
+            sharedVideoCtx.drawImage(frame, 0, 0);
+            const { cropData } = calculateCropData(sharedVideoCanvas);
+            const scale = cropData.cropW / 1920;
 
-                p1ActiveMino = "";
-                p1Timeline.push({ start: 0, end: t, hold: "", next: obsNext, active: "", action: "init", rawScans: [...p1CurrentRawScans] });
-                p1CurrentStart = t;
-                p1CurrentRawScans = [];
-                p1IsFirstDetected = true;
-            } else if (p1IsFirstDetected) {
-                const transition = checkQueueTransition(obsHold, obsNext, p1LastStableHold, p1LastStableNext, p1ActiveMino);
-                let transitionDebugLog = transition.debug;
+            const b1 = await analyzeBoardOnly(sharedVideoCanvas, cropData, CONFIG['p1'], 'p1');
+            p1Boards.push(b1);
+            const r1Canvas = document.createElement('canvas');
+            const r1Rect = CONFIG['p1'].boardRect;
+            r1Canvas.width = r1Rect.w; r1Canvas.height = r1Rect.h;
+            r1Canvas.getContext('2d').drawImage(sharedVideoCanvas, cropData.cropX + r1Rect.x * scale, cropData.cropY + r1Rect.y * scale, r1Rect.w * scale, r1Rect.h * scale, 0, 0, r1Rect.w, r1Rect.h);
+            p1Reps.push(r1Canvas.toDataURL('image/jpeg', 0.5));
+            if (p1Boards.length > params.onnxSamples) { p1Boards.shift(); p1Reps.shift(); }
 
-                if (transition.action === 'spawn') {
-                    p1ActiveMino = p1LastStableNext[0];
-                    transitionDebugLog += ` => activeMino changed to ${p1ActiveMino} (spawn)`;
-                } else if (transition.action === 'first_hold') {
-                    p1ActiveMino = p1LastStableNext[0];
-                    transitionDebugLog += ` => activeMino changed to ${p1ActiveMino} (first_hold)`;
-                } else if (transition.action === 'hold') {
-                    p1ActiveMino = p1LastStableHold;
-                    transitionDebugLog += ` => activeMino changed to ${p1ActiveMino} (hold)`;
-                } else if (transition.action === 'place' || transition.action === 'place_and_hold') {
-                    transitionDebugLog += ` => place triggered.
-            activeMino will be ${p1LastStableNext[0]}`;
-                    p1Timeline.push({ start: p1CurrentStart, end: t, hold: p1LastStableHold, next: p1LastStableNext, active: p1ActiveMino, action: transition.action, rawScans: [...p1CurrentRawScans], transitionLog: transitionDebugLog });
-                    p1CurrentStart = t;
-                    p1CurrentRawScans = [];
-                    p1ActiveMino = p1LastStableNext[0];
-                }
+            const p1Queue = await analyzeNextQueue(sharedVideoCanvas, cropData, CONFIG['p1']);
+            const p1ObsHold = p1Queue.hold || "";
+            const p1ObsNext = p1Queue.next;
+            p1RawScans.push(`[${t.toFixed(2)}s] H:${p1ObsHold||'-'} N:${p1ObsNext.join('')}`);
+            const p1NextStr = p1ObsNext.join('');
 
-                if (transition.holdChanged || transition.nextAdvanced) {
-                    p1LastStableHold = obsHold;
-                    p1LastStableNext = obsNext;
+            if (p1ObsHold === p1PendingHold && p1NextStr === p1PendingNextStr) {
+                p1PendingCount++;
+            } else {
+                p1PendingHold = p1ObsHold; p1PendingNextStr = p1NextStr; p1PendingCount = 1;
+            }
+
+            if (p1PendingCount >= 2) {
+                if (!p1IsFirst && p1ObsNext.length >= 3) {
+                    p1LastHold = p1ObsHold; p1LastNext = p1ObsNext; p1Active = ""; p1Start = t; p1IsFirst = true;
+                } else if (p1IsFirst) {
+                    const trans = checkQueueTransition(p1ObsHold, p1ObsNext, p1LastHold, p1LastNext, p1Active);
+                    let tLog = trans.debug;
+                    if (trans.action === 'spawn' || trans.action === 'first_hold') {
+                        p1Active = p1LastNext[0];
+                    } else if (trans.action === 'hold') {
+                        p1Active = p1LastHold;
+                    } else if (trans.action === 'place' || trans.action === 'place_and_hold') {
+                        const agg1 = new VoteAggregator();
+                        p1Boards.forEach(b => agg1.add(b));
+                        const wBoard1 = cleanUpBoard(agg1.getWinnerBoard() || Array.from({length:20}, ()=>Array(10).fill(null)));
+                        p1Timeline.push({
+                            start: p1Start, end: t, time: t, hold: p1LastHold, next: p1LastNext.join(''), active: p1Active, action: trans.action, rawScans: [...p1RawScans], transitionLog: tLog, board: wBoard1, rawBoard: wBoard1, repImage: p1Reps[p1Reps.length-1] || ""
+                        });
+                        p1Start = t; p1RawScans = []; p1Active = p1LastNext[0];
+                    }
+                    if (trans.holdChanged || trans.nextAdvanced) {
+                        p1LastHold = p1ObsHold; p1LastNext = p1ObsNext;
+                    }
                 }
             }
-        }
 
-        const p2QueueData = await analyzeNextQueue(sharedVideoCanvas, cropData, CONFIG['p2']);
-        const p2RawObsHold = p2QueueData.hold || "";
-        const p2RawObsNext = p2QueueData.next;
-        p2CurrentRawScans.push(`[${t.toFixed(2)}s] H:${p2RawObsHold || '-'} N:${p2RawObsNext.join('')} | RGB: ${p2QueueData.debugColors.join(' ')}`);
-        
-        const p2CurrentNextStr = p2RawObsNext.join('');
-        if (p2RawObsHold === p2PendingHold && p2CurrentNextStr === p2PendingNextStr) {
-            p2PendingCount++;
-        } else {
-            p2PendingHold = p2RawObsHold;
-            p2PendingNextStr = p2CurrentNextStr;
-            p2PendingCount = 1;
-        }
+            const b2 = await analyzeBoardOnly(sharedVideoCanvas, cropData, CONFIG['p2'], 'p2');
+            p2Boards.push(b2);
+            const r2Canvas = document.createElement('canvas');
+            const r2Rect = CONFIG['p2'].boardRect;
+            r2Canvas.width = r2Rect.w; r2Canvas.height = r2Rect.h;
+            r2Canvas.getContext('2d').drawImage(sharedVideoCanvas, cropData.cropX + r2Rect.x * scale, cropData.cropY + r2Rect.y * scale, r2Rect.w * scale, r2Rect.h * scale, 0, 0, r2Rect.w, r2Rect.h);
+            p2Reps.push(r2Canvas.toDataURL('image/jpeg', 0.5));
+            if (p2Boards.length > params.onnxSamples) { p2Boards.shift(); p2Reps.shift(); }
 
-        if (p2PendingCount >= 2) {
-            const obsHold = p2RawObsHold;
-            const obsNext = p2RawObsNext;
+            const p2Queue = await analyzeNextQueue(sharedVideoCanvas, cropData, CONFIG['p2']);
+            const p2ObsHold = p2Queue.hold || "";
+            const p2ObsNext = p2Queue.next;
+            p2RawScans.push(`[${t.toFixed(2)}s] H:${p2ObsHold||'-'} N:${p2ObsNext.join('')}`);
+            const p2NextStr = p2ObsNext.join('');
 
-            if (!p2IsFirstDetected && obsNext.length >= 3) {
-                p2LastStableHold = obsHold;
-                p2LastStableNext = obsNext;
+            if (p2ObsHold === p2PendingHold && p2NextStr === p2PendingNextStr) {
+                p2PendingCount++;
+            } else {
+                p2PendingHold = p2ObsHold; p2PendingNextStr = p2NextStr; p2PendingCount = 1;
+            }
 
-                p2ActiveMino = "";
-                p2Timeline.push({ start: 0, end: t, hold: "", next: obsNext, active: "", action: "init", rawScans: [...p2CurrentRawScans] });
-                p2CurrentStart = t;
-                p2CurrentRawScans = [];
-                p2IsFirstDetected = true;
-            } else if (p2IsFirstDetected) {
-                const transition = checkQueueTransition(obsHold, obsNext, p2LastStableHold, p2LastStableNext, p2ActiveMino);
-                let transitionDebugLog = transition.debug;
-
-                if (transition.action === 'spawn') {
-                    p2ActiveMino = p2LastStableNext[0];
-                    transitionDebugLog += ` => activeMino changed to ${p2ActiveMino} (spawn)`;
-                } else if (transition.action === 'first_hold') {
-                    p2ActiveMino = p2LastStableNext[0];
-                    transitionDebugLog += ` => activeMino changed to ${p2ActiveMino} (first_hold)`;
-                } else if (transition.action === 'hold') {
-                    p2ActiveMino = p2LastStableHold;
-                    transitionDebugLog += ` => activeMino changed to ${p2ActiveMino} (hold)`;
-                } else if (transition.action === 'place' || transition.action === 'place_and_hold') {
-                    transitionDebugLog += ` => place triggered.
-            activeMino will be ${p2LastStableNext[0]}`;
-                    p2Timeline.push({ start: p2CurrentStart, end: t, hold: p2LastStableHold, next: p2LastStableNext, active: p2ActiveMino, action: transition.action, rawScans: [...p2CurrentRawScans], transitionLog: transitionDebugLog });
-                    p2CurrentStart = t;
-                    p2CurrentRawScans = [];
-                    p2ActiveMino = p2LastStableNext[0];
-                }
-
-                if (transition.holdChanged || transition.nextAdvanced) {
-                    p2LastStableHold = obsHold;
-                    p2LastStableNext = obsNext;
+            if (p2PendingCount >= 2) {
+                if (!p2IsFirst && p2ObsNext.length >= 3) {
+                    p2LastHold = p2ObsHold; p2LastNext = p2ObsNext; p2Active = ""; p2Start = t; p2IsFirst = true;
+                } else if (p2IsFirst) {
+                    const trans = checkQueueTransition(p2ObsHold, p2ObsNext, p2LastHold, p2LastNext, p2Active);
+                    let tLog = trans.debug;
+                    if (trans.action === 'spawn' || trans.action === 'first_hold') {
+                        p2Active = p2LastNext[0];
+                    } else if (trans.action === 'hold') {
+                        p2Active = p2LastHold;
+                    } else if (trans.action === 'place' || trans.action === 'place_and_hold') {
+                        const agg2 = new VoteAggregator();
+                        p2Boards.forEach(b => agg2.add(b));
+                        const wBoard2 = cleanUpBoard(agg2.getWinnerBoard() || Array.from({length:20}, ()=>Array(10).fill(null)));
+                        p2Timeline.push({
+                            start: p2Start, end: t, time: t, hold: p2LastHold, next: p2LastNext.join(''), active: p2Active, action: trans.action, rawScans: [...p2RawScans], transitionLog: tLog, board: wBoard2, rawBoard: wBoard2, repImage: p2Reps[p2Reps.length-1] || ""
+                        });
+                        p2Start = t; p2RawScans = []; p2Active = p2LastNext[0];
+                    }
+                    if (trans.holdChanged || trans.nextAdvanced) {
+                        p2LastHold = p2ObsHold; p2LastNext = p2ObsNext;
+                    }
                 }
             }
-        }
-        
-        const pct = Math.floor((t / duration) * 50);
-        p1ProgressEl.value = pct;
-        p1StatusEl.textContent = `Pass1: ${pct * 2}%`;
-        p2ProgressEl.value = pct;
-        p2StatusEl.textContent = `Pass1: ${pct * 2}%`;
-    }
 
-    if (p1CurrentStart < duration) {
-        p1Timeline.push({ start: p1CurrentStart, end: duration, hold: p1LastStableHold, next: p1LastStableNext, active: p1ActiveMino, action: "end", rawScans: [...p1CurrentRawScans] });
+            video.play();
+        }
+
+        const pct = Math.floor((t / duration) * 100);
+        p1ProgressEl.value = pct; p1StatusEl.textContent = `Streaming: ${pct}%`;
+        p2ProgressEl.value = pct; p2StatusEl.textContent = `Streaming: ${pct}%`;
+
+        frame.close();
     }
-    if (p2CurrentStart < duration) {
-        p2Timeline.push({ start: p2CurrentStart, end: duration, hold: p2LastStableHold, next: p2LastStableNext, active: p2ActiveMino, action: "end", rawScans: [...p2CurrentRawScans] });
+    video.pause();
+
+    if (p1Start < duration) {
+        const agg1 = new VoteAggregator();
+        p1Boards.forEach(b => agg1.add(b));
+        p1Timeline.push({ start: p1Start, end: duration, time: duration, hold: p1LastHold, next: p1LastNext.join(''), active: p1Active, action: "end", rawScans: [...p1RawScans], board: cleanUpBoard(agg1.getWinnerBoard() || Array.from({length:20}, ()=>Array(10).fill(null))), rawBoard: cleanUpBoard(agg1.getWinnerBoard() || Array.from({length:20}, ()=>Array(10).fill(null))), repImage: p1Reps[p1Reps.length-1] || "" });
+    }
+    if (p2Start < duration) {
+        const agg2 = new VoteAggregator();
+        p2Boards.forEach(b => agg2.add(b));
+        p2Timeline.push({ start: p2Start, end: duration, time: duration, hold: p2LastHold, next: p2LastNext.join(''), active: p2Active, action: "end", rawScans: [...p2RawScans], board: cleanUpBoard(agg2.getWinnerBoard() || Array.from({length:20}, ()=>Array(10).fill(null))), rawBoard: cleanUpBoard(agg2.getWinnerBoard() || Array.from({length:20}, ()=>Array(10).fill(null))), repImage: p2Reps[p2Reps.length-1] || "" });
     }
 
     return { p1Timeline, p2Timeline };
-}
-
-async function runPass2Player(playerId, video, pass1Timeline, params) {
-    const progressEl = document.getElementById(`${playerId}Progress`);
-    const statusEl = document.getElementById(`${playerId}Status`);
-    
-    log(`${playerId.toUpperCase()} Pass2: 盤面ONNX推論開始 (区間数: ${pass1Timeline.length})...`, 'info');
-    const timeline = [];
-    const phaseTasks = [];
-
-    for (let i = 0; i < pass1Timeline.length; i++) {
-        if (stopRequested) break;
-        const phase = pass1Timeline[i];
-        const durationPhase = phase.end - phase.start;
-        const samples = params.onnxSamples;
-        let repImageURL = null;
-
-        const actualSamples = durationPhase < 0.1 ? 1 : samples;
-        const boardPromises = [];
-
-        for (let s = 1; s <= actualSamples; s++) {
-            const t = phase.start + (durationPhase * s) / (actualSamples + 1);
-            video.currentTime = t;
-            await new Promise(r => { video.onseeked = r; });
-            const localCanvas = document.createElement('canvas');
-            localCanvas.width = video.videoWidth;
-            localCanvas.height = video.videoHeight;
-            const localCtx = localCanvas.getContext('2d', { willReadFrequently: true });
-            localCtx.drawImage(video, 0, 0);
-            const { cropData } = calculateCropData(localCanvas);
-            if (s === 1) {
-                const repCanvas = document.createElement('canvas');
-                const rect = CONFIG[playerId].boardRect;
-                repCanvas.width = rect.w; repCanvas.height = rect.h;
-                const scale = cropData.cropW / 1920;
-                repCanvas.getContext('2d').drawImage(localCanvas, cropData.cropX + rect.x * scale, cropData.cropY + rect.y * scale, rect.w * scale, rect.h * scale, 0, 0, rect.w, rect.h);
-                repImageURL = repCanvas.toDataURL('image/jpeg', 0.5);
-            }
-            boardPromises.push(analyzeBoardOnly(localCanvas, cropData, CONFIG[playerId], playerId));
-        }
-        
-        phaseTasks.push({ phase, repImageURL, boardPromises });
-        const pct = 50 + Math.floor(((i + 1) / pass1Timeline.length) * 25);
-        progressEl.value = pct;
-        statusEl.textContent = `Pass2 Extract: Phase ${i+1}/${pass1Timeline.length}`;
-    }
-
-    for (let i = 0; i < phaseTasks.length; i++) {
-        if (stopRequested) break;
-        const task = phaseTasks[i];
-        const aggregator = new VoteAggregator();
-        const boards = await Promise.all(task.boardPromises);
-        boards.forEach(board => aggregator.add(board));
-        
-        const winnerBoard = aggregator.getWinnerBoard() ||
-        Array.from({length:20}, ()=>Array(10).fill(null));
-        timeline.push({
-            time: task.phase.end,
-            board: cleanUpBoard(winnerBoard),
-            rawBoard: cleanUpBoard(winnerBoard),
-            hold: task.phase.hold,
-            active: task.phase.active,
-            action: task.phase.action,
-            next: (task.phase.next || []).join(''),
-     
-            repImage: task.repImageURL,
-            rawScans: task.phase.rawScans,
-            transitionLog: task.phase.transitionLog
-        });
-        const pct = 75 + Math.floor(((i + 1) / phaseTasks.length) * 25);
-        progressEl.value = pct;
-
-        statusEl.textContent = `Pass2 Infer: Phase ${i+1}/${phaseTasks.length}`;
-    }
-    return timeline;
 }
 
 // ==========================================
@@ -1543,17 +1464,11 @@ startBtn.addEventListener('click', async () => {
         await new Promise(r => { video.onloadedmetadata = r; });
         log(`動画読み込み完了: ${video.duration.toFixed(1)}秒`, 'info');
         
-        const pass1Result = await runPass1Both(video, video.duration, params);
-        if(stopRequested) return;
-        const video2 = video.cloneNode(true);
-        const [p1RawTimeline, p2RawTimeline] = await Promise.all([
-            runPass2Player('p1', video, pass1Result.p1Timeline, params),
-            runPass2Player('p2', video2, pass1Result.p2Timeline, params)
-        ]);
+        const streamResult = await runStreamAnalysis(video, video.duration, params);
         if(stopRequested) return;
 
-        globalP1RawTimeline = p1RawTimeline;
-        globalP2RawTimeline = p2RawTimeline;
+        globalP1RawTimeline = streamResult.p1Timeline;
+        globalP2RawTimeline = streamResult.p2Timeline;
 
         log("P1 ビームサーチ補完実行中...", 'info');
         const p1CleanTimeline = runBeamSearch(p1RawTimeline, params);
