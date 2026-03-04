@@ -307,8 +307,8 @@ class FrameExtractor {
                 try {
                     this.decoder.decode(new EncodedVideoChunk({
                         type: s.is_sync ? "key" : "delta",
-                        timestamp: (s.cts * 1000000) / s.timescale,
-                        duration: (s.duration * 1000000) / s.timescale,
+                        timestamp: Math.floor((s.cts * 1000000) / s.timescale),
+                        duration: Math.floor((s.duration * 1000000) / s.timescale),
                         data: s.data
                     }));
                 } catch(e) { console.error(e); }
@@ -573,7 +573,7 @@ function extractFeaturesJS(pixelsRGBA, w, h) {
 
 // --- パス分割用関数群 ---
 async function analyzeNextQueue(originalBitmap, cropData, config) {
-    const currentScale = cropData.cropW / 1280, radius = 5 * currentScale;
+    const currentScale = cropData.cropW / 1920, radius = 5 * currentScale;
     const nextQueue = [];
     let holdMino = null;
     let debugColors = [];
