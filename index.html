@@ -63,7 +63,23 @@
  }
 
     #videoPlayer, #processCanvas { display: none; }
+
+    /* モーダル用スタイル */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; }
+    .modal-content { background: var(--bg); border: 1px solid var(--primary); padding: 20px; border-radius: 8px; width: 95%; max-width: 900px; max-height: 95vh; display: flex; flex-direction: column; gap: 15px; }
+    .correction-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #444; padding-bottom: 10px; }
+    .correction-body { display: flex; gap: 20px; flex: 1; min-height: 0; }
+    .main-board-container { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; position: relative; }
+    .main-board { border: 2px solid #888; background: #0f0f18; cursor: pointer; width: 200px; height: 400px; }
+    .legal-moves-container { flex: 1; overflow-y: auto; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px; display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 10px; align-content: start; }
+    .move-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; border: 2px solid transparent; border-radius: 4px; padding: 5px; background: #111; }
+    .move-item:hover { background: #222; }
+    .move-item.selected { border-color: var(--accent); background: rgba(0,160,240,0.2); }
+    .move-canvas { width: 60px; height: 120px; border: 1px solid #666; background: #0f0f18; }
+    .filter-info { font-size: 0.9em; color: #aaa; margin-bottom: 5px; }
+    .filter-dot { position: absolute; width: 12px; height: 12px; background: rgba(255, 50, 50, 0.9); border: 2px solid white; border-radius: 50%; pointer-events: none; transform: translate(-50%, -50%); z-index: 10; }
 </style>
+
 </head>
 <body>
 
@@ -147,7 +163,30 @@
 <video id="videoPlayer" muted playsinline></video>
 <canvas id="processCanvas"></canvas>
 
+<div class="modal-overlay" id="correctionModal">
+    <div class="modal-content">
+        <div class="correction-header">
+            <h3 style="margin:0;">盤面手動修正</h3>
+            <div>
+                <button id="cancelCorrectionBtn" style="background: #555; padding: 8px 15px; font-size: 14px;">キャンセル</button>
+                <button id="applyCorrectionBtn" disabled style="padding: 8px 15px; font-size: 14px;">確定して再解析</button>
+            </div>
+        </div>
+        <div class="filter-info">盤面をタップしてその位置にブロックがある合法手を絞り込みます (現在: 全 <span id="moveCount">0</span> 手)</div>
+        <div class="correction-body">
+            <div class="main-board-container">
+                <div style="position:relative;" id="mainBoardWrapper">
+                    <canvas id="mainCorrectionCanvas" class="main-board" width="200" height="400"></canvas>
+                </div>
+                <button id="clearFilterBtn" style="margin-top:10px; background:#666; font-size:12px; padding:5px 10px;">絞り込み解除</button>
+            </div>
+            <div class="legal-moves-container" id="legalMovesList"></div>
+        </div>
+    </div>
+</div>
+
 <script>
+
 // ==========================================
 //  1. Global Config & Base Variables
 // ==========================================
@@ -167,6 +206,12 @@ const CONFIG = {
 let session = null;
 let isRunning = false;
 let stopRequested = false;
+
+let globalP1RawTimeline = null;
+let globalP2RawTimeline = null;
+let globalCleanTimelines = { p1: null, p2: null };
+let globalParams = null;
+let correctionData = { playerId: null, stepIndex: -1, prevBoard: null, moves: [], filteredMoves: [], selectedMove: null, filterCells: [] };
 
 let sharedVideoCanvas = document.createElement('canvas');
 let sharedVideoCtx = sharedVideoCanvas.getContext('2d', { willReadFrequently: true });
@@ -557,9 +602,24 @@ function runBeamSearch(timeline, params) {
         }
 
         let nextBeam = [];
+        if (timeline[i].manualBoard) {
+            // 手動修正が指定されている場合、強制的にその盤面を採用
+            for (const state of beam) {
+                const newHistory = [...state.history, {
+                    ...timeline[i],
+                    board: timeline[i].manualBoard,
+                    fullBoard: timeline[i].manualBoard,
+                    shiftLines: 0,
+                    shiftMatchRatio: 1
+                }];
+                nextBeam.push({ board: timeline[i].manualBoard, history: newHistory, score: state.score + 100000 });
+                break;
+            }
+        } else {
         for (const state of beam) {
             let baseBoard = state.board;
             if (shiftInfo.shift > 0) {
+
                 baseBoard = cloneBoard(baseBoard);
                 for (let y = 0; y < 40 - shiftInfo.shift; y++) {
                     for (let x = 0; x < 10; x++) {
@@ -617,9 +677,9 @@ function runBeamSearch(timeline, params) {
                 }
             }
         }
+        } // End of if (timeline[i].manualBoard) else
 
         nextBeam.sort((a, b) => b.score - a.score);
-
  beam = nextBeam.slice(0, params.beamWidth);
         
         if (beam.length === 0) {
@@ -1124,10 +1184,11 @@ function drawBoardToCanvas(board40, canvasEl) {
 function renderDebugTimeline(playerId, timeline) {
     const container = document.getElementById(`debug${playerId.toUpperCase()}`);
     let html = `<table class="debug-table">
-        <tr><th>Time (s)</th><th>Hold / Active / Next</th><th>Transition Debug</th><th>Shift Info</th><th>Raw Scans (Intervals)</th><th>Representative Image</th><th>Vote Avg Board</th><th>Beam Search Board</th></tr>`;
+        <tr><th>修正</th><th>Time (s)</th><th>Hold / Active / Next</th><th>Transition Debug</th><th>Shift Info</th><th>Raw Scans (Intervals)</th><th>Representative Image</th><th>Vote Avg Board</th><th>Beam Search Board</th></tr>`;
     timeline.forEach((item, idx) => {
         const rawScansStr = item.rawScans ? item.rawScans.join('<br>') : '';
         html += `<tr>
+            <td><button onclick="openCorrectionModal('${playerId}', ${idx})" style="font-size:10px; padding:4px 8px; background:var(--accent); color:#fff; border:none; border-radius:3px; cursor:pointer;">手動修正</button></td>
             <td>${item.time.toFixed(3)}</td>
             <td>Hold: ${item.hold}<br>Active: ${item.active || 'none'} (${item.action || 'init'})<br>Next: ${item.next}</td>
             <td style="font-size:10px; max-width:200px; word-wrap:break-word;">${item.transitionLog || ''}</td>
@@ -1149,8 +1210,184 @@ function renderDebugTimeline(playerId, timeline) {
     });
  }
 
+// ==========================================
+//  6. Manual Correction Logic
+// ==========================================
+function getPossibleMinosForStep(rawTimeline, i) {
+    let possibleMinos = ALL_MINOS;
+    let skipPlacement = false;
+    if (i === 0) return { possibleMinos: [], skipPlacement: true };
+    const prev = rawTimeline[i-1];
+    if (!prev.active || prev.active === "") skipPlacement = true;
+    else if (ALL_MINOS.includes(prev.active)) possibleMinos = [prev.active];
+    else if (prev.next && prev.next.length > 0 && ALL_MINOS.includes(prev.next[0])) possibleMinos = [prev.next[0]];
+    return { possibleMinos, skipPlacement };
+}
+
+function openCorrectionModal(playerId, index) {
+    if (index === 0) { alert("最初のステップは修正できません。"); return; }
+    
+    const cleanTimeline = globalCleanTimelines[playerId];
+    const rawTimeline = playerId === 'p1' ? globalP1RawTimeline : globalP2RawTimeline;
+    if (!cleanTimeline || !rawTimeline) return;
+
+    correctionData.playerId = playerId;
+    correctionData.stepIndex = index;
+    correctionData.prevBoard = cloneBoard(cleanTimeline[index - 1].board);
+    correctionData.filterCells = [];
+    correctionData.selectedMove = null;
+
+    const { possibleMinos, skipPlacement } = getPossibleMinosForStep(rawTimeline, index);
+    const moves = [];
+    
+    let shiftInfo = detectBoardShift(cleanTimeline[index-1].board, rawTimeline[index].board, globalParams.shiftThreshold);
+    let baseBoard = correctionData.prevBoard;
+    if (shiftInfo.shift > 0) {
+        baseBoard = cloneBoard(baseBoard);
+        for (let y = 0; y < 40 - shiftInfo.shift; y++) for (let x = 0; x < 10; x++) baseBoard[y][x] = baseBoard[y + shiftInfo.shift][x];
+        for (let y = 40 - shiftInfo.shift; y < 40; y++) for (let x = 0; x < 10; x++) baseBoard[y][x] = rawTimeline[index].board[y][x];
+    }
+
+    if (skipPlacement) {
+        moves.push({ board: cloneBoard(baseBoard), mino: 'none' });
+    } else {
+        for (const mino of possibleMinos) {
+            const legalMoves = generateLegalMoves(baseBoard, mino);
+            for (const m of legalMoves) moves.push({ board: m.clearedBoard, mino: mino });
+        }
+    }
+    
+    correctionData.moves = moves;
+    updateCorrectionUI();
+    document.getElementById('correctionModal').style.display = 'flex';
+}
+
+function updateCorrectionUI() {
+    correctionData.filteredMoves = correctionData.moves.filter(m => {
+        return correctionData.filterCells.every(cell => {
+            const b = m.board[cell.y][cell.x];
+            return b !== null && b !== 'G';
+        });
+    });
+
+    document.getElementById('moveCount').textContent = correctionData.filteredMoves.length;
+    document.getElementById('applyCorrectionBtn').disabled = !correctionData.selectedMove;
+
+    const mainCanvas = document.getElementById('mainCorrectionCanvas');
+    const ctx = mainCanvas.getContext('2d');
+    const bw = mainCanvas.width / 10, bh = mainCanvas.height / 20;
+    
+    ctx.fillStyle = '#0f0f18';
+    ctx.fillRect(0, 0, mainCanvas.width, mainCanvas.height);
+    for(let y=0; y<20; y++) {
+        for(let x=0; x<10; x++) {
+            const mino = correctionData.prevBoard[y + 20];
+            if (mino && mino[x]) {
+                ctx.fillStyle = DRAW_COLORS[mino[x]] || '#fff';
+                ctx.fillRect(x*bw, y*bh, bw, bh);
+                ctx.strokeStyle = '#444'; ctx.strokeRect(x*bw, y*bh, bw, bh);
+            } else {
+                ctx.strokeStyle = '#222'; ctx.strokeRect(x*bw, y*bh, bw, bh);
+            }
+        }
+    }
+
+    const wrapper = document.getElementById('mainBoardWrapper');
+    wrapper.querySelectorAll('.filter-dot').forEach(el => el.remove());
+    correctionData.filterCells.forEach(cell => {
+        if (cell.y < 20) return;
+        const dot = document.createElement('div');
+        dot.className = 'filter-dot';
+        dot.style.left = `${cell.x * bw + bw/2}px`;
+        dot.style.top = `${(cell.y - 20) * bh + bh/2}px`;
+        wrapper.appendChild(dot);
+    });
+
+    const listEl = document.getElementById('legalMovesList');
+    listEl.innerHTML = '';
+    correctionData.filteredMoves.forEach((move) => {
+        const item = document.createElement('div');
+        item.className = 'move-item';
+        if (correctionData.selectedMove === move) item.classList.add('selected');
+        
+        const canvas = document.createElement('canvas');
+        canvas.className = 'move-canvas';
+        canvas.width = 60; canvas.height = 120;
+        drawBoardToCanvas(move.board, canvas);
+        
+        const label = document.createElement('div');
+        label.style.fontSize = '10px'; label.style.marginTop = '5px';
+        label.textContent = move.mino;
+        
+        item.appendChild(canvas); item.appendChild(label);
+        item.onclick = () => {
+            correctionData.selectedMove = move;
+            updateCorrectionUI();
+        };
+        listEl.appendChild(item);
+    });
+}
+
+document.getElementById('mainCorrectionCanvas').addEventListener('click', (e) => {
+    const rect = e.target.getBoundingClientRect();
+    const x = Math.floor((e.clientX - rect.left) / (rect.width / 10));
+    const y = Math.floor((e.clientY - rect.top) / (rect.height / 20)) + 20;
+    
+    const existingIdx = correctionData.filterCells.findIndex(c => c.x === x && c.y === y);
+    if (existingIdx >= 0) correctionData.filterCells.splice(existingIdx, 1);
+    else correctionData.filterCells.push({x, y});
+    
+    correctionData.selectedMove = null;
+    updateCorrectionUI();
+});
+
+document.getElementById('clearFilterBtn').addEventListener('click', () => {
+    correctionData.filterCells = [];
+    correctionData.selectedMove = null;
+    updateCorrectionUI();
+});
+
+document.getElementById('cancelCorrectionBtn').addEventListener('click', () => {
+    document.getElementById('correctionModal').style.display = 'none';
+});
+
+document.getElementById('applyCorrectionBtn').addEventListener('click', () => {
+    if (!correctionData.selectedMove) return;
+    const rawTimeline = correctionData.playerId === 'p1' ? globalP1RawTimeline : globalP2RawTimeline;
+    rawTimeline[correctionData.stepIndex].manualBoard = correctionData.selectedMove.board;
+    document.getElementById('correctionModal').style.display = 'none';
+    reprocessFromCorrection();
+});
+
+async function reprocessFromCorrection() {
+    log("手動修正を反映し、再解析を実行します...", 'info');
+    document.getElementById('resultPanel').style.display = 'none';
+    
+    log("P1 ビームサーチ再実行中...", 'info');
+    const p1CleanTimeline = runBeamSearch(globalP1RawTimeline, globalParams);
+    log("P2 ビームサーチ再実行中...", 'info');
+    const p2CleanTimeline = runBeamSearch(globalP2RawTimeline, globalParams);
+
+    globalCleanTimelines.p1 = p1CleanTimeline;
+    globalCleanTimelines.p2 = p2CleanTimeline;
+
+    renderDebugTimeline('p1', p1CleanTimeline);
+    renderDebugTimeline('p2', p2CleanTimeline);
+
+    log("データ統合・URL再生成中...", 'info');
+    const urls = generateSeparatedURLs(p1CleanTimeline, p2CleanTimeline);
+    
+    document.getElementById('linkP1').href = urls.p1Url; document.getElementById('linkP1').textContent = urls.p1Url;
+    document.getElementById('linkP2').href = urls.p2Url; document.getElementById('linkP2').textContent = urls.p2Url;
+    document.getElementById('linkCombined').href = urls.combinedUrl; document.getElementById('linkCombined').textContent = urls.combinedUrl;
+    
+    document.getElementById('resultPanel').style.display = 'block';
+    log("再解析が完了しました！", 'success');
+}
+
 // UIイベントバインディング
 const modelInput = document.getElementById('modelInput'), videoInput = document.getElementById('videoInput'), startBtn = document.getElementById('startBtn'), stopBtn = document.getElementById('stopBtn');
+
  modelInput.addEventListener('change', async (e) => {
     if(e.target.files[0]) {
         try {
@@ -1178,14 +1415,14 @@ startBtn.addEventListener('click', async () => {
             missingBlock: parseInt(document.getElementById('scoreMissing').value),
             extraBlock: parseInt(document.getElementById('scoreExtra').value)
         },
-        shiftThreshold: parseFloat(document.getElementById('shiftThreshold').value) / 100
+                shiftThreshold: parseFloat(document.getElementById('shiftThreshold').value) / 100
     };
+    globalParams = params;
     
     video.src = URL.createObjectURL(videoInput.files[0]);
-try {
-        await new Promise(r => { video.onloadedmetadata = r;
- });
-log(`動画読み込み完了: ${video.duration.toFixed(1)}秒`, 'info');
+    try {
+        await new Promise(r => { video.onloadedmetadata = r; });
+        log(`動画読み込み完了: ${video.duration.toFixed(1)}秒`, 'info');
         
         const pass1Result = await runPass1Both(video, video.duration, params);
         if(stopRequested) return;
@@ -1194,15 +1431,20 @@ log(`動画読み込み完了: ${video.duration.toFixed(1)}秒`, 'info');
         const p2RawTimeline = await runPass2Player('p2', video, pass1Result.p2Timeline, params);
         if(stopRequested) return;
 
+        globalP1RawTimeline = p1RawTimeline;
+        globalP2RawTimeline = p2RawTimeline;
+
         log("P1 ビームサーチ補完実行中...", 'info');
         const p1CleanTimeline = runBeamSearch(p1RawTimeline, params);
-
- log("P2 ビームサーチ補完実行中...", 'info');
+        log("P2 ビームサーチ補完実行中...", 'info');
         const p2CleanTimeline = runBeamSearch(p2RawTimeline, params);
+
+        globalCleanTimelines.p1 = p1CleanTimeline;
+        globalCleanTimelines.p2 = p2CleanTimeline;
 
         // デバッグ表示生成
         renderDebugTimeline('p1', p1CleanTimeline);
- renderDebugTimeline('p2', p2CleanTimeline);
+        renderDebugTimeline('p2', p2CleanTimeline);
         document.getElementById('debugPanel').style.display = 'block';
 
         // URL出力
