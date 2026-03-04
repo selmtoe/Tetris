@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>動画解析</title>
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mp4box/dist/mp4box.all.min.js"></script>
 <style>
     :root { --bg: #1a1a2e;
  --primary: #4b4b7c; --accent: #00a0f0; --text: #e0e0e0; }
@@ -80,110 +79,9 @@
     .filter-info { font-size: 0.9em; color: #aaa; margin-bottom: 5px; }
     .filter-dot { position: absolute; width: 12px; height: 12px; background: rgba(255, 50, 50, 0.9); border: 2px solid white; border-radius: 50%; pointer-events: none; transform: translate(-50%, -50%); z-index: 10; }
 </style>
-<script>
-class WebCodecsExtractor {
-    constructor(file) {
-        this.file = file;
-        this.mp4box = MP4Box.createFile();
-        this.decoder = null;
-        this.frames = [];
-        this.frameResolvers = [];
-        this.samples = [];
-        this.sampleIndex = 0;
-        this.track = null;
-    }
 
-    async init() {
-        return new Promise((resolve, reject) => {
-            this.mp4box.onError = reject;
-            this.mp4box.onReady = (info) => {
-                this.track = info.videoTracks[0];
-                this.mp4box.setExtractionOptions(this.track.id, null, { nbSamples: Infinity });
-                this.mp4box.start();
-            };
-
-            this.mp4box.onSamples = (track_id, ref, samples) => {
-                this.samples = samples;
-                let codecStr = this.track.codec;
-                if (codecStr.startsWith('vp08')) codecStr = 'vp8';
-                
-                let description = null;
-                const entry = this.track.mdia?.minf?.stbl?.stsd?.entries[0];
-                if (entry && entry.avcC) {
-                    const stream = new MP4Box.DataStream(undefined, 0, MP4Box.DataStream.BIG_ENDIAN);
-                    entry.avcC.write(stream);
-                    description = stream.buffer;
-                }
-
-                this.decoder = new VideoDecoder({
-                    output: (frame) => {
-                        if (this.frameResolvers.length > 0) {
-                            const resolver = this.frameResolvers.shift();
-                            resolver(frame);
-                        } else {
-                            this.frames.push(frame);
-                        }
-                    },
-                    error: reject
-                });
-
-                const config = {
-                    codec: codecStr,
-                    codedWidth: this.track.video.width,
-                    codedHeight: this.track.video.height,
-                    description: description
-                };
-
-                this.decoder.configure(config);
-                resolve();
-            };
-
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const buffer = e.target.result;
-                buffer.fileStart = 0;
-                this.mp4box.appendBuffer(buffer);
-                this.mp4box.flush();
-            };
-            reader.readAsArrayBuffer(this.file);
-        });
-    }
-
-    async getFrameAt(timeInSeconds) {
-        const targetMicros = timeInSeconds * 1000000;
-        
-        while (true) {
-            while (this.frames.length > 0) {
-                const frame = this.frames[0];
-                if (frame.timestamp >= targetMicros - 50000) {
-                    return this.frames.shift();
-                } else {
-                    const f = this.frames.shift();
-                    f.close();
-                }
-            }
-
-            if (this.sampleIndex >= this.samples.length) {
-                if (this.decoder.decodeQueueSize === 0) return null;
-            } else {
-                const s = this.samples[this.sampleIndex++];
-                const chunk = new EncodedVideoChunk({
-                    type: s.is_sync ? "key" : "delta",
-                    timestamp: (s.cts / s.timescale) * 1000000,
-                    duration: (s.duration / s.timescale) * 1000000,
-                    data: s.data
-                });
-                this.decoder.decode(chunk);
-            }
-
-            await new Promise(r => this.frameResolvers.push(r));
-        }
-    }
-}
-</script>
 </head>
 <body>
-
 
 <div class="container">
     <h1>動画解析</h1>
@@ -1013,23 +911,16 @@ async function runPass1Both(video, duration, params) {
     let p2PendingNextStr = "";
     let p2PendingCount = 0;
 
-    const extractor = new WebCodecsExtractor(document.getElementById('videoInput').files[0]);
-    await extractor.init();
-
     for(let t = 0; t < duration; t += params.nextScanInterval) {
         if(stopRequested) break;
-        
-        const frame = await extractor.getFrameAt(t);
-        if (!frame) break;
-
-        if (sharedVideoCanvas.width !== frame.displayWidth || sharedVideoCanvas.height !== frame.displayHeight) {
-            sharedVideoCanvas.width = frame.displayWidth;
-            sharedVideoCanvas.height = frame.displayHeight;
+        video.currentTime = t;
+        await new Promise(r => { video.onseeked = r; });
+        if (sharedVideoCanvas.width !== video.videoWidth || sharedVideoCanvas.height !== video.videoHeight) {
+            sharedVideoCanvas.width = video.videoWidth;
+            sharedVideoCanvas.height = video.videoHeight;
         }
-        sharedVideoCtx.drawImage(frame, 0, 0);
-        frame.close();
+        sharedVideoCtx.drawImage(video, 0, 0);
         const { cropData } = calculateCropData(sharedVideoCanvas);
-
 
         const p1QueueData = await analyzeNextQueue(sharedVideoCanvas, cropData, CONFIG['p1']);
         const p1RawObsHold = p1QueueData.hold || "";
@@ -1167,9 +1058,6 @@ async function runPass2Player(playerId, video, pass1Timeline, params) {
     log(`${playerId.toUpperCase()} Pass2: 盤面ONNX推論開始 (区間数: ${pass1Timeline.length})...`, 'info');
     const timeline = [];
     const phaseTasks = [];
-    
-    const extractor = new WebCodecsExtractor(document.getElementById('videoInput').files[0]);
-    await extractor.init();
 
     for (let i = 0; i < pass1Timeline.length; i++) {
         if (stopRequested) break;
@@ -1177,22 +1065,20 @@ async function runPass2Player(playerId, video, pass1Timeline, params) {
         const durationPhase = phase.end - phase.start;
         const samples = params.onnxSamples;
         let repImageURL = null;
+
         const actualSamples = durationPhase < 0.1 ? 1 : samples;
         const boardPromises = [];
+
         for (let s = 1; s <= actualSamples; s++) {
             const t = phase.start + (durationPhase * s) / (actualSamples + 1);
-            
-            const frame = await extractor.getFrameAt(t);
-            if (!frame) continue;
-
+            video.currentTime = t;
+            await new Promise(r => { video.onseeked = r; });
             const localCanvas = document.createElement('canvas');
-            localCanvas.width = frame.displayWidth;
-            localCanvas.height = frame.displayHeight;
+            localCanvas.width = video.videoWidth;
+            localCanvas.height = video.videoHeight;
             const localCtx = localCanvas.getContext('2d', { willReadFrequently: true });
-            localCtx.drawImage(frame, 0, 0);
-            frame.close();
+            localCtx.drawImage(video, 0, 0);
             const { cropData } = calculateCropData(localCanvas);
-
             if (s === 1) {
                 const repCanvas = document.createElement('canvas');
                 const rect = CONFIG[playerId].boardRect;
