@@ -1062,8 +1062,12 @@ async function runWebCodecsAnalysis(file, params) {
     return new Promise((resolve, reject) => {
         const mp4boxfile = MP4Box.createFile();
         const decoder = new VideoDecoder({ output: processFrame, error: reject });
+        let expectedSamples = 0;
+        let queuedSamples = 0;
+
         mp4boxfile.onReady = function (info) {
             const track = info.videoTracks[0];
+            expectedSamples = track.nb_samples;
             let description = null;
             if (track.codec.startsWith('avc1')) {
                 const trak = mp4boxfile.getTrackById(track.id);
@@ -1075,19 +1079,28 @@ async function runWebCodecsAnalysis(file, params) {
             mp4boxfile.setExtractionOptions(track.id);
             mp4boxfile.start();
         };
+
         mp4boxfile.onSamples = function (track_id, ref, samples) {
             for (const sample of samples) {
                 if (stopRequested) break;
                 decoder.decode(new EncodedVideoChunk({ type: sample.is_sync ? "key" : "delta", timestamp: sample.cts * 1000000 / sample.timescale, duration: sample.duration * 1000000 / sample.timescale, data: sample.data }));
             }
+            queuedSamples += samples.length;
+            if (queuedSamples >= expectedSamples || stopRequested) {
+                decoder.flush().then(() => resolve([p1Timeline, p2Timeline])).catch(reject);
+            }
         };
+
         const reader = new FileReader();
         reader.onload = function(e) {
             const buffer = e.target.result;
             buffer.fileStart = 0;
-            mp4boxfile.appendBuffer(buffer);
-            mp4boxfile.flush();
-            decoder.flush().then(() => resolve([p1Timeline, p2Timeline]));
+            try {
+                mp4boxfile.appendBuffer(buffer);
+                mp4boxfile.flush();
+            } catch (err) {
+                reject(err);
+            }
         };
         reader.readAsArrayBuffer(file);
     });
