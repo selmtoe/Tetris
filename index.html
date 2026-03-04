@@ -5,9 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>動画解析</title>
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mp4box@0.5.2/dist/mp4box.all.min.js"></script>
 <style>
+    #errorDisplay { background: rgba(255,0,0,0.9); color: #fff; padding: 15px; display: none; white-space: pre-wrap; word-wrap: break-word; position: fixed; top: 0; left: 0; width: 100%; z-index: 9999; font-family: monospace; border-bottom: 2px solid #fff; }
     :root { --bg: #1a1a2e;
- --primary: #4b4b7c; --accent: #00a0f0; --text: #e0e0e0; }
+ --primary: #4b4b7c; --accent: #00a0f0;
+ }
     body { background-color: var(--bg); color: var(--text);
  font-family: 'Noto Sans JP', sans-serif; padding: 20px; margin: 0; }
     h1, h2, h3, h4 { border-bottom: 2px solid var(--primary);
@@ -83,9 +86,21 @@
 </head>
 <body>
 
+<div id="errorDisplay"></div>
+<script>
+window.addEventListener('error', function(e) {
+    document.getElementById('errorDisplay').style.display = 'block';
+    document.getElementById('errorDisplay').textContent += '[Error] ' + e.message + ' at ' + e.filename + ':' + e.lineno + '\n';
+});
+window.addEventListener('unhandledrejection', function(e) {
+    document.getElementById('errorDisplay').style.display = 'block';
+    document.getElementById('errorDisplay').textContent += '[Unhandled Rejection] ' + (e.reason && e.reason.stack ? e.reason.stack : e.reason) + '\n';
+});
+</script>
+
 <div class="container">
     <h1>動画解析</h1>
-    
+
     <div class="panel">
         <h2>1. 準備と設定</h2>
         <div class="controls">
@@ -1541,8 +1556,64 @@ startBtn.addEventListener('click', async () => {
     video.src = URL.createObjectURL(videoInput.files[0]);
     try {
         await new Promise(r => { video.onloadedmetadata = r; });
-        log(`動画読み込み完了: ${video.duration.toFixed(1)}秒`, 'info');
-        
+        log(`動画メタデータ読み込み完了: ${video.duration.toFixed(1)}秒`, 'info');
+        log(`WebCodecsによるデコードパイプラインを初期化します...`, 'info');
+
+        const file = videoInput.files[0];
+        const mp4boxfile = MP4Box.createFile();
+        let videoTrack = null;
+        let decoder = null;
+
+        mp4boxfile.onReady = function (info) {
+            videoTrack = info.videoTracks[0];
+            if (videoTrack) {
+                mp4boxfile.setExtractionOptions(videoTrack.id);
+                mp4boxfile.start();
+            }
+        };
+
+        let framesProcessed = 0;
+        decoder = new VideoDecoder({
+            output: function(frame) {
+                framesProcessed++;
+                frame.close();
+            },
+            error: function(e) {
+                throw new Error("VideoDecoder Error: " + e.message);
+            }
+        });
+
+        mp4boxfile.onSamples = function (track_id, ref, samples) {
+            decoder.configure({
+                codec: videoTrack.codec,
+                codedWidth: videoTrack.video.width,
+                codedHeight: videoTrack.video.height
+            });
+            for (let i = 0; i < samples.length; i++) {
+                const sample = samples[i];
+                const type = sample.is_sync ? "key" : "delta";
+                const chunk = new EncodedVideoChunk({
+                    type: type,
+                    timestamp: sample.cts,
+                    duration: sample.duration,
+                    data: sample.data
+                });
+                decoder.decode(chunk);
+            }
+        };
+
+        const reader = file.stream().getReader();
+        let offset = 0;
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            value.fileStart = offset;
+            offset += value.byteLength;
+            mp4boxfile.appendBuffer(value);
+        }
+        await decoder.flush();
+        log(`WebCodecsデコード完了: ${framesProcessed}フレームを処理しました`, 'success');
+
         const pass1Result = await runPass1Both(video, video.duration, params);
         if(stopRequested) return;
         const video2 = video.cloneNode(true);
