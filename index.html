@@ -512,7 +512,7 @@ function generateLegalMoves(board, minoType) {
                     for (const [dx, dy] of shape) { newBoard[y + dy][x + dx] = minoType;
                     }
                     
-                    const clearedBoard = newBoard.filter(row => !row.every(c => c !== null && c !== 'G'));
+                    const clearedBoard = newBoard.filter(row => !row.every(c => c !== null));
                     while(clearedBoard.length < 40) clearedBoard.unshift(Array(10).fill(null));
                     moves.push({ fullBoard: newBoard, clearedBoard: clearedBoard });
                 }
