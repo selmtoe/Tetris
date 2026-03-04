@@ -523,6 +523,36 @@ function generateLegalMoves(board, minoType) {
 
 // 評価関数（UI設定を反映）
 function detectBoardShift(prevBoard, obsBoard, threshold) {
+    let prevPattern = "";
+    let obsPattern = "";
+    for (let y = 39; y >= 0; y--) {
+        let pGCount = 0;
+        let pFilledCount = 0;
+        let pHoles = [];
+        for (let x = 0; x < 10; x++) {
+            if (prevBoard[y][x] === 'G') pGCount++;
+            if (prevBoard[y][x] !== null) pFilledCount++;
+            if (prevBoard[y][x] !== 'G') pHoles.push(x);
+        }
+        if (pGCount > 0 && pFilledCount < 10) {
+            prevPattern += pHoles.join(',') + "|";
+        }
+        let oGCount = 0;
+        let oFilledCount = 0;
+        let oHoles = [];
+        for (let x = 0; x < 10; x++) {
+            if (obsBoard[y][x] === 'G') oGCount++;
+            if (obsBoard[y][x] !== null) oFilledCount++;
+            if (obsBoard[y][x] !== 'G') oHoles.push(x);
+        }
+        if (oGCount > 0 && oFilledCount < 10) {
+            obsPattern += oHoles.join(',') + "|";
+        }
+    }
+    if (prevPattern !== "" && prevPattern === obsPattern) {
+        return { shift: 0, ratio: 0 };
+    }
+
     let bestShift = 0;
     let bestRatio = 0;
     for (let shift = 1; shift <= 20; shift++) {
@@ -555,6 +585,7 @@ function detectBoardShift(prevBoard, obsBoard, threshold) {
     }
     return { shift: bestShift, ratio: bestRatio };
 }
+
 
 function calculateMatchScore(predBoard, obsBoard, weights) {
     let score = 0;
