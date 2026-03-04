@@ -1057,15 +1057,18 @@ async function runPass2Player(playerId, video, pass1Timeline, params) {
     
     log(`${playerId.toUpperCase()} Pass2: 盤面ONNX推論開始 (区間数: ${pass1Timeline.length})...`, 'info');
     const timeline = [];
+    const phaseTasks = [];
+
     for (let i = 0; i < pass1Timeline.length; i++) {
         if (stopRequested) break;
         const phase = pass1Timeline[i];
-        const aggregator = new VoteAggregator();
         const durationPhase = phase.end - phase.start;
         const samples = params.onnxSamples;
         let repImageURL = null;
 
         const actualSamples = durationPhase < 0.1 ? 1 : samples;
+        const boardPromises = [];
+
         for (let s = 1; s <= actualSamples; s++) {
             const t = phase.start + (durationPhase * s) / (actualSamples + 1);
             video.currentTime = t;
@@ -1084,28 +1087,41 @@ async function runPass2Player(playerId, video, pass1Timeline, params) {
                 repCanvas.getContext('2d').drawImage(localCanvas, cropData.cropX + rect.x * scale, cropData.cropY + rect.y * scale, rect.w * scale, rect.h * scale, 0, 0, rect.w, rect.h);
                 repImageURL = repCanvas.toDataURL('image/jpeg', 0.5);
             }
-            const board = await analyzeBoardOnly(localCanvas, cropData, CONFIG[playerId], playerId);
-            aggregator.add(board);
-
+            boardPromises.push(analyzeBoardOnly(localCanvas, cropData, CONFIG[playerId], playerId));
         }
         
-        const winnerBoard = aggregator.getWinnerBoard() || Array.from({length:20}, ()=>Array(10).fill(null));
+        phaseTasks.push({ phase, repImageURL, boardPromises });
+        const pct = 50 + Math.floor(((i + 1) / pass1Timeline.length) * 25);
+        progressEl.value = pct;
+        statusEl.textContent = `Pass2 Extract: Phase ${i+1}/${pass1Timeline.length}`;
+    }
+
+    for (let i = 0; i < phaseTasks.length; i++) {
+        if (stopRequested) break;
+        const task = phaseTasks[i];
+        const aggregator = new VoteAggregator();
+        const boards = await Promise.all(task.boardPromises);
+        boards.forEach(board => aggregator.add(board));
+        
+        const winnerBoard = aggregator.getWinnerBoard() ||
+        Array.from({length:20}, ()=>Array(10).fill(null));
         timeline.push({
-            time: phase.end,
+            time: task.phase.end,
             board: cleanUpBoard(winnerBoard),
             rawBoard: cleanUpBoard(winnerBoard),
-            hold: phase.hold,
-            active: phase.active,
-            action: phase.action,
-            next: (phase.next || []).join(''),
-            repImage: repImageURL,
-            rawScans: phase.rawScans,
-            transitionLog: phase.transitionLog
+            hold: task.phase.hold,
+            active: task.phase.active,
+            action: task.phase.action,
+            next: (task.phase.next || []).join(''),
+     
+            repImage: task.repImageURL,
+            rawScans: task.phase.rawScans,
+            transitionLog: task.phase.transitionLog
         });
-        const pct = 50 + Math.floor(((i + 1) / pass1Timeline.length) * 50);
+        const pct = 75 + Math.floor(((i + 1) / phaseTasks.length) * 25);
         progressEl.value = pct;
 
-        statusEl.textContent = `Pass2: Phase ${i+1}/${pass1Timeline.length}`;
+        statusEl.textContent = `Pass2 Infer: Phase ${i+1}/${phaseTasks.length}`;
     }
     return timeline;
 }
