@@ -1471,9 +1471,11 @@ startBtn.addEventListener('click', async () => {
         
         const pass1Result = await runPass1Both(video, video.duration, params);
         if(stopRequested) return;
-        const p1RawTimeline = await runPass2Player('p1', video, pass1Result.p1Timeline, params);
-        if(stopRequested) return;
-        const p2RawTimeline = await runPass2Player('p2', video, pass1Result.p2Timeline, params);
+        const video2 = video.cloneNode(true);
+        const [p1RawTimeline, p2RawTimeline] = await Promise.all([
+            runPass2Player('p1', video, pass1Result.p1Timeline, params),
+            runPass2Player('p2', video2, pass1Result.p2Timeline, params)
+        ]);
         if(stopRequested) return;
 
         globalP1RawTimeline = p1RawTimeline;
