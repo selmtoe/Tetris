@@ -748,113 +748,85 @@ async function processPlayer(playerId, video, duration, params) {
     let pendingHold = "";
     let pendingNextStr = "";
     let pendingCount = 0;
-
-    video.currentTime = 0;
-    await new Promise(r => { video.onseeked = r; });
-    video.playbackRate = 4.0;
-    await video.play();
-
-    await new Promise((resolve) => {
-        let isProcessing = false;
-
-        const processFrame = async (now, metadata) => {
-            if (stopRequested || video.currentTime >= duration || video.ended) {
-                video.pause();
-                resolve();
-                return;
-            }
-
-            if (isProcessing) {
-                video.requestVideoFrameCallback(processFrame);
-                return;
-            }
-            isProcessing = true;
-
-            const t = metadata.mediaTime || video.currentTime;
-
-            if (sharedVideoCanvas.width !== video.videoWidth || sharedVideoCanvas.height !== video.videoHeight) {
-                sharedVideoCanvas.width = video.videoWidth;
-                sharedVideoCanvas.height = video.videoHeight;
-            }
-            sharedVideoCtx.drawImage(video, 0, 0);
-            const { cropData } = calculateCropData(sharedVideoCanvas);
-            const queueData = await analyzeNextQueue(sharedVideoCanvas, cropData, CONFIG[playerId]);
-            const rawObsHold = queueData.hold || "";
+    for(let t = 0; t < duration; t += params.nextScanInterval) {
+        if(stopRequested) break;
+        video.currentTime = t;
+        await new Promise(r => { video.onseeked = r; });
+        
+        if (sharedVideoCanvas.width !== video.videoWidth || sharedVideoCanvas.height !== video.videoHeight) {
+            sharedVideoCanvas.width = video.videoWidth;
+            sharedVideoCanvas.height = video.videoHeight;
+        }
+        sharedVideoCtx.drawImage(video, 0, 0);
+        const { cropData } = calculateCropData(sharedVideoCanvas);
+        const queueData = await analyzeNextQueue(sharedVideoCanvas, cropData, CONFIG[playerId]);
+        const rawObsHold = queueData.hold || "";
 
 
-            const rawObsNext = queueData.next;
-            currentRawScans.push(`[${t.toFixed(2)}s] H:${rawObsHold || '-'} N:${rawObsNext.join('')} | RGB: ${queueData.debugColors.join(' ')}`);
-            
-            const currentNextStr = rawObsNext.join('');
-            if (rawObsHold === pendingHold && currentNextStr === pendingNextStr) {
-                pendingCount++;
-            } else {
-                pendingHold = rawObsHold;
-                pendingNextStr = currentNextStr;
-                pendingCount = 1;
-            }
+        const rawObsNext = queueData.next;
+        currentRawScans.push(`[${t.toFixed(2)}s] H:${rawObsHold || '-'} N:${rawObsNext.join('')} | RGB: ${queueData.debugColors.join(' ')}`);
+        
+        const currentNextStr = rawObsNext.join('');
 
-            if (pendingCount >= 2) {
-                const obsHold = rawObsHold;
-                const obsNext = rawObsNext;
+        if (rawObsHold === pendingHold && currentNextStr === pendingNextStr) {
+            pendingCount++;
+        } else {
+            pendingHold = rawObsHold;
+            pendingNextStr = currentNextStr;
+            pendingCount = 1;
+        }
 
-                if (!isFirstDetected && obsNext.length >= 3) {
-                    lastStableHold = obsHold;
-                    lastStableNext = obsNext;
+        if (pendingCount < 2) continue;
 
-                    activeMino = "";
-                    pass1Timeline.push({ start: 0, end: t, hold: "", next: obsNext, active: "", action: "init", rawScans: [...currentRawScans] });
-                    currentStart = t;
-                    currentRawScans = [];
-                    isFirstDetected = true;
-                } else if (isFirstDetected) {
-                    const transition = checkQueueTransition(obsHold, obsNext, lastStableHold, lastStableNext, activeMino);
-                    let transitionDebugLog = transition.debug;
+        const obsHold = rawObsHold;
+        const obsNext = rawObsNext;
 
-                    if (transition.action === 'spawn') {
-                        activeMino = lastStableNext[0];
-                        transitionDebugLog += ` => activeMino changed to ${activeMino} (spawn)`;
-                    } else if (transition.action === 'first_hold') {
-                        activeMino = lastStableNext[0];
-                        transitionDebugLog += ` => activeMino changed to ${activeMino} (first_hold)`;
-                    } else if (transition.action === 'hold') {
-                        activeMino = lastStableHold;
-                        transitionDebugLog += ` => activeMino changed to ${activeMino} (hold)`;
-                    } else if (transition.action === 'place' || transition.action === 'place_and_hold') {
-                        transitionDebugLog += ` => place triggered.\nactiveMino will be ${lastStableNext[0]}`;
-                        pass1Timeline.push({ start: currentStart, end: t, hold: lastStableHold, next: lastStableNext, active: activeMino, action: transition.action, rawScans: [...currentRawScans], transitionLog: transitionDebugLog });
-                        currentStart = t;
-                        currentRawScans = [];
-                        activeMino = lastStableNext[0];
-                    }
+ if (!isFirstDetected && obsNext.length >= 3) {
+            lastStableHold = obsHold;
+            lastStableNext = obsNext;
 
-                    if (transition.holdChanged || transition.nextAdvanced) {
-                        lastStableHold = obsHold;
-                        lastStableNext = obsNext;
-                    }
-                }
-            }
-            
-            const pct = Math.floor((t / duration) * 50);
-            // Pass1は進捗の前半50%
-            progressEl.value = pct;
-            statusEl.textContent = `Pass1: ${pct * 2}%`;
-            
-            isProcessing = false;
+            activeMino = "";
+            pass1Timeline.push({ start: 0, end: t, hold: "", next: obsNext, active: "", action: "init", rawScans: [...currentRawScans] });
+            currentStart = t;
+            currentRawScans = [];
+            isFirstDetected = true;
+            continue;
+        }
+        if (!isFirstDetected) continue;
+        const transition = checkQueueTransition(obsHold, obsNext, lastStableHold, lastStableNext, activeMino);
+        let transitionDebugLog = transition.debug;
 
-            if (!stopRequested && video.currentTime < duration && !video.ended) {
-                video.requestVideoFrameCallback(processFrame);
-            } else {
-                video.pause();
-                resolve();
-            }
-        };
-        video.requestVideoFrameCallback(processFrame);
-    });
+        if (transition.action === 'spawn') {
+            activeMino = lastStableNext[0];
+            transitionDebugLog += ` => activeMino changed to ${activeMino} (spawn)`;
+        } else if (transition.action === 'first_hold') {
+            activeMino = lastStableNext[0];
+            transitionDebugLog += ` => activeMino changed to ${activeMino} (first_hold)`;
+        } else if (transition.action === 'hold') {
+            activeMino = lastStableHold;
+            transitionDebugLog += ` => activeMino changed to ${activeMino} (hold)`;
+        } else if (transition.action === 'place' || transition.action === 'place_and_hold') {
+            transitionDebugLog += ` => place triggered. activeMino will be ${lastStableNext[0]}`;
+            pass1Timeline.push({ start: currentStart, end: t, hold: lastStableHold, next: lastStableNext, active: activeMino, action: transition.action, rawScans: [...currentRawScans], transitionLog: transitionDebugLog });
+            currentStart = t;
+            currentRawScans = [];
+            activeMino = lastStableNext[0];
+        }
 
+        if (transition.holdChanged || transition.nextAdvanced) {
+            lastStableHold = obsHold;
+
+            lastStableNext = obsNext;
+        }
+        
+        const pct = Math.floor((t / duration) * 50);
+        // Pass1は進捗の前半50%
+        progressEl.value = pct;
+        statusEl.textContent = `Pass1: ${pct * 2}%`;
+}
     if (currentStart < duration) {
         pass1Timeline.push({ start: currentStart, end: duration, hold: lastStableHold, next: lastStableNext, active: activeMino, action: "end", rawScans: [...currentRawScans] });
-    }
+}
 
     // --- Pass 2: Board Inference ---
     log(`${playerId.toUpperCase()} Pass2: 盤面ONNX推論開始 (区間数: ${pass1Timeline.length})...`, 'info');
