@@ -240,10 +240,13 @@ class FrameExtractor {
         this.mp4box = MP4Box.createFile();
         this.decoder = null;
         this.frameQueue = [];
+        this.sampleQueue = [];
         this.resolveNext = null;
         this.isDone = false;
+        this.readingDone = false;
     }
     async init() {
+
         this.startReading();
         
         return new Promise((resolve, reject) => {
@@ -287,32 +290,51 @@ class FrameExtractor {
             };
             this.mp4box.onSamples = (track_id, ref, samples) => {
                 for (let s of samples) {
-                    if (!this.decoder) continue;
+                    this.sampleQueue.push(s);
+                }
+            };
+        });
+    }
+
+    async decodeLoop() {
+        while (!this.readingDone || this.sampleQueue.length > 0) {
+            if (this.sampleQueue.length === 0 || (this.decoder && this.decoder.decodeQueueSize > 30) || this.frameQueue.length > 30) {
+                await new Promise(r => setTimeout(r, 10));
+                continue;
+            }
+            const s = this.sampleQueue.shift();
+            if (this.decoder && this.decoder.state === "configured") {
+                try {
                     this.decoder.decode(new EncodedVideoChunk({
                         type: s.is_sync ? "key" : "delta",
                         timestamp: (s.cts * 1000000) / s.timescale,
                         duration: (s.duration * 1000000) / s.timescale,
                         data: s.data
                     }));
-                }
-            };
-        });
+                } catch(e) { console.error(e); }
+            }
+        }
+        if (this.decoder && this.decoder.state === "configured") {
+            try { await this.decoder.flush(); } catch(e){}
+        }
+        this.isDone = true;
+        if (this.resolveNext) this.resolveNext();
     }
+
     async startReading() {
+        this.decodeLoop();
         const reader = this.file.stream().getReader();
         let offset = 0;
         try {
             while (true) {
-                if (this.decoder && (this.decoder.decodeQueueSize > 30 || this.frameQueue.length > 30)) {
+                if (this.sampleQueue.length > 1000) {
                     await new Promise(r => setTimeout(r, 10));
                     continue;
                 }
                 const { done, value } = await reader.read();
                 if (done) {
                     this.mp4box.flush();
-                    if (this.decoder && this.decoder.state === "configured") await this.decoder.flush();
-                    this.isDone = true;
-                    if (this.resolveNext) this.resolveNext();
+                    this.readingDone = true;
                     break;
                 }
                 
@@ -326,8 +348,10 @@ class FrameExtractor {
             }
         } catch (err) {
             console.error(err);
+            this.readingDone = true;
         }
     }
+
     async getNextFrame() {
         if (this.frameQueue.length > 0) return this.frameQueue.shift();
         if (this.isDone) return null;
