@@ -244,6 +244,8 @@ class FrameExtractor {
         this.isDone = false;
     }
     async init() {
+        this.startReading();
+        
         return new Promise((resolve, reject) => {
             this.mp4box.onError = reject;
             this.mp4box.onReady = (info) => {
@@ -257,20 +259,13 @@ class FrameExtractor {
                 const trak = this.mp4box.moov.traks.find(t => t.mdia.minf.stbl.stsd.entries[0].avcC || t.mdia.minf.stbl.stsd.entries[0].hvcC || t.mdia.minf.stbl.stsd.entries[0].vpcC);
                 if (trak) {
                     const stsd = trak.mdia.minf.stbl.stsd.entries[0];
-                    if (stsd.avcC) {
-                        const stream = new DataStream(undefined, 0, DataStream.BIG_ENDIAN);
-                        stsd.avcC.write(stream);
-                        description = new Uint8Array(stream.buffer, 8);
-                    } else if (stsd.hvcC) {
-                        const stream = new DataStream(undefined, 0, DataStream.BIG_ENDIAN);
-                        stsd.hvcC.write(stream);
-                        description = new Uint8Array(stream.buffer, 8);
-                    } else if (stsd.vpcC) {
-                        const stream = new DataStream(undefined, 0, DataStream.BIG_ENDIAN);
-                        stsd.vpcC.write(stream);
-                        description = new Uint8Array(stream.buffer, 8);
-                    }
+                    const stream = new DataStream(undefined, 0, DataStream.BIG_ENDIAN);
+                    if (stsd.avcC) stsd.avcC.write(stream);
+                    else if (stsd.hvcC) stsd.hvcC.write(stream);
+                    else if (stsd.vpcC) stsd.vpcC.write(stream);
+                    description = new Uint8Array(stream.buffer, 0, stream.position);
                 }
+                
                 this.decoder = new VideoDecoder({
                     output: (frame) => {
                         this.frameQueue.push(frame);
@@ -288,11 +283,11 @@ class FrameExtractor {
                     description: description
                 });
                 this.mp4box.start();
-                this.startReading();
                 resolve();
             };
             this.mp4box.onSamples = (track_id, ref, samples) => {
                 for (let s of samples) {
+                    if (!this.decoder) continue;
                     this.decoder.decode(new EncodedVideoChunk({
                         type: s.is_sync ? "key" : "delta",
                         timestamp: (s.cts * 1000000) / s.timescale,
@@ -306,23 +301,31 @@ class FrameExtractor {
     async startReading() {
         const reader = this.file.stream().getReader();
         let offset = 0;
-        while (true) {
-            if (this.decoder.decodeQueueSize > 30 || this.frameQueue.length > 30) {
-                await new Promise(r => setTimeout(r, 10));
-                continue;
+        try {
+            while (true) {
+                if (this.decoder && (this.decoder.decodeQueueSize > 30 || this.frameQueue.length > 30)) {
+                    await new Promise(r => setTimeout(r, 10));
+                    continue;
+                }
+                const { done, value } = await reader.read();
+                if (done) {
+                    this.mp4box.flush();
+                    if (this.decoder && this.decoder.state === "configured") await this.decoder.flush();
+                    this.isDone = true;
+                    if (this.resolveNext) this.resolveNext();
+                    break;
+                }
+                
+                let chunk = value.buffer;
+                if (value.byteOffset !== 0 || value.byteLength !== chunk.byteLength) {
+                    chunk = chunk.slice(value.byteOffset, value.byteOffset + value.byteLength);
+                }
+                chunk.fileStart = offset;
+                offset += chunk.byteLength;
+                this.mp4box.appendBuffer(chunk);
             }
-            const { done, value } = await reader.read();
-            if (done) {
-                this.mp4box.flush();
-                await this.decoder.flush();
-                this.isDone = true;
-                if (this.resolveNext) this.resolveNext();
-                break;
-            }
-            let buffer = value.buffer;
-            buffer.fileStart = offset;
-            offset += buffer.byteLength;
-            this.mp4box.appendBuffer(buffer);
+        } catch (err) {
+            console.error(err);
         }
     }
     async getNextFrame() {
