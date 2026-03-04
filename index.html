@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>動画解析</title>
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mp4box/dist/mp4box.all.min.js"></script>
 <style>
     :root { --bg: #1a1a2e;
  --primary: #4b4b7c; --accent: #00a0f0; --text: #e0e0e0; }
@@ -881,15 +882,13 @@ break; }
     return fullBoard;
 }
 
-async function runPass1Both(video, duration, params) {
+async function runWebCodecsAnalysis(file, params) {
     const p1ProgressEl = document.getElementById('p1Progress');
     const p1StatusEl = document.getElementById('p1Status');
     const p2ProgressEl = document.getElementById('p2Progress');
     const p2StatusEl = document.getElementById('p2Status');
-    
-    log(`P1&P2 Pass1: Next区間検索開始...`, 'info');
-    
-    let p1Timeline = [];
+    const p1Timeline = [];
+    const p2Timeline = [];
     let p1CurrentRawScans = [];
     let p1LastStableHold = "";
     let p1LastStableNext = [];
@@ -899,8 +898,6 @@ async function runPass1Both(video, duration, params) {
     let p1PendingHold = "";
     let p1PendingNextStr = "";
     let p1PendingCount = 0;
-
-    let p2Timeline = [];
     let p2CurrentRawScans = [];
     let p2LastStableHold = "";
     let p2LastStableNext = [];
@@ -910,220 +907,192 @@ async function runPass1Both(video, duration, params) {
     let p2PendingHold = "";
     let p2PendingNextStr = "";
     let p2PendingCount = 0;
+    let lastScanTime = -1;
+    let decodedFrames = 0;
+    const frameBufferP1 = [];
+    const frameBufferP2 = [];
 
-    for(let t = 0; t < duration; t += params.nextScanInterval) {
-        if(stopRequested) break;
-        video.currentTime = t;
-        await new Promise(r => { video.onseeked = r; });
-        if (sharedVideoCanvas.width !== video.videoWidth || sharedVideoCanvas.height !== video.videoHeight) {
-            sharedVideoCanvas.width = video.videoWidth;
-            sharedVideoCanvas.height = video.videoHeight;
-        }
-        sharedVideoCtx.drawImage(video, 0, 0);
-        const { cropData } = calculateCropData(sharedVideoCanvas);
-
-        const p1QueueData = await analyzeNextQueue(sharedVideoCanvas, cropData, CONFIG['p1']);
-        const p1RawObsHold = p1QueueData.hold || "";
-        const p1RawObsNext = p1QueueData.next;
-        p1CurrentRawScans.push(`[${t.toFixed(2)}s] H:${p1RawObsHold || '-'} N:${p1RawObsNext.join('')} | RGB: ${p1QueueData.debugColors.join(' ')}`);
-        
-        const p1CurrentNextStr = p1RawObsNext.join('');
-        if (p1RawObsHold === p1PendingHold && p1CurrentNextStr === p1PendingNextStr) {
-            p1PendingCount++;
-        } else {
-            p1PendingHold = p1RawObsHold;
-            p1PendingNextStr = p1CurrentNextStr;
-            p1PendingCount = 1;
-        }
-
-        if (p1PendingCount >= 2) {
-            const obsHold = p1RawObsHold;
-            const obsNext = p1RawObsNext;
-
-            if (!p1IsFirstDetected && obsNext.length >= 3) {
-                p1LastStableHold = obsHold;
-                p1LastStableNext = obsNext;
-
-                p1ActiveMino = "";
-                p1Timeline.push({ start: 0, end: t, hold: "", next: obsNext, active: "", action: "init", rawScans: [...p1CurrentRawScans] });
-                p1CurrentStart = t;
-                p1CurrentRawScans = [];
-                p1IsFirstDetected = true;
-            } else if (p1IsFirstDetected) {
-                const transition = checkQueueTransition(obsHold, obsNext, p1LastStableHold, p1LastStableNext, p1ActiveMino);
-                let transitionDebugLog = transition.debug;
-
-                if (transition.action === 'spawn') {
-                    p1ActiveMino = p1LastStableNext[0];
-                    transitionDebugLog += ` => activeMino changed to ${p1ActiveMino} (spawn)`;
-                } else if (transition.action === 'first_hold') {
-                    p1ActiveMino = p1LastStableNext[0];
-                    transitionDebugLog += ` => activeMino changed to ${p1ActiveMino} (first_hold)`;
-                } else if (transition.action === 'hold') {
-                    p1ActiveMino = p1LastStableHold;
-                    transitionDebugLog += ` => activeMino changed to ${p1ActiveMino} (hold)`;
-                } else if (transition.action === 'place' || transition.action === 'place_and_hold') {
-                    transitionDebugLog += ` => place triggered.
-            activeMino will be ${p1LastStableNext[0]}`;
-                    p1Timeline.push({ start: p1CurrentStart, end: t, hold: p1LastStableHold, next: p1LastStableNext, active: p1ActiveMino, action: transition.action, rawScans: [...p1CurrentRawScans], transitionLog: transitionDebugLog });
-                    p1CurrentStart = t;
-                    p1CurrentRawScans = [];
-                    p1ActiveMino = p1LastStableNext[0];
-                }
-
-                if (transition.holdChanged || transition.nextAdvanced) {
+    const processFrame = async (frame) => {
+        const t = frame.timestamp / 1000000;
+        if (t - lastScanTime >= params.nextScanInterval) {
+            lastScanTime = t;
+            if (sharedVideoCanvas.width !== frame.displayWidth || sharedVideoCanvas.height !== frame.displayHeight) {
+                sharedVideoCanvas.width = frame.displayWidth;
+                sharedVideoCanvas.height = frame.displayHeight;
+            }
+            sharedVideoCtx.drawImage(frame, 0, 0, frame.displayWidth, frame.displayHeight);
+            const { cropData } = calculateCropData(sharedVideoCanvas);
+            const p1QueueData = await analyzeNextQueue(sharedVideoCanvas, cropData, CONFIG['p1']);
+            const p1RawObsHold = p1QueueData.hold || "";
+            const p1RawObsNext = p1QueueData.next;
+            p1CurrentRawScans.push(`[${t.toFixed(2)}s] H:${p1RawObsHold || '-'} N:${p1RawObsNext.join('')}`);
+            const p1CurrentNextStr = p1RawObsNext.join('');
+            if (p1RawObsHold === p1PendingHold && p1CurrentNextStr === p1PendingNextStr) {
+                p1PendingCount++;
+            } else {
+                p1PendingHold = p1RawObsHold;
+                p1PendingNextStr = p1CurrentNextStr;
+                p1PendingCount = 1;
+            }
+            if (p1PendingCount >= 2) {
+                const obsHold = p1RawObsHold;
+                const obsNext = p1RawObsNext;
+                if (!p1IsFirstDetected && obsNext.length >= 3) {
                     p1LastStableHold = obsHold;
                     p1LastStableNext = obsNext;
+                    p1ActiveMino = "";
+                    p1Timeline.push({ start: 0, end: t, hold: "", next: obsNext.join(''), active: "", action: "init", rawScans: [...p1CurrentRawScans] });
+                    p1CurrentStart = t;
+                    p1CurrentRawScans = [];
+                    p1IsFirstDetected = true;
+                } else if (p1IsFirstDetected) {
+                    const transition = checkQueueTransition(obsHold, obsNext, p1LastStableHold, p1LastStableNext, p1ActiveMino);
+                    let transitionDebugLog = transition.debug;
+                    if (transition.action === 'spawn') {
+                        p1ActiveMino = p1LastStableNext[0];
+                    } else if (transition.action === 'first_hold') {
+                        p1ActiveMino = p1LastStableNext[0];
+                    } else if (transition.action === 'hold') {
+                        p1ActiveMino = p1LastStableHold;
+                    } else if (transition.action === 'place' || transition.action === 'place_and_hold') {
+                        const phaseFrames = frameBufferP1.slice(-params.onnxSamples);
+                        const aggregator = new VoteAggregator();
+                        let repImageURL = null;
+                        for (let i = 0; i < phaseFrames.length; i++) {
+                            const pf = phaseFrames[i];
+                            const localCanvas = document.createElement('canvas');
+                            localCanvas.width = pf.width;
+                            localCanvas.height = pf.height;
+                            const localCtx = localCanvas.getContext('2d');
+                            localCtx.putImageData(pf.data, 0, 0);
+                            if (i === 0) repImageURL = localCanvas.toDataURL('image/jpeg', 0.5);
+                            const b = await analyzeBoardOnly(localCanvas, pf.cropData, CONFIG['p1'], 'p1');
+                            aggregator.add(b);
+                        }
+                        const winnerBoard = aggregator.getWinnerBoard() || Array.from({length:20}, ()=>Array(10).fill(null));
+                        p1Timeline.push({
+                            time: t, board: cleanUpBoard(winnerBoard), rawBoard: cleanUpBoard(winnerBoard),
+                            hold: p1LastStableHold, next: p1LastStableNext.join(''), active: p1ActiveMino,
+                            action: transition.action, rawScans: [...p1CurrentRawScans], transitionLog: transitionDebugLog, repImage: repImageURL
+                        });
+                        p1CurrentStart = t;
+                        p1CurrentRawScans = [];
+                        p1ActiveMino = p1LastStableNext[0];
+                    }
+                    if (transition.holdChanged || transition.nextAdvanced) {
+                        p1LastStableHold = obsHold;
+                        p1LastStableNext = obsNext;
+                    }
                 }
             }
-        }
-
-        const p2QueueData = await analyzeNextQueue(sharedVideoCanvas, cropData, CONFIG['p2']);
-        const p2RawObsHold = p2QueueData.hold || "";
-        const p2RawObsNext = p2QueueData.next;
-        p2CurrentRawScans.push(`[${t.toFixed(2)}s] H:${p2RawObsHold || '-'} N:${p2RawObsNext.join('')} | RGB: ${p2QueueData.debugColors.join(' ')}`);
-        
-        const p2CurrentNextStr = p2RawObsNext.join('');
-        if (p2RawObsHold === p2PendingHold && p2CurrentNextStr === p2PendingNextStr) {
-            p2PendingCount++;
-        } else {
-            p2PendingHold = p2RawObsHold;
-            p2PendingNextStr = p2CurrentNextStr;
-            p2PendingCount = 1;
-        }
-
-        if (p2PendingCount >= 2) {
-            const obsHold = p2RawObsHold;
-            const obsNext = p2RawObsNext;
-
-            if (!p2IsFirstDetected && obsNext.length >= 3) {
-                p2LastStableHold = obsHold;
-                p2LastStableNext = obsNext;
-
-                p2ActiveMino = "";
-                p2Timeline.push({ start: 0, end: t, hold: "", next: obsNext, active: "", action: "init", rawScans: [...p2CurrentRawScans] });
-                p2CurrentStart = t;
-                p2CurrentRawScans = [];
-                p2IsFirstDetected = true;
-            } else if (p2IsFirstDetected) {
-                const transition = checkQueueTransition(obsHold, obsNext, p2LastStableHold, p2LastStableNext, p2ActiveMino);
-                let transitionDebugLog = transition.debug;
-
-                if (transition.action === 'spawn') {
-                    p2ActiveMino = p2LastStableNext[0];
-                    transitionDebugLog += ` => activeMino changed to ${p2ActiveMino} (spawn)`;
-                } else if (transition.action === 'first_hold') {
-                    p2ActiveMino = p2LastStableNext[0];
-                    transitionDebugLog += ` => activeMino changed to ${p2ActiveMino} (first_hold)`;
-                } else if (transition.action === 'hold') {
-                    p2ActiveMino = p2LastStableHold;
-                    transitionDebugLog += ` => activeMino changed to ${p2ActiveMino} (hold)`;
-                } else if (transition.action === 'place' || transition.action === 'place_and_hold') {
-                    transitionDebugLog += ` => place triggered.
-            activeMino will be ${p2LastStableNext[0]}`;
-                    p2Timeline.push({ start: p2CurrentStart, end: t, hold: p2LastStableHold, next: p2LastStableNext, active: p2ActiveMino, action: transition.action, rawScans: [...p2CurrentRawScans], transitionLog: transitionDebugLog });
-                    p2CurrentStart = t;
-                    p2CurrentRawScans = [];
-                    p2ActiveMino = p2LastStableNext[0];
-                }
-
-                if (transition.holdChanged || transition.nextAdvanced) {
+            const p2QueueData = await analyzeNextQueue(sharedVideoCanvas, cropData, CONFIG['p2']);
+            const p2RawObsHold = p2QueueData.hold || "";
+            const p2RawObsNext = p2QueueData.next;
+            p2CurrentRawScans.push(`[${t.toFixed(2)}s] H:${p2RawObsHold || '-'} N:${p2RawObsNext.join('')}`);
+            const p2CurrentNextStr = p2RawObsNext.join('');
+            if (p2RawObsHold === p2PendingHold && p2CurrentNextStr === p2PendingNextStr) {
+                p2PendingCount++;
+            } else {
+                p2PendingHold = p2RawObsHold;
+                p2PendingNextStr = p2CurrentNextStr;
+                p2PendingCount = 1;
+            }
+            if (p2PendingCount >= 2) {
+                const obsHold = p2RawObsHold;
+                const obsNext = p2RawObsNext;
+                if (!p2IsFirstDetected && obsNext.length >= 3) {
                     p2LastStableHold = obsHold;
                     p2LastStableNext = obsNext;
+                    p2ActiveMino = "";
+                    p2Timeline.push({ start: 0, end: t, hold: "", next: obsNext.join(''), active: "", action: "init", rawScans: [...p2CurrentRawScans] });
+                    p2CurrentStart = t;
+                    p2CurrentRawScans = [];
+                    p2IsFirstDetected = true;
+                } else if (p2IsFirstDetected) {
+                    const transition = checkQueueTransition(obsHold, obsNext, p2LastStableHold, p2LastStableNext, p2ActiveMino);
+                    let transitionDebugLog = transition.debug;
+                    if (transition.action === 'spawn') {
+                        p2ActiveMino = p2LastStableNext[0];
+                    } else if (transition.action === 'first_hold') {
+                        p2ActiveMino = p2LastStableNext[0];
+                    } else if (transition.action === 'hold') {
+                        p2ActiveMino = p2LastStableHold;
+                    } else if (transition.action === 'place' || transition.action === 'place_and_hold') {
+                        const phaseFrames = frameBufferP2.slice(-params.onnxSamples);
+                        const aggregator = new VoteAggregator();
+                        let repImageURL = null;
+                        for (let i = 0; i < phaseFrames.length; i++) {
+                            const pf = phaseFrames[i];
+                            const localCanvas = document.createElement('canvas');
+                            localCanvas.width = pf.width;
+                            localCanvas.height = pf.height;
+                            const localCtx = localCanvas.getContext('2d');
+                            localCtx.putImageData(pf.data, 0, 0);
+                            if (i === 0) repImageURL = localCanvas.toDataURL('image/jpeg', 0.5);
+                            const b = await analyzeBoardOnly(localCanvas, pf.cropData, CONFIG['p2'], 'p2');
+                            aggregator.add(b);
+                        }
+                        const winnerBoard = aggregator.getWinnerBoard() || Array.from({length:20}, ()=>Array(10).fill(null));
+                        p2Timeline.push({
+                            time: t, board: cleanUpBoard(winnerBoard), rawBoard: cleanUpBoard(winnerBoard),
+                            hold: p2LastStableHold, next: p2LastStableNext.join(''), active: p2ActiveMino,
+                            action: transition.action, rawScans: [...p2CurrentRawScans], transitionLog: transitionDebugLog, repImage: repImageURL
+                        });
+                        p2CurrentStart = t;
+                        p2CurrentRawScans = [];
+                        p2ActiveMino = p2LastStableNext[0];
+                    }
+                    if (transition.holdChanged || transition.nextAdvanced) {
+                        p2LastStableHold = obsHold;
+                        p2LastStableNext = obsNext;
+                    }
                 }
             }
+            frameBufferP1.push({ width: sharedVideoCanvas.width, height: sharedVideoCanvas.height, data: sharedVideoCtx.getImageData(0, 0, sharedVideoCanvas.width, sharedVideoCanvas.height), cropData });
+            frameBufferP2.push({ width: sharedVideoCanvas.width, height: sharedVideoCanvas.height, data: sharedVideoCtx.getImageData(0, 0, sharedVideoCanvas.width, sharedVideoCanvas.height), cropData });
+            if (frameBufferP1.length > Math.max(10, params.onnxSamples * 2)) frameBufferP1.shift();
+            if (frameBufferP2.length > Math.max(10, params.onnxSamples * 2)) frameBufferP2.shift();
         }
-        
-        const pct = Math.floor((t / duration) * 50);
-        p1ProgressEl.value = pct;
-        p1StatusEl.textContent = `Pass1: ${pct * 2}%`;
-        p2ProgressEl.value = pct;
-        p2StatusEl.textContent = `Pass1: ${pct * 2}%`;
-    }
+        decodedFrames++;
+        p1StatusEl.textContent = `Frames: ${decodedFrames}`;
+        p2StatusEl.textContent = `Frames: ${decodedFrames}`;
+        frame.close();
+    };
 
-    if (p1CurrentStart < duration) {
-        p1Timeline.push({ start: p1CurrentStart, end: duration, hold: p1LastStableHold, next: p1LastStableNext, active: p1ActiveMino, action: "end", rawScans: [...p1CurrentRawScans] });
-    }
-    if (p2CurrentStart < duration) {
-        p2Timeline.push({ start: p2CurrentStart, end: duration, hold: p2LastStableHold, next: p2LastStableNext, active: p2ActiveMino, action: "end", rawScans: [...p2CurrentRawScans] });
-    }
-
-    return { p1Timeline, p2Timeline };
+    return new Promise((resolve, reject) => {
+        const mp4boxfile = MP4Box.createFile();
+        const decoder = new VideoDecoder({ output: processFrame, error: reject });
+        mp4boxfile.onReady = function (info) {
+            const track = info.videoTracks[0];
+            let description = null;
+            if (track.codec.startsWith('avc1')) {
+                const trak = mp4boxfile.getTrackById(track.id);
+                if (trak && trak.mdia && trak.mdia.minf && trak.mdia.minf.stbl && trak.mdia.minf.stbl.stsd && trak.mdia.minf.stbl.stsd.entries[0].avcC) {
+                    description = trak.mdia.minf.stbl.stsd.entries[0].avcC.box;
+                }
+            }
+            decoder.configure({ codec: track.codec, codedWidth: track.track_width, codedHeight: track.track_height, description });
+            mp4boxfile.setExtractionOptions(track.id);
+            mp4boxfile.start();
+        };
+        mp4boxfile.onSamples = function (track_id, ref, samples) {
+            for (const sample of samples) {
+                if (stopRequested) break;
+                decoder.decode(new EncodedVideoChunk({ type: sample.is_sync ? "key" : "delta", timestamp: sample.cts * 1000000 / sample.timescale, duration: sample.duration * 1000000 / sample.timescale, data: sample.data }));
+            }
+        };
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const buffer = e.target.result;
+            buffer.fileStart = 0;
+            mp4boxfile.appendBuffer(buffer);
+            mp4boxfile.flush();
+            decoder.flush().then(() => resolve([p1Timeline, p2Timeline]));
+        };
+        reader.readAsArrayBuffer(file);
+    });
 }
 
-async function runPass2Player(playerId, video, pass1Timeline, params) {
-    const progressEl = document.getElementById(`${playerId}Progress`);
-    const statusEl = document.getElementById(`${playerId}Status`);
-    
-    log(`${playerId.toUpperCase()} Pass2: 盤面ONNX推論開始 (区間数: ${pass1Timeline.length})...`, 'info');
-    const timeline = [];
-    const phaseTasks = [];
-
-    for (let i = 0; i < pass1Timeline.length; i++) {
-        if (stopRequested) break;
-        const phase = pass1Timeline[i];
-        const durationPhase = phase.end - phase.start;
-        const samples = params.onnxSamples;
-        let repImageURL = null;
-
-        const actualSamples = durationPhase < 0.1 ? 1 : samples;
-        const boardPromises = [];
-
-        for (let s = 1; s <= actualSamples; s++) {
-            const t = phase.start + (durationPhase * s) / (actualSamples + 1);
-            video.currentTime = t;
-            await new Promise(r => { video.onseeked = r; });
-            const localCanvas = document.createElement('canvas');
-            localCanvas.width = video.videoWidth;
-            localCanvas.height = video.videoHeight;
-            const localCtx = localCanvas.getContext('2d', { willReadFrequently: true });
-            localCtx.drawImage(video, 0, 0);
-            const { cropData } = calculateCropData(localCanvas);
-            if (s === 1) {
-                const repCanvas = document.createElement('canvas');
-                const rect = CONFIG[playerId].boardRect;
-                repCanvas.width = rect.w; repCanvas.height = rect.h;
-                const scale = cropData.cropW / 1920;
-                repCanvas.getContext('2d').drawImage(localCanvas, cropData.cropX + rect.x * scale, cropData.cropY + rect.y * scale, rect.w * scale, rect.h * scale, 0, 0, rect.w, rect.h);
-                repImageURL = repCanvas.toDataURL('image/jpeg', 0.5);
-            }
-            boardPromises.push(analyzeBoardOnly(localCanvas, cropData, CONFIG[playerId], playerId));
-        }
-        
-        phaseTasks.push({ phase, repImageURL, boardPromises });
-        const pct = 50 + Math.floor(((i + 1) / pass1Timeline.length) * 25);
-        progressEl.value = pct;
-        statusEl.textContent = `Pass2 Extract: Phase ${i+1}/${pass1Timeline.length}`;
-    }
-
-    for (let i = 0; i < phaseTasks.length; i++) {
-        if (stopRequested) break;
-        const task = phaseTasks[i];
-        const aggregator = new VoteAggregator();
-        const boards = await Promise.all(task.boardPromises);
-        boards.forEach(board => aggregator.add(board));
-        
-        const winnerBoard = aggregator.getWinnerBoard() ||
-        Array.from({length:20}, ()=>Array(10).fill(null));
-        timeline.push({
-            time: task.phase.end,
-            board: cleanUpBoard(winnerBoard),
-            rawBoard: cleanUpBoard(winnerBoard),
-            hold: task.phase.hold,
-            active: task.phase.active,
-            action: task.phase.action,
-            next: (task.phase.next || []).join(''),
-     
-            repImage: task.repImageURL,
-            rawScans: task.phase.rawScans,
-            transitionLog: task.phase.transitionLog
-        });
-        const pct = 75 + Math.floor(((i + 1) / phaseTasks.length) * 25);
-        progressEl.value = pct;
-
-        statusEl.textContent = `Pass2 Infer: Phase ${i+1}/${phaseTasks.length}`;
-    }
-    return timeline;
 }
 
 // ==========================================
@@ -1529,28 +1498,24 @@ startBtn.addEventListener('click', async () => {
         weights: {
             exactMatch: parseInt(document.getElementById('scoreExact').value),
      
-        emptyMatch: parseInt(document.getElementById('scoreEmpty').value),
+        emptyMatch: 
+parseInt(document.getElementById('scoreEmpty').value),
             colorMismatch: parseInt(document.getElementById('scoreColor').value),
             missingBlock: parseInt(document.getElementById('scoreMissing').value),
             extraBlock: parseInt(document.getElementById('scoreExtra').value)
         },
                 shiftThreshold: parseFloat(document.getElementById('shiftThreshold').value) / 100
     };
-    globalParams = params;
+globalParams = params;
     
     video.src = URL.createObjectURL(videoInput.files[0]);
     try {
         await new Promise(r => { video.onloadedmetadata = r; });
-        log(`動画読み込み完了: ${video.duration.toFixed(1)}秒`, 'info');
+log(`動画解析開始（1パス方式）: ${video.duration.toFixed(1)}秒`, 'info');
         
-        const pass1Result = await runPass1Both(video, video.duration, params);
-        if(stopRequested) return;
-        const video2 = video.cloneNode(true);
-        const [p1RawTimeline, p2RawTimeline] = await Promise.all([
-            runPass2Player('p1', video, pass1Result.p1Timeline, params),
-            runPass2Player('p2', video2, pass1Result.p2Timeline, params)
-        ]);
-        if(stopRequested) return;
+        const [p1RawTimeline, p2RawTimeline] = await runWebCodecsAnalysis(videoInput.files[0], params);
+        
+if(stopRequested) return;
 
         globalP1RawTimeline = p1RawTimeline;
         globalP2RawTimeline = p2RawTimeline;
@@ -1558,31 +1523,30 @@ startBtn.addEventListener('click', async () => {
         log("P1 ビームサーチ補完実行中...", 'info');
         const p1CleanTimeline = runBeamSearch(p1RawTimeline, params);
         log("P2 ビームサーチ補完実行中...", 'info');
-        const p2CleanTimeline = runBeamSearch(p2RawTimeline, params);
+const p2CleanTimeline = runBeamSearch(p2RawTimeline, params);
 
         globalCleanTimelines.p1 = p1CleanTimeline;
         globalCleanTimelines.p2 = p2CleanTimeline;
-
-        // デバッグ表示生成
+// デバッグ表示生成
         renderDebugTimeline('p1', p1CleanTimeline);
         renderDebugTimeline('p2', p2CleanTimeline);
         document.getElementById('debugPanel').style.display = 'block';
-
-        // URL出力
+// URL出力
         log("データ統合・URL生成中...", 'info');
  const urls = generateSeparatedURLs(p1CleanTimeline, p2CleanTimeline);
         
-        document.getElementById('linkP1').href = urls.p1Url; document.getElementById('linkP1').textContent = urls.p1Url;
+        document.getElementById('linkP1').href = urls.p1Url;
+document.getElementById('linkP1').textContent = urls.p1Url;
         document.getElementById('linkP2').href = urls.p2Url; document.getElementById('linkP2').textContent = urls.p2Url;
         document.getElementById('linkCombined').href = urls.combinedUrl;
  document.getElementById('linkCombined').textContent = urls.combinedUrl;
         
         document.getElementById('resultPanel').style.display = 'block';
         log("全工程が完了しました！", 'success');
-
-    } catch (e) { log("処理エラー: " + e.stack, 'error');
+} catch (e) { log("処理エラー: " + e.stack, 'error');
  } 
-    finally { isRunning = false; startBtn.disabled = false; stopBtn.disabled = true; }
+    finally { isRunning = false;
+startBtn.disabled = false; stopBtn.disabled = true; }
 });
  stopBtn.addEventListener('click', () => { stopRequested = true; log("停止リクエスト...", 'warn'); });
 
