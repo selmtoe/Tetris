@@ -325,27 +325,30 @@ function findClosestMinoOnly(r, g, b) {
 
 function getAverageColorNonBlack(ctx, cx, cy, radius) {
     const startX = Math.max(0, Math.floor(cx - radius)), startY = Math.max(0, Math.floor(cy - radius)), diameter = Math.ceil(radius * 2), endX = Math.min(ctx.canvas.width, startX + diameter), endY = Math.min(ctx.canvas.height, startY + diameter), width = endX - startX, height = endY - startY;
- if (width <= 0 || height <= 0) return { r: 0, g: 0, b: 0 };
- const imageData = ctx.getImageData(startX, startY, width, height).data;
+    if (width <= 0 || height <= 0) return { r: 0, g: 0, b: 0, hasWhiteEffect: false };
+    const imageData = ctx.getImageData(startX, startY, width, height).data;
     let totalR = 0, totalG = 0, totalB = 0, count = 0;
- const radiusSq = radius * radius;
+    const radiusSq = radius * radius;
     const blackThreshold = 50;
- for (let y = 0; y < height; y++) {
+    let hasWhiteEffect = false;
+    for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const dx = (startX + x) - cx, dy = (startY + y) - cy;
- if (dx * dx + dy * dy <= radiusSq) {
+        if (dx * dx + dy * dy <= radiusSq) {
           const i = (y * width + x) * 4;
- const r = imageData[i], g = imageData[i + 1], b = imageData[i + 2];
- if (r > blackThreshold || g > blackThreshold || b > blackThreshold) {
+          const r = imageData[i], g = imageData[i + 1], b = imageData[i + 2];
+          if (r === 255 && g === 255 && b === 255) hasWhiteEffect = true;
+          if (r > blackThreshold || g > blackThreshold || b > blackThreshold) {
             totalR += r;
- totalG += g; totalB += b; count++;
+            totalG += g; totalB += b; count++;
           }
         }
       }
     }
-    return count === 0 ?
- { r: 0, g: 0, b: 0 } : { r: totalR / count, g: totalG / count, b: totalB / count };
- }
+    if (count === 0) return { r: 0, g: 0, b: 0, hasWhiteEffect };
+    return { r: totalR / count, g: totalG / count, b: totalB / count, hasWhiteEffect };
+}
+
 
 function calculateCropData(imgBitmap) {
     const srcW = imgBitmap.width, srcH = imgBitmap.height, targetAspect = 16 / 9, srcAspect = srcW / srcH;
@@ -444,15 +447,25 @@ async function analyzeNextQueue(originalBitmap, cropData, config) {
         const avgColor = getAverageColorNonBlack(sharedVideoCtx, cx, cy, radius);
 
         let foundMino = null;
+        const isWhiteEffect = avgColor.hasWhiteEffect || (avgColor.r >= 200 && avgColor.g >= 200 && avgColor.b >= 200);
+
         if (i === 0) {
-            if (!(avgColor.r < 50 && avgColor.g < 50 && avgColor.b < 50)) {
+            if (isWhiteEffect) {
+                foundMino = '?';
+                holdMino = foundMino;
+            } else if (!(avgColor.r < 50 && avgColor.g < 50 && avgColor.b < 50)) {
                 foundMino = findClosestMinoOnly(avgColor.r, avgColor.g, avgColor.b);
                 holdMino = foundMino;
             }
         } else {
-            if (i === 1 && avgColor.r < 50 && avgColor.g < 50 && avgColor.b < 50) break;
-            foundMino = findClosestMinoOnly(avgColor.r, avgColor.g, avgColor.b);
-            if (foundMino) nextQueue.push(foundMino);
+            if (isWhiteEffect) {
+                foundMino = '?';
+                nextQueue.push(foundMino);
+            } else {
+                if (i === 1 && avgColor.r < 50 && avgColor.g < 50 && avgColor.b < 50) break;
+                foundMino = findClosestMinoOnly(avgColor.r, avgColor.g, avgColor.b);
+                if (foundMino) nextQueue.push(foundMino);
+            }
         }
         if (foundMino) {
             debugColors.push(`${foundMino}(${Math.round(avgColor.r)},${Math.round(avgColor.g)},${Math.round(avgColor.b)})`);
@@ -460,6 +473,7 @@ async function analyzeNextQueue(originalBitmap, cropData, config) {
     }
     return { hold: holdMino, next: nextQueue, debugColors };
 }
+
 
 async function analyzeBoardOnly(originalBitmap, cropData, config, playerId) {
     const boardRect = config.boardRect;
@@ -828,39 +842,23 @@ function log(msg, type='info') {
 function checkQueueTransition(obsHold, obsNext, lastHold, lastNext, activeMino) {
     let debugInfo = `obsHold:${obsHold}, obsNext:${obsNext.join('')}, lastHold:${lastHold}, lastNext:${lastNext.join('')}, active:${activeMino}`;
     if (obsNext.length < 3 || lastNext.length < 3) return { action: 'none', nextAdvanced: false, holdChanged: false, debug: debugInfo + ' -> Next length < 3' };
-    const holdChanged = (obsHold !== lastHold);
-    let nextAdvanced = false;
-    let nextSame = false;
-    if (obsNext[0] === lastNext[1] && obsNext[1] === lastNext[2]) {
-        nextAdvanced = true;
-    } else if (obsNext[0] === lastNext[0] && obsNext[1] === lastNext[1]) {
-        nextSame = true;
-    }
-    debugInfo += ` | holdChanged:${holdChanged}, nextAdv:${nextAdvanced}, nextSame:${nextSame}`;
-    if (!holdChanged && !nextAdvanced && !nextSame) return { action: 'none', nextAdvanced, holdChanged, debug: debugInfo + ' -> no matching state' };
+    const match = (a, b) => a === b || a === '?' || b === '?';
+    const nextAdvanced = match(obsNext[0], lastNext[1]) && match(obsNext[1], lastNext[2]);
+    const nextSame = match(obsNext[0], lastNext[0]) && match(obsNext[1], lastNext[1]);
+    const holdChanged = !match(obsHold, lastHold);
+    if (nextAdvanced && nextSame) return { action: 'none', nextAdvanced: false, holdChanged: false, debug: debugInfo + ' -> ambiguous' };
+    if (!nextAdvanced && !nextSame) return { action: 'none', nextAdvanced: false, holdChanged: false, debug: debugInfo + ' -> contradiction' };
     let action = 'none';
-    if (activeMino === "") {
-        if (!holdChanged && nextAdvanced) action = 'spawn';
-    } else {
-        if (!holdChanged && nextAdvanced) {
-            action = 'place';
-        } else if (holdChanged && nextAdvanced && lastHold === "") {
-            if (obsHold === lastNext[0]) action = 'first_hold';
-            else { action = 'place'; debugInfo += ` -> [GLITCH] Invalid first_hold ignored`; }
-        } else if (holdChanged && nextSame) {
-            if (obsHold === activeMino) {
-                action = 'hold';
-            } else {
-                action = 'none';
-                debugInfo += ` -> [GLITCH] Invalid hold ignored (obsHold:${obsHold} != active:${activeMino})`;
-            }
-        } else if (holdChanged && nextAdvanced) {
-            if (obsHold === lastNext[0]) action = 'place_and_hold';
-            else { action = 'place'; debugInfo += ` -> [GLITCH] Invalid place_and_hold ignored`; }
-        }
+    if (holdChanged && nextSame) {
+        action = lastHold === "" ? 'first_hold' : 'hold';
+    } else if (!holdChanged && nextAdvanced) {
+        action = activeMino === "" ? 'spawn' : 'place';
+    } else if (holdChanged && nextAdvanced) {
+        action = lastHold === "" ? 'first_hold' : 'place_and_hold';
     }
     return { action, nextAdvanced, holdChanged, debug: debugInfo + ` -> result action:${action}` };
 }
+
 
 function cleanUpBoard(board20) {
 
@@ -896,9 +894,6 @@ async function runPass1Both(video, duration, params) {
     let p1ActiveMino = "";
     let p1CurrentStart = 0;
     let p1IsFirstDetected = false;
-    let p1PendingHold = "";
-    let p1PendingNextStr = "";
-    let p1PendingCount = 0;
 
     let p2Timeline = [];
     let p2CurrentRawScans = [];
@@ -907,9 +902,6 @@ async function runPass1Both(video, duration, params) {
     let p2ActiveMino = "";
     let p2CurrentStart = 0;
     let p2IsFirstDetected = false;
-    let p2PendingHold = "";
-    let p2PendingNextStr = "";
-    let p2PendingCount = 0;
 
     for(let t = 0; t < duration; t += params.nextScanInterval) {
         if(stopRequested) break;
@@ -923,114 +915,122 @@ async function runPass1Both(video, duration, params) {
         const { cropData } = calculateCropData(sharedVideoCanvas);
 
         const p1QueueData = await analyzeNextQueue(sharedVideoCanvas, cropData, CONFIG['p1']);
-        const p1RawObsHold = p1QueueData.hold || "";
-        const p1RawObsNext = p1QueueData.next;
-        p1CurrentRawScans.push(`[${t.toFixed(2)}s] H:${p1RawObsHold || '-'} N:${p1RawObsNext.join('')} | RGB: ${p1QueueData.debugColors.join(' ')}`);
-        
-        const p1CurrentNextStr = p1RawObsNext.join('');
-        if (p1RawObsHold === p1PendingHold && p1CurrentNextStr === p1PendingNextStr) {
-            p1PendingCount++;
-        } else {
-            p1PendingHold = p1RawObsHold;
-            p1PendingNextStr = p1CurrentNextStr;
-            p1PendingCount = 1;
-        }
+        const obsHold1 = p1QueueData.hold || "";
+        const obsNext1 = p1QueueData.next;
+        p1CurrentRawScans.push(`[${t.toFixed(2)}s] H:${obsHold1 || '-'} N:${obsNext1.join('')} | RGB: ${p1QueueData.debugColors.join(' ')}`);
 
-        if (p1PendingCount >= 2) {
-            const obsHold = p1RawObsHold;
-            const obsNext = p1RawObsNext;
+        if (!p1IsFirstDetected && obsNext1.length >= 3 && !obsNext1.includes('?')) {
+            p1LastStableHold = obsHold1;
+            p1LastStableNext = obsNext1;
+            p1ActiveMino = "";
+            p1Timeline.push({ start: 0, end: t, hold: "", next: obsNext1, active: "", action: "init", rawScans: [...p1CurrentRawScans] });
+            p1CurrentStart = t;
+            p1CurrentRawScans = [];
+            p1IsFirstDetected = true;
+        } else if (p1IsFirstDetected) {
+            if (p1LastStableHold === '?' && obsHold1 !== '?') p1LastStableHold = obsHold1;
+            for (let k = 0; k < p1LastStableNext.length; k++) {
+                if (p1LastStableNext[k] === '?' && obsNext1[k] && obsNext1[k] !== '?') p1LastStableNext[k] = obsNext1[k];
+            }
 
-            if (!p1IsFirstDetected && obsNext.length >= 3) {
-                p1LastStableHold = obsHold;
-                p1LastStableNext = obsNext;
+            const transition = checkQueueTransition(obsHold1, obsNext1, p1LastStableHold, p1LastStableNext, p1ActiveMino);
+            let transitionDebugLog = transition.debug;
 
-                p1ActiveMino = "";
-                p1Timeline.push({ start: 0, end: t, hold: "", next: obsNext, active: "", action: "init", rawScans: [...p1CurrentRawScans] });
-                p1CurrentStart = t;
-                p1CurrentRawScans = [];
-                p1IsFirstDetected = true;
-            } else if (p1IsFirstDetected) {
-                const transition = checkQueueTransition(obsHold, obsNext, p1LastStableHold, p1LastStableNext, p1ActiveMino);
-                let transitionDebugLog = transition.debug;
+            if (transition.action !== 'none') {
+                let newHold = p1LastStableHold;
+                let newNext = [...p1LastStableNext];
 
                 if (transition.action === 'spawn') {
-                    p1ActiveMino = p1LastStableNext[0];
-                    transitionDebugLog += ` => activeMino changed to ${p1ActiveMino} (spawn)`;
+                    p1ActiveMino = p1LastStableNext[0] !== '?' ? p1LastStableNext[0] : (obsNext1[0] !== '?' ? obsNext1[0] : '?');
+                    transitionDebugLog += ` => spawn`;
                 } else if (transition.action === 'first_hold') {
-                    p1ActiveMino = p1LastStableNext[0];
-                    transitionDebugLog += ` => activeMino changed to ${p1ActiveMino} (first_hold)`;
+                    newHold = p1ActiveMino !== "" ? p1ActiveMino : (obsHold1 !== '?' ? obsHold1 : '?');
+                    p1ActiveMino = p1LastStableNext[0] !== '?' ? p1LastStableNext[0] : (obsNext1[0] !== '?' ? obsNext1[0] : '?');
+                    transitionDebugLog += ` => first_hold`;
                 } else if (transition.action === 'hold') {
-                    p1ActiveMino = p1LastStableHold;
-                    transitionDebugLog += ` => activeMino changed to ${p1ActiveMino} (hold)`;
+                    newHold = p1ActiveMino !== "" ? p1ActiveMino : (obsHold1 !== '?' ? obsHold1 : '?');
+                    p1ActiveMino = p1LastStableHold !== '?' ? p1LastStableHold : (obsHold1 !== '?' ? obsHold1 : '?');
+                    transitionDebugLog += ` => hold`;
                 } else if (transition.action === 'place' || transition.action === 'place_and_hold') {
-                    transitionDebugLog += ` => place triggered.
-            activeMino will be ${p1LastStableNext[0]}`;
+                    transitionDebugLog += ` => place triggered. activeMino will be ${p1LastStableNext[0]}`;
                     p1Timeline.push({ start: p1CurrentStart, end: t, hold: p1LastStableHold, next: p1LastStableNext, active: p1ActiveMino, action: transition.action, rawScans: [...p1CurrentRawScans], transitionLog: transitionDebugLog });
                     p1CurrentStart = t;
                     p1CurrentRawScans = [];
-                    p1ActiveMino = p1LastStableNext[0];
+
+                    if (transition.action === 'place_and_hold') {
+                        newHold = p1ActiveMino !== "" ? p1ActiveMino : (obsHold1 !== '?' ? obsHold1 : '?');
+                    }
+                    p1ActiveMino = p1LastStableNext[0] !== '?' ? p1LastStableNext[0] : (obsNext1[0] !== '?' ? obsNext1[0] : '?');
                 }
 
-                if (transition.holdChanged || transition.nextAdvanced) {
-                    p1LastStableHold = obsHold;
-                    p1LastStableNext = obsNext;
+                if (transition.nextAdvanced) {
+                    newNext = [];
+                    for (let k = 0; k < p1LastStableNext.length - 1; k++) newNext.push(p1LastStableNext[k + 1]);
+                    newNext.push(obsNext1[obsNext1.length - 1] || '?');
                 }
+
+                p1LastStableHold = newHold;
+                p1LastStableNext = newNext;
             }
         }
 
         const p2QueueData = await analyzeNextQueue(sharedVideoCanvas, cropData, CONFIG['p2']);
-        const p2RawObsHold = p2QueueData.hold || "";
-        const p2RawObsNext = p2QueueData.next;
-        p2CurrentRawScans.push(`[${t.toFixed(2)}s] H:${p2RawObsHold || '-'} N:${p2RawObsNext.join('')} | RGB: ${p2QueueData.debugColors.join(' ')}`);
-        
-        const p2CurrentNextStr = p2RawObsNext.join('');
-        if (p2RawObsHold === p2PendingHold && p2CurrentNextStr === p2PendingNextStr) {
-            p2PendingCount++;
-        } else {
-            p2PendingHold = p2RawObsHold;
-            p2PendingNextStr = p2CurrentNextStr;
-            p2PendingCount = 1;
-        }
+        const obsHold2 = p2QueueData.hold || "";
+        const obsNext2 = p2QueueData.next;
+        p2CurrentRawScans.push(`[${t.toFixed(2)}s] H:${obsHold2 || '-'} N:${obsNext2.join('')} | RGB: ${p2QueueData.debugColors.join(' ')}`);
 
-        if (p2PendingCount >= 2) {
-            const obsHold = p2RawObsHold;
-            const obsNext = p2RawObsNext;
+        if (!p2IsFirstDetected && obsNext2.length >= 3 && !obsNext2.includes('?')) {
+            p2LastStableHold = obsHold2;
+            p2LastStableNext = obsNext2;
+            p2ActiveMino = "";
+            p2Timeline.push({ start: 0, end: t, hold: "", next: obsNext2, active: "", action: "init", rawScans: [...p2CurrentRawScans] });
+            p2CurrentStart = t;
+            p2CurrentRawScans = [];
+            p2IsFirstDetected = true;
+        } else if (p2IsFirstDetected) {
+            if (p2LastStableHold === '?' && obsHold2 !== '?') p2LastStableHold = obsHold2;
+            for (let k = 0; k < p2LastStableNext.length; k++) {
+                if (p2LastStableNext[k] === '?' && obsNext2[k] && obsNext2[k] !== '?') p2LastStableNext[k] = obsNext2[k];
+            }
 
-            if (!p2IsFirstDetected && obsNext.length >= 3) {
-                p2LastStableHold = obsHold;
-                p2LastStableNext = obsNext;
+            const transition = checkQueueTransition(obsHold2, obsNext2, p2LastStableHold, p2LastStableNext, p2ActiveMino);
+            let transitionDebugLog = transition.debug;
 
-                p2ActiveMino = "";
-                p2Timeline.push({ start: 0, end: t, hold: "", next: obsNext, active: "", action: "init", rawScans: [...p2CurrentRawScans] });
-                p2CurrentStart = t;
-                p2CurrentRawScans = [];
-                p2IsFirstDetected = true;
-            } else if (p2IsFirstDetected) {
-                const transition = checkQueueTransition(obsHold, obsNext, p2LastStableHold, p2LastStableNext, p2ActiveMino);
-                let transitionDebugLog = transition.debug;
+            if (transition.action !== 'none') {
+                let newHold = p2LastStableHold;
+                let newNext = [...p2LastStableNext];
 
-                if (transition.action === 'spawn') {
-                    p2ActiveMino = p2LastStableNext[0];
-                    transitionDebugLog += ` => activeMino changed to ${p2ActiveMino} (spawn)`;
+               if (transition.action === 'spawn') {
+                    p2ActiveMino = p2LastStableNext[0] !== '?' ? p2LastStableNext[0] : (obsNext2[0] !== '?' ? obsNext2[0] : '?');
+                    transitionDebugLog += ` => spawn`;
                 } else if (transition.action === 'first_hold') {
-                    p2ActiveMino = p2LastStableNext[0];
-                    transitionDebugLog += ` => activeMino changed to ${p2ActiveMino} (first_hold)`;
+                    newHold = p2ActiveMino !== "" ? p2ActiveMino : (obsHold2 !== '?' ? obsHold2 : '?');
+                    p2ActiveMino = p2LastStableNext[0] !== '?' ? p2LastStableNext[0] : (obsNext2[0] !== '?' ? obsNext2[0] : '?');
+                    transitionDebugLog += ` => first_hold`;
                 } else if (transition.action === 'hold') {
-                    p2ActiveMino = p2LastStableHold;
-                    transitionDebugLog += ` => activeMino changed to ${p2ActiveMino} (hold)`;
+                    newHold = p2ActiveMino !== "" ? p2ActiveMino : (obsHold2 !== '?' ? obsHold2 : '?');
+                    p2ActiveMino = p2LastStableHold !== '?' ? p2LastStableHold : (obsHold2 !== '?' ? obsHold2 : '?');
+                    transitionDebugLog += ` => hold`;
                 } else if (transition.action === 'place' || transition.action === 'place_and_hold') {
-                    transitionDebugLog += ` => place triggered.
-            activeMino will be ${p2LastStableNext[0]}`;
+                    transitionDebugLog += ` => place triggered. activeMino will be ${p2LastStableNext[0]}`;
                     p2Timeline.push({ start: p2CurrentStart, end: t, hold: p2LastStableHold, next: p2LastStableNext, active: p2ActiveMino, action: transition.action, rawScans: [...p2CurrentRawScans], transitionLog: transitionDebugLog });
                     p2CurrentStart = t;
                     p2CurrentRawScans = [];
-                    p2ActiveMino = p2LastStableNext[0];
+
+                    if (transition.action === 'place_and_hold') {
+                        newHold = p2ActiveMino !== "" ? p2ActiveMino : (obsHold2 !== '?' ? obsHold2 : '?');
+                    }
+                    p2ActiveMino = p2LastStableNext[0] !== '?' ? p2LastStableNext[0] : (obsNext2[0] !== '?' ? obsNext2[0] : '?');
                 }
 
-                if (transition.holdChanged || transition.nextAdvanced) {
-                    p2LastStableHold = obsHold;
-                    p2LastStableNext = obsNext;
+                if (transition.nextAdvanced) {
+                    newNext = [];
+                    for (let k = 0; k < p2LastStableNext.length - 1; k++) newNext.push(p2LastStableNext[k + 1]);
+                    newNext.push(obsNext2[obsNext2.length - 1] || '?');
                 }
+
+                p2LastStableHold = newHold;
+                p2LastStableNext = newNext;
             }
         }
         
