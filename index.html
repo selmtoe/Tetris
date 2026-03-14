@@ -840,39 +840,68 @@ function log(msg, type='info') {
 function checkQueueTransition(obsHold, obsNext, lastHold, lastNext, activeMino) {
     let debugInfo = `obsHold:${obsHold}, obsNext:${obsNext.join('')}, lastHold:${lastHold}, lastNext:${lastNext.join('')}, active:${activeMino}`;
     if (obsNext.length < 3 || lastNext.length < 3) return { action: 'none', nextAdvanced: false, holdChanged: false, debug: debugInfo + ' -> Next length < 3' };
-    const holdChanged = (obsHold !== lastHold);
-    let nextAdvanced = false;
-    let nextSame = false;
-    if (obsNext[0] === lastNext[1] && obsNext[1] === lastNext[2]) {
-        nextAdvanced = true;
-    } else if (obsNext[0] === lastNext[0] && obsNext[1] === lastNext[1]) {
-        nextSame = true;
-    }
-    debugInfo += ` | holdChanged:${holdChanged}, nextAdv:${nextAdvanced}, nextSame:${nextSame}`;
-    if (!holdChanged && !nextAdvanced && !nextSame) return { action: 'none', nextAdvanced, holdChanged, debug: debugInfo + ' -> no matching state' };
+
+    const isM = (a, b) => a === '?' || b === '?' || a === b;
+    const nextSame = isM(obsNext[0], lastNext[0]) && isM(obsNext[1], lastNext[1]);
+    const nextAdvanced = isM(obsNext[0], lastNext[1]) && isM(obsNext[1], lastNext[2]);
+    
+    const holdChanged = obsHold !== '?' && lastHold !== '?' && obsHold !== lastHold;
+    const holdSame = isM(obsHold, lastHold) && !holdChanged;
+
     let action = 'none';
+
     if (activeMino === "") {
-        if (!holdChanged && nextAdvanced) action = 'spawn';
+        if (holdSame && nextAdvanced) {
+            action = 'spawn';
+        }
     } else {
-        if (!holdChanged && nextAdvanced) {
-            action = 'place';
-        } else if (holdChanged && nextAdvanced && lastHold === "") {
-            if (obsHold === lastNext[0]) action = 'first_hold';
-            else { action = 'place'; debugInfo += ` -> [GLITCH] Invalid first_hold ignored`; }
-        } else if (holdChanged && nextSame) {
-            if (obsHold === activeMino) {
-                action = 'hold';
-            } else {
-                action = 'none';
-                debugInfo += ` -> [GLITCH] Invalid hold ignored (obsHold:${obsHold} != active:${activeMino})`;
+        if (lastHold === "") {
+            if (holdChanged && nextSame && !nextAdvanced) {
+                if (isM(obsHold, activeMino)) {
+                    debugInfo += ` -> [TRANSIENT] First hold intermediate phase`;
+                    return { action: 'none', nextAdvanced: false, holdChanged: false, debug: debugInfo };
+                }
+            } else if (holdChanged && nextAdvanced) {
+                if (isM(obsHold, activeMino)) {
+                    action = 'first_hold';
+                } else {
+                    debugInfo += ` -> [GLITCH] Invalid first_hold (obsHold:${obsHold} != active:${activeMino})`;
+                }
+            } else if (holdSame && nextAdvanced) {
+                action = 'place';
             }
-        } else if (holdChanged && nextAdvanced) {
-            if (obsHold === lastNext[0]) action = 'place_and_hold';
-            else { action = 'place'; debugInfo += ` -> [GLITCH] Invalid place_and_hold ignored`; }
+        } else {
+            if (holdChanged && nextSame && !nextAdvanced) {
+                if (isM(obsHold, activeMino)) {
+                    action = 'hold';
+                } else {
+                    debugInfo += ` -> [GLITCH] Invalid hold (obsHold:${obsHold} != active:${activeMino})`;
+                }
+            } else if (holdSame && nextAdvanced) {
+                action = 'place';
+            }
         }
     }
-    return { action, nextAdvanced, holdChanged, debug: debugInfo + ` -> result action:${action}` };
+
+    let resultNextAdv = false;
+    let resultHoldChg = false;
+
+    if (action === 'spawn' || action === 'place' || action === 'first_hold') {
+        resultNextAdv = true;
+    }
+    if (action === 'first_hold' || action === 'hold') {
+        resultHoldChg = true;
+    }
+
+    if (action === 'none') {
+        debugInfo += ' -> Contradiction or No Change';
+    } else {
+        debugInfo += ` -> result action:${action}`;
+    }
+
+    return { action, nextAdvanced: resultNextAdv, holdChanged: resultHoldChg, debug: debugInfo };
 }
+
 
 function cleanUpBoard(board20) {
 
@@ -974,9 +1003,8 @@ async function runPass1Both(video, duration, params) {
                 } else if (transition.action === 'hold') {
                     p1ActiveMino = p1LastStableHold;
                     transitionDebugLog += ` => activeMino changed to ${p1ActiveMino} (hold)`;
-                } else if (transition.action === 'place' || transition.action === 'place_and_hold') {
-                    transitionDebugLog += ` => place triggered.
-            activeMino will be ${p1LastStableNext[0]}`;
+                } else if (transition.action === 'place') {
+                    transitionDebugLog += ` => place triggered. activeMino will be ${p1LastStableNext[0]}`;
                     p1Timeline.push({ start: p1CurrentStart, end: t, hold: p1LastStableHold, next: p1LastStableNext, active: p1ActiveMino, action: transition.action, rawScans: [...p1CurrentRawScans], transitionLog: transitionDebugLog });
                     p1CurrentStart = t;
                     p1CurrentRawScans = [];
@@ -984,7 +1012,9 @@ async function runPass1Both(video, duration, params) {
                 }
 
                 if (transition.holdChanged || transition.nextAdvanced) {
-                    p1LastStableHold = obsHold;
+                    if (obsHold !== '?') {
+                        p1LastStableHold = obsHold;
+                    }
                     p1LastStableNext = obsNext;
                 }
             }
@@ -1030,9 +1060,8 @@ async function runPass1Both(video, duration, params) {
                 } else if (transition.action === 'hold') {
                     p2ActiveMino = p2LastStableHold;
                     transitionDebugLog += ` => activeMino changed to ${p2ActiveMino} (hold)`;
-                } else if (transition.action === 'place' || transition.action === 'place_and_hold') {
-                    transitionDebugLog += ` => place triggered.
-            activeMino will be ${p2LastStableNext[0]}`;
+                } else if (transition.action === 'place') {
+                    transitionDebugLog += ` => place triggered. activeMino will be ${p2LastStableNext[0]}`;
                     p2Timeline.push({ start: p2CurrentStart, end: t, hold: p2LastStableHold, next: p2LastStableNext, active: p2ActiveMino, action: transition.action, rawScans: [...p2CurrentRawScans], transitionLog: transitionDebugLog });
                     p2CurrentStart = t;
                     p2CurrentRawScans = [];
@@ -1040,7 +1069,9 @@ async function runPass1Both(video, duration, params) {
                 }
 
                 if (transition.holdChanged || transition.nextAdvanced) {
-                    p2LastStableHold = obsHold;
+                    if (obsHold !== '?') {
+                        p2LastStableHold = obsHold;
+                    }
                     p2LastStableNext = obsNext;
                 }
             }
